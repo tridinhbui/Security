@@ -4,6 +4,10 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Local dev only: don't build/run the container image (needs Docker). Scans use `npm run scanner` via LOCAL_SCANNER_URL in .dev.vars.
+  // Production deploys are unaffected.
+  "dev": { "enable_containers": false },
+
   "observability": { "enabled": true, "head_sampling_rate": 1 },
 
   // Static assets built by OpenNext (`npm run build:cf`).
