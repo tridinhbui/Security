@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "types": ["@cloudflare/workers-types"],
+    "jsx": "preserve",
+    "plugins": [],
+    "incremental": false
+  },
+  "include": ["./**/*.ts", "../src/lib/**/*.ts"],
+  "exclude": ["../src/lib/**/__tests__/**", "../src/lib/cf.ts", "../src/lib/auth/next.ts", "../src/lib/scanner/engine.ts", "../src/lib/scanner/collect.ts", "../src/lib/ssrf/fetch.ts", "../src/lib/ssrf/dns-node.ts", "../src/lib/demo.ts", "../src/lib/report-data.ts"]
+}

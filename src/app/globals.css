@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* Neutral dark surface */
+  --color-bg: #0a0b0d;
+  --color-surface: #0f1115;
+  --color-raised: #14171c;
+  --color-line: #1d2027;
+  --color-line-strong: #2a2e37;
+  --color-fg: #e9eaec;
+  --color-muted: #8b909a;
+  --color-faint: #5f6470;
+
+  /* Colour is reserved for meaning: red/orange = risk, green = passed. */
+  --color-crit: #ff5a4d;
+  --color-high: #ff7f45;
+  --color-med: #eba23e;
+  --color-low: #b9ad6a;
+  --color-info: #7d8391;
+  --color-ok: #3fb27f;
+}
+
+html { color-scheme: dark; }
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+}
+::selection { background: #2c3340; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid #8aa4ff; outline-offset: 2px; border-radius: 4px; }
+details > summary { list-style: none; cursor: pointer; }
+details > summary::-webkit-details-marker { display: none; }
+pre, code { font-family: var(--font-mono); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

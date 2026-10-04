@@ -1,0 +1,9 @@
+node_modules
+.next
+.open-next
+.git
+.env*
+.dev.vars
+docs
+worker
+migrations

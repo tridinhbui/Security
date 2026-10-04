@@ -1,0 +1,12 @@
+node_modules
+.next
+.env*
+.dev.vars
+.open-next
+.wrangler
+!.env.example
+!.dev.vars.example
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.claude

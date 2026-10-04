@@ -1,0 +1,6 @@
+# Local secrets for `npm run preview` / `next dev` (copy to .dev.vars — never commit it).
+DATA_ENCRYPTION_KEY=
+IP_HASH_SECRET=
+CRON_SECRET=
+# Optional Cloudflare Turnstile (also set NEXT_PUBLIC_TURNSTILE_SITE_KEY in .env.local at build time)
+# TURNSTILE_SECRET_KEY=

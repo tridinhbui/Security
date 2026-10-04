@@ -1,0 +1,48 @@
+{
+  "name": "vibesec",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VibeSec \u2014 beginner-friendly, non-destructive external security audits.",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen-keys": "node -e \"const c=require('crypto');console.log('DATA_ENCRYPTION_KEY='+c.randomBytes(32).toString('base64'));console.log('IP_HASH_SECRET='+c.randomBytes(32).toString('hex'));console.log('CRON_SECRET='+c.randomBytes(32).toString('hex'))\"",
+    "build:cf": "opennextjs-cloudflare build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "scanner": "VIBESEC_NO_LISTEN=0 tsx container/server.ts"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.7",
+    "@noble/hashes": "^2.4.0",
+    "@opennextjs/cloudflare": "^1.20.8",
+    "cheerio": "^1.2.0",
+    "next": "^16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tldts": "^7.4.16",
+    "zod": "^4.6.5",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261004.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.147.0"
+  }
+}

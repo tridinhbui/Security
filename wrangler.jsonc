@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vibesec",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+
+  // Static assets built by OpenNext (`npm run build:cf`).
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+
+  "vars": { "NEXT_PUBLIC_SITE_URL": "https://vibesec.example.com" },
+
+  // Create with: npx wrangler d1 create vibesec   → paste the database_id below, then `npm run db:migrate`.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "vibesec", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+
+  // Create with: npx wrangler queues create vibesec-scans && npx wrangler queues create vibesec-scans-dlq
+  "queues": {
+    "producers": [{ "binding": "SCAN_QUEUE", "queue": "vibesec-scans" }],
+    "consumers": [
+      { "queue": "vibesec-scans", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 3, "retry_delay": 15, "max_concurrency": 3, "dead_letter_queue": "vibesec-scans-dlq" }
+    ]
+  },
+
+  // Cron: */2 sweeps lost/hung scans; hourly retention purge.
+  "triggers": { "crons": ["*/2 * * * *", "17 * * * *"] },
+
+  // The scanner runs unchanged Node code (DNS pinning, TLS inspection) in a Container, reached only via this binding.
+  "containers": [
+    { "class_name": "ScannerContainer", "image": "./container/Dockerfile", "image_build_context": ".", "max_instances": 3, "instance_type": "standard-1" }
+  ],
+  "durable_objects": { "bindings": [{ "name": "SCANNER", "class_name": "ScannerContainer" }] },
+  "exports": { "ScannerContainer": { "type": "durable-object", "storage": "sqlite" } }
+
+  // Secrets (never in this file):  wrangler secret put DATA_ENCRYPTION_KEY | IP_HASH_SECRET | CRON_SECRET [| TURNSTILE_SECRET_KEY]
+}
