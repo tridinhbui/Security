@@ -8,7 +8,7 @@ import { loadSharedReport } from "@/lib/reports";
 import * as repo from "@/lib/db/repo";
 import { getDb } from "@/lib/cf";
 
-export const metadata: Metadata = { title: "Shared report", robots: { index: false, follow: false }, referrer: "no-referrer" };
+export const metadata: Metadata = { title: "Báo cáo được chia sẻ", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
 export default async function SharedReport({ params }: { params: Promise<{ token: string }> }) {
@@ -23,7 +23,7 @@ export default async function SharedReport({ params }: { params: Promise<{ token
   return (
     <Report
       data={toReportData(view, { variant: "shared" })}
-      actions={<Link href="/" className="h-9 px-4 inline-flex items-center rounded-md bg-fg text-bg text-sm font-medium hover:bg-white">Scan your own site</Link>}
+      actions={<Link href="/" className="h-9 px-4 inline-flex items-center rounded-md bg-fg text-bg text-sm font-medium hover:bg-white">Quét website của bạn</Link>}
     />
   );
 }

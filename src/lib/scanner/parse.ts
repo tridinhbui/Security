@@ -90,6 +90,7 @@ export function parseHtml(html: string, baseUrl: string): ParsedHtml {
   const metaRefresh = $('meta[http-equiv="refresh" i]').attr("content") ?? null;
   const generator = $('meta[name="generator" i]').attr("content") ?? null;
   const metaReferrer = $('meta[name="referrer" i]').attr("content") ?? null;
+  const metaCharset = $("meta[charset]").attr("charset") ?? /charset=([\w-]+)/i.exec($('meta[http-equiv="content-type" i]').attr("content") ?? "")?.[1] ?? null;
 
   return {
     title: ($("title").first().text() ?? "").trim().slice(0, 200),
@@ -102,6 +103,7 @@ export function parseHtml(html: string, baseUrl: string): ParsedHtml {
     metaRefresh,
     generator,
     metaReferrer,
+    metaCharset,
     anchors,
   };
 }

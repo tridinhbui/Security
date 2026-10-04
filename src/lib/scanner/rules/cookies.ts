@@ -14,6 +14,8 @@ export interface ParsedCookie {
   path: string | null;
   domain: string | null;
   maxAgeDays: number | null;
+  /** Số ngày còn lại tới Expires (nếu có). */
+  expiresInDays: number | null;
   source: string;
 }
 
@@ -21,7 +23,7 @@ export function parseSetCookie(raw: string, source: string): ParsedCookie | null
   const parts = raw.split(";").map((p) => p.trim());
   const eq = parts[0]!.indexOf("=");
   if (eq <= 0) return null;
-  const c: ParsedCookie = { name: parts[0]!.slice(0, eq), secure: false, httpOnly: false, sameSite: null, path: null, domain: null, maxAgeDays: null, source };
+  const c: ParsedCookie = { name: parts[0]!.slice(0, eq), secure: false, httpOnly: false, sameSite: null, path: null, domain: null, maxAgeDays: null, expiresInDays: null, source };
   for (const a of parts.slice(1)) {
     const [k, ...rest] = a.split("=");
     const key = k!.toLowerCase();
@@ -32,6 +34,7 @@ export function parseSetCookie(raw: string, source: string): ParsedCookie | null
     else if (key === "path") c.path = val;
     else if (key === "domain") c.domain = val;
     else if (key === "max-age" && /^\d+$/.test(val)) c.maxAgeDays = Number(val) / 86400;
+    else if (key === "expires" && !Number.isNaN(Date.parse(val))) c.expiresInDays = (Date.parse(val) - Date.now()) / 86_400_000;
   }
   return c;
 }
@@ -50,14 +53,14 @@ function collectCookies(obs: Observations): ParsedCookie[] {
   return [...seen.values()];
 }
 
-/** Redacted evidence: attribute flags only, never the value. */
+/** Bằng chứng đã che: chỉ ghi các cờ thuộc tính, không bao giờ ghi giá trị cookie. */
 function cookieEvidence(c: ParsedCookie): string {
-  return [`${c.name}=<redacted>`, c.secure ? "Secure" : "", c.httpOnly ? "HttpOnly" : "", c.sameSite ? `SameSite=${c.sameSite}` : "", c.path ? `Path=${c.path}` : "", c.domain ? `Domain=${c.domain}` : ""].filter(Boolean).join("; ");
+  return [`${c.name}=<đã che>`, c.secure ? "Secure" : "", c.httpOnly ? "HttpOnly" : "", c.sameSite ? `SameSite=${c.sameSite}` : "", c.path ? `Path=${c.path}` : "", c.domain ? `Domain=${c.domain}` : ""].filter(Boolean).join("; ");
 }
 
 const cookieFlags: Rule = {
   id: "cookies.flags",
-  title: "Cookies use Secure, HttpOnly and SameSite",
+  title: "Cookie dùng Secure, HttpOnly và SameSite",
   category: CAT,
   run(obs) {
     if (!obs.page) return [];
@@ -65,7 +68,7 @@ const cookieFlags: Rule = {
     const url = obs.page.finalUrl;
     const refs = [MDN("Web/HTTP/Guides/Cookies", "MDN: Using HTTP cookies"), MDN("Web/HTTP/Reference/Headers/Set-Cookie", "MDN: Set-Cookie")];
     if (cookies.length === 0) {
-      return [pass({ ruleId: this.id, title: "No cookies were set on first visit", category: CAT, affectedUrl: url, summary: "The site didn't set any cookies on an anonymous request.", explanation: "Nothing to misconfigure — and no consent banner needed for first-load cookies.", evidence: [] })];
+      return [pass({ ruleId: this.id, title: "Lần truy cập đầu không đặt cookie nào", category: CAT, affectedUrl: url, summary: "Website không đặt cookie nào khi có request ẩn danh.", explanation: "Không có gì để cấu hình sai — và không cần banner đồng ý cho cookie ngay lần tải đầu.", evidence: [] })];
     }
     const out: Finding[] = [];
     const secureSite = obs.pageIsHttps;
@@ -78,23 +81,25 @@ const cookieFlags: Rule = {
       if (!c.httpOnly && !CSRF_NAME.test(c.name)) { problems.push("HttpOnly"); bump(session ? "medium" : "info"); }
       if (!c.sameSite) { problems.push("SameSite"); bump(session ? "low" : "info"); }
       const extra: string[] = [];
-      if (c.sameSite === "none" && !c.secure) { extra.push("SameSite=None requires Secure; browsers reject this cookie"); bump("medium"); }
-      if (c.name.startsWith("__Host-") && (!c.secure || c.path !== "/" || c.domain)) { extra.push("__Host- prefix requires Secure, Path=/ and no Domain"); bump("low"); }
-      if (c.name.startsWith("__Secure-") && !c.secure) { extra.push("__Secure- prefix requires Secure"); bump("low"); }
+      if (c.sameSite === "none" && !c.secure) { extra.push("SameSite=None bắt buộc phải có Secure; trình duyệt sẽ từ chối cookie này"); bump("medium"); }
+      if (c.name.startsWith("__Host-") && (!c.secure || c.path !== "/" || c.domain)) { extra.push("tiền tố __Host- yêu cầu Secure, Path=/ và không có Domain"); bump("low"); }
+      if (c.name.startsWith("__Secure-") && !c.secure) { extra.push("tiền tố __Secure- yêu cầu Secure"); bump("low"); }
+      const lifeDays = c.maxAgeDays ?? c.expiresInDays;
+      if (session && lifeDays !== null && lifeDays > 30) { extra.push(`cookie phiên có thời hạn ${Math.round(lifeDays)} ngày (nên ngắn hơn, hoặc dùng cookie phiên không đặt hạn)`); bump("low"); }
       if (problems.length === 0 && extra.length === 0) continue;
       // Non-session cookies missing only HttpOnly/SameSite are not worth a failing finding.
       if (sev === "info") continue;
       out.push(makeFinding({
-        ruleId: this.id, key: c.name, title: `Cookie "${c.name}" is missing security flags`, category: CAT, severity: sev,
+        ruleId: this.id, key: c.name, title: `Cookie "${c.name}" thiếu cờ bảo mật`, category: CAT, severity: sev,
         confidence: session ? "high" : "medium", status: "fail", affectedUrl: url, references: refs,
-        summary: `${session ? "This looks like a session/auth cookie. " : ""}${[problems.length ? `Missing: ${problems.join(", ")}.` : "", ...extra].filter(Boolean).join(" ")}`,
-        explanation: "Without Secure the cookie can leak over plain HTTP; without HttpOnly any injected script can steal it; without SameSite other sites can trigger authenticated requests (CSRF).",
-        technical: `Set-Cookie flags observed for ${c.name} (value redacted).`, evidence: [cookieEvidence(c)],
+        summary: `${session ? "Đây có vẻ là cookie phiên/đăng nhập. " : ""}${[problems.length ? `Thiếu: ${problems.join(", ")}.` : "", ...extra.map((e) => e.charAt(0).toUpperCase() + e.slice(1) + ".")].filter(Boolean).join(" ")}`,
+        explanation: "Thiếu Secure thì cookie có thể lộ qua HTTP thuần; thiếu HttpOnly thì script bị chèn vào có thể đánh cắp; thiếu SameSite thì website khác có thể kích hoạt request đã xác thực (CSRF).",
+        technical: `Các cờ Set-Cookie quan sát được cho ${c.name} (đã che giá trị).`, evidence: [cookieEvidence(c)],
         remediation: cookieFix(obs.platforms, [...problems, ...(c.sameSite === "none" && !c.secure ? ["Secure"] : [])].filter((v, i, a) => a.indexOf(v) === i)),
       }));
     }
     if (out.length === 0) {
-      return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: url, summary: `${cookies.length} cookie(s) set with appropriate flags.`, explanation: "Cookies are protected from interception, script access and cross-site use.", evidence: cookies.slice(0, 6).map(cookieEvidence), references: refs })];
+      return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: url, summary: `${cookies.length} cookie được đặt với đầy đủ cờ phù hợp.`, explanation: "Cookie được bảo vệ khỏi bị chặn bắt, bị script đọc và bị dùng từ website khác.", evidence: cookies.slice(0, 6).map(cookieEvidence), references: refs })];
     }
     return out;
   },
@@ -104,7 +109,7 @@ const SENSITIVE_PATH = /(login|signin|sign-in|account|admin|dashboard|profile|ch
 
 const cacheControl: Rule = {
   id: "cookies.cache-control-sensitive",
-  title: "Sensitive pages are not cached",
+  title: "Trang nhạy cảm không bị lưu đệm (cache)",
   category: CAT,
   run(obs) {
     const candidates = [livePage(obs), obs.sensitivePage].filter((r): r is NonNullable<typeof r> => !!r && !r.error && r.status === 200 && isHtml(r.contentType));
@@ -121,19 +126,19 @@ const cacheControl: Rule = {
       if (!sensitive) continue;
       const cc = (header(r.headers, "cache-control") ?? "").toLowerCase();
       const protectedCache = /no-store|private/.test(cc);
-      const evidence = [`Cache-Control: ${cc || "(not present)"}`, ...(header(r.headers, "pragma") ? [`Pragma: ${header(r.headers, "pragma")}`] : [])];
+      const evidence = [`Cache-Control: ${cc || "(không có)"}`, ...(header(r.headers, "pragma") ? [`Pragma: ${header(r.headers, "pragma")}`] : [])];
       if (protectedCache) {
-        out.push(pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: r.finalUrl, summary: "This sensitive-looking page tells caches not to store it.", explanation: "Private pages won't be kept by shared proxies or shown via the back button.", evidence }));
+        out.push(pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: r.finalUrl, summary: "Trang trông có vẻ nhạy cảm này yêu cầu các bộ nhớ đệm không lưu nó.", explanation: "Trang riêng tư sẽ không bị proxy dùng chung giữ lại hay hiện lại qua nút Back.", evidence }));
         continue;
       }
       const explicitPublic = /\bpublic\b|s-maxage|max-age=(?!0\b)\d+/.test(cc);
       out.push(makeFinding({
-        ruleId: this.id, title: "Sensitive-looking page may be cached", category: CAT, severity: explicitPublic && hasCookies ? "medium" : "low", confidence: explicitPublic ? "medium" : "low", status: "fail",
+        ruleId: this.id, title: "Trang trông nhạy cảm có thể bị lưu đệm", category: CAT, severity: explicitPublic && hasCookies ? "medium" : "low", confidence: explicitPublic ? "medium" : "low", status: "fail",
         affectedUrl: r.finalUrl, references: [MDN("Web/HTTP/Guides/Caching", "MDN: HTTP caching")],
-        summary: `This page looks like a login/account page (${hasLogin ? "contains a password field" : "URL or cookies suggest it"}) but doesn't send Cache-Control: no-store.`,
-        explanation: "Shared caches (CDNs, corporate proxies) or the browser's back button could keep personal or session-specific content and show it to the wrong person.",
-        technical: "Heuristic: sensitivity is inferred from the URL path, password inputs and session-like cookies — verify it applies to your authenticated pages.", evidence,
-        remediation: { summary: "Send Cache-Control: no-store (or private, no-cache) on authenticated and account pages.", snippets: [] },
+        summary: `Trang này trông giống trang đăng nhập/tài khoản (${hasLogin ? "có ô mật khẩu" : "URL hoặc cookie gợi ý như vậy"}) nhưng không gửi Cache-Control: no-store.`,
+        explanation: "Bộ nhớ đệm dùng chung (CDN, proxy công ty) hoặc nút Back của trình duyệt có thể giữ nội dung cá nhân hoặc theo phiên và hiện cho nhầm người.",
+        technical: "Heuristic: độ nhạy cảm được suy ra từ đường dẫn URL, ô mật khẩu và cookie giống phiên — hãy xác minh với các trang đã đăng nhập thật của bạn.", evidence,
+        remediation: { summary: "Gửi Cache-Control: no-store (hoặc private, no-cache) trên các trang tài khoản và trang đã xác thực.", snippets: [] },
       }));
     }
     return out;

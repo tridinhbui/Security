@@ -11,7 +11,7 @@ export function CopyButton({ text }: { text: string }) {
       }}
       className="text-xs text-muted hover:text-fg px-2 py-1 rounded border border-line-strong"
     >
-      {done ? "Copied" : "Copy"}
+      {done ? "Đã sao chép" : "Sao chép"}
     </button>
   );
 }

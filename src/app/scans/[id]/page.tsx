@@ -13,7 +13,7 @@ import { getUser } from "@/lib/auth/next";
 import { getDb } from "@/lib/cf";
 import * as repo from "@/lib/db/repo";
 
-export const metadata: Metadata = { title: "Report", robots: { index: false } };
+export const metadata: Metadata = { title: "Báo cáo", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function ScanPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ vs?: string }> }) {
@@ -31,10 +31,10 @@ export default async function ScanPage({ params, searchParams }: { params: Promi
   if (scan.status === "failed") {
     return (
       <div className="mx-auto max-w-xl px-5 py-20">
-        <p className="text-sm text-muted">Scan failed</p>
+        <p className="text-sm text-muted">Quét thất bại</p>
         <h1 className="text-2xl font-semibold tracking-tight break-all mt-1">{scan.normalized_url}</h1>
-        <p className="mt-6 text-high">{scan.error_message ?? "The scan could not be completed."}</p>
-        <div className="mt-8 flex gap-3 items-start"><RescanButton url={scan.input_url} label="Try again" /><Link href="/dashboard" className="h-9 px-4 inline-flex items-center rounded-md border border-line-strong text-sm">Back</Link></div>
+        <p className="mt-6 text-high">{scan.error_message ?? "Không thể hoàn tất lượt quét này."}</p>
+        <div className="mt-8 flex gap-3 items-start"><RescanButton url={scan.input_url} label="Thử lại" /><Link href="/dashboard" className="h-9 px-4 inline-flex items-center rounded-md border border-line-strong text-sm">Quay lại</Link></div>
       </div>
     );
   }
@@ -50,7 +50,7 @@ export default async function ScanPage({ params, searchParams }: { params: Promi
       <Report data={data} actions={<ReportActions scanId={id} url={scan.input_url} />} />
       {earlier.length > 1 && (
         <div className="mx-auto max-w-5xl px-5 -mt-4 pb-10 text-sm text-muted">
-          <span>Compare with an earlier scan: </span>
+          <span>So sánh với lượt quét trước đó: </span>
           {earlier.map((e) => (
             <Link key={e.id} href={`/scans/${id}?vs=${e.id}`} className={`mr-3 underline underline-offset-2 hover:text-fg ${comparison?.previous.id === e.id ? "text-fg" : ""}`}>{formatDate(e.completed_at ?? e.created_at)} ({e.score})</Link>
           ))}

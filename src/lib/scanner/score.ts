@@ -78,4 +78,4 @@ export function topRisks(findings: Finding[], n = 3): Finding[] {
 }
 
 export const SCORE_DISCLAIMER =
-  "This score is an external configuration assessment based on what a visitor's browser can observe. It is not proof that a site is secure, and a low score is not proof that a site is compromised.";
+  "Điểm số này là đánh giá cấu hình từ bên ngoài, dựa trên những gì trình duyệt của một khách truy cập có thể quan sát. Điểm cao không chứng minh website an toàn, và điểm thấp cũng không chứng minh website đã bị xâm nhập.";

@@ -6,13 +6,13 @@ export type ScanStatus =
   | "analyzing_client" | "generating_report" | "completed" | "failed";
 
 export const PROGRESS_STEPS: { status: ScanStatus; label: string }[] = [
-  { status: "queued", label: "Queued" },
-  { status: "validating", label: "Validating URL" },
-  { status: "scanning_transport", label: "Scanning transport" },
-  { status: "checking_headers", label: "Checking headers" },
-  { status: "analyzing_client", label: "Analyzing public client resources" },
-  { status: "generating_report", label: "Generating report" },
-  { status: "completed", label: "Completed" },
+  { status: "queued", label: "Đang chờ trong hàng đợi" },
+  { status: "validating", label: "Đang kiểm tra địa chỉ" },
+  { status: "scanning_transport", label: "Đang quét đường truyền (HTTPS/TLS)" },
+  { status: "checking_headers", label: "Đang kiểm tra HTTP header" },
+  { status: "analyzing_client", label: "Đang phân tích mã công khai phía trình duyệt" },
+  { status: "generating_report", label: "Đang tạo báo cáo" },
+  { status: "completed", label: "Hoàn tất" },
 ];
 
 export interface ScanRow {

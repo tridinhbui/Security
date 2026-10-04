@@ -34,8 +34,8 @@ const COMMON = new Set(["password", "password1", "password123", "1234567890", "q
 
 export function validateCredentials(email: string, password: string): { ok: true; email: string } | { ok: false; error: "invalid_email" | "weak_password"; message: string } {
   const e = email.trim().toLowerCase();
-  if (e.length > 254 || !/^[^\s@]{1,64}@[^\s@.]+(\.[^\s@.]+)+$/.test(e)) return { ok: false, error: "invalid_email", message: "Enter a valid email address." };
-  if (password.length < 10 || password.length > 128) return { ok: false, error: "weak_password", message: "Use a password of 10–128 characters." };
-  if (COMMON.has(password.toLowerCase()) || password.toLowerCase().includes(e.split("@")[0]!) && e.split("@")[0]!.length >= 4) return { ok: false, error: "weak_password", message: "That password is too easy to guess. Pick something less predictable." };
+  if (e.length > 254 || !/^[^\s@]{1,64}@[^\s@.]+(\.[^\s@.]+)+$/.test(e)) return { ok: false, error: "invalid_email", message: "Hãy nhập một địa chỉ email hợp lệ." };
+  if (password.length < 10 || password.length > 128) return { ok: false, error: "weak_password", message: "Mật khẩu phải có từ 10 đến 128 ký tự." };
+  if (COMMON.has(password.toLowerCase()) || password.toLowerCase().includes(e.split("@")[0]!) && e.split("@")[0]!.length >= 4) return { ok: false, error: "weak_password", message: "Mật khẩu này quá dễ đoán. Hãy chọn mật khẩu khó đoán hơn." };
   return { ok: true, email: e };
 }

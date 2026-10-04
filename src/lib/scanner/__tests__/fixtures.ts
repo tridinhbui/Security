@@ -16,7 +16,7 @@ export const GOOD_HEADERS: Headers = {
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
 };
 
-export const GOOD_HTML = `<!doctype html><html><head><title>Example</title><script src="/app.js"></script><link rel="stylesheet" href="/s.css"></head>
+export const GOOD_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Example</title><script src="/app.js"></script><link rel="stylesheet" href="/s.css"></head>
 <body><h1>Hi</h1><a href="/about">About</a><img src="/logo.png"></body></html>`;
 
 export function rec(over: Partial<FetchRecord> = {}): FetchRecord {
@@ -25,7 +25,7 @@ export function rec(over: Partial<FetchRecord> = {}): FetchRecord {
   return {
     requestedUrl: url, finalUrl: url, status: 200, headers, chain: [{ url, status: 200, headers }], body: GOOD_HTML, bytes: GOOD_HTML.length,
     truncated: false, contentType: String(headers["content-type"] ?? "text/html"), resolved: ["93.184.216.34"], durationMs: 50,
-    tls: { protocol: "TLSv1.3", cipher: "TLS_AES_256_GCM_SHA384", authorized: true, validTo: "Jan 1 2030", daysRemaining: 90, issuer: "Let's Encrypt", subject: "example.com" },
+    tls: { protocol: "TLSv1.3", cipher: "TLS_AES_256_GCM_SHA384", authorized: true, validTo: "Jan 1 2030", daysRemaining: 90, issuer: "Let's Encrypt", subject: "example.com", keyType: "rsa", keyBits: 2048, validityDays: 90, chainLength: 3, wildcard: false },
     ...over,
   };
 }
@@ -51,9 +51,11 @@ export function baseline(): Observations {
       securityTxt: file("https://example.com/.well-known/security.txt", "Contact: mailto:sec@example.com\nExpires: 2099-01-01T00:00:00Z\n", "text/plain"),
     },
     cors: { testedOrigin: "https://vibesec-cors-probe.invalid", status: 200, acao: null, acac: null, vary: null },
+    notFound: rec({ requestedUrl: "https://example.com/vibesec-khong-ton-tai-x", finalUrl: "https://example.com/vibesec-khong-ton-tai-x", status: 404, body: "<html><h1>404</h1></html>" }),
+    altHost: { host: "www.example.com", record: rec({ requestedUrl: "https://www.example.com/", finalUrl: "https://www.example.com/", status: 301 }) },
     sensitivePage: null,
-    dns: { domain: "example.com", caa: ['0 issue "letsencrypt.org"'], spf: "v=spf1 -all", dmarc: "v=DMARC1; p=reject" },
-    legacyTls: { tls10: false, tls11: false },
+    dns: { domain: "example.com", caa: ['0 issue "letsencrypt.org"'], spf: "v=spf1 include:_spf.example.net -all", spfRecords: 1, dmarc: "v=DMARC1; p=reject; rua=mailto:d@example.com", cname: null, mx: ["mx.example.com"], ns: ["ns1.example.com"], dnssec: true, mtaSts: true },
+    legacyTls: { tls10: false, tls11: false, h2: true },
     platforms: fp.platforms, technologies: fp.technologies,
     limits: { requestsUsed: 6, hitLimit: null }, scannedAt: new Date().toISOString(),
   };

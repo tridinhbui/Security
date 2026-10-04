@@ -2,17 +2,18 @@ import Link from "next/link";
 import { ScanForm } from "@/components/ScanForm";
 import { demoBeforeReport } from "@/lib/demo";
 import { gradeColor, scoreColor, SEV_COLOR, SEV_LABEL } from "@/lib/format";
+import { CATEGORY_LABEL } from "@/lib/i18n";
 import { CATEGORIES } from "@/lib/scanner/types";
 import { getUser } from "@/lib/auth/next";
 
 const CHECKS: Record<(typeof CATEGORIES)[number], string> = {
-  "Transport Security": "HTTPS availability, TLS versions and certificate, HTTP→HTTPS redirect, HSTS, password forms.",
-  Headers: "Content-Security-Policy, clickjacking protection, X-Content-Type-Options, malformed or contradictory headers.",
-  "Browser Security": "Mixed content, third-party scripts without integrity checks, CORS configuration.",
-  "Cookies & Sessions": "Secure, HttpOnly and SameSite flags on cookies visible in responses; caching of login pages.",
-  Exposure: "Source maps, secrets and keys in public JavaScript, client-side env values, robots.txt, sitemap.xml, security.txt.",
-  Configuration: "Server/framework version headers, suspicious redirects, SPF/DMARC/CAA, technology fingerprint.",
-  Privacy: "Referrer-Policy, Permissions-Policy, third-party requests that see your visitors.",
+  "Transport Security": "Khả năng truy cập HTTPS, phiên bản TLS và chứng chỉ, chuyển hướng HTTP→HTTPS, HSTS, biểu mẫu nhập mật khẩu.",
+  Headers: "Content-Security-Policy, chống clickjacking, X-Content-Type-Options, các header sai định dạng hoặc mâu thuẫn nhau.",
+  "Browser Security": "Nội dung hỗn hợp (mixed content), script bên thứ ba không có kiểm tra tính toàn vẹn, cấu hình CORS.",
+  "Cookies & Sessions": "Các cờ Secure, HttpOnly và SameSite của cookie xuất hiện trong phản hồi; việc lưu đệm (cache) các trang đăng nhập.",
+  Exposure: "Source map, khoá bí mật trong JavaScript công khai, giá trị biến môi trường phía trình duyệt, robots.txt, sitemap.xml, security.txt.",
+  Configuration: "Header lộ phiên bản máy chủ/framework, chuyển hướng đáng ngờ, SPF/DMARC/CAA, dấu vết công nghệ sử dụng.",
+  Privacy: "Referrer-Policy, Permissions-Policy, các yêu cầu tới bên thứ ba có thể nhìn thấy khách truy cập của bạn.",
 };
 
 export default async function Home() {
@@ -23,27 +24,27 @@ export default async function Home() {
   return (
     <>
       <section className="mx-auto max-w-5xl px-5 pt-16 sm:pt-24 pb-16">
-        <p className="text-sm text-muted mb-4">External website security audit</p>
+        <p className="text-sm text-muted mb-4">Kiểm tra bảo mật website từ bên ngoài</p>
         <h1 className="text-4xl sm:text-6xl font-semibold tracking-tight leading-[1.05] max-w-3xl">
-          See what your website gives away — in plain English.
+          Xem website của bạn đang để lộ những gì, bằng ngôn ngữ dễ hiểu.
         </h1>
         <p className="mt-6 text-lg text-muted max-w-2xl">
-          Paste a URL. VibeSec runs passive checks, scores your setup out of 100, and shows the exact fix for every problem. No security background needed.
+          Dán một URL. VibeSec sẽ chạy các kiểm tra thụ động, chấm điểm cấu hình của bạn trên thang 100 và chỉ ra cách khắc phục cụ thể cho từng vấn đề. Không cần kiến thức bảo mật.
         </p>
         <div className="mt-10 max-w-3xl"><ScanForm authed={!!user} /></div>
         <p className="mt-4 text-sm text-muted max-w-3xl">
-          Non-destructive: a handful of ordinary page requests, no exploits, no password guessing, no crawling. {user ? "" : "Free account required so the scanner can’t be abused."}
+          Không phá hoại: chỉ vài yêu cầu trang thông thường, không khai thác lỗ hổng, không dò mật khẩu, không thu thập toàn bộ website. {user ? "" : "Cần có tài khoản miễn phí để tránh bị lạm dụng công cụ quét."}
         </p>
       </section>
 
       <section className="border-t border-line" aria-labelledby="example">
         <div className="mx-auto max-w-5xl px-5 py-16 grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:gap-16 items-start">
           <div>
-            <h2 id="example" className="text-2xl font-semibold tracking-tight">A report you can act on</h2>
-            <p className="mt-3 text-muted">Every finding explains what we saw, why it matters, the evidence, and a copy-paste fix for your stack — or generic guidance when we can&apos;t tell what you run. We never invent configuration.</p>
-            <Link href="/demo" className="inline-block mt-6 text-sm underline underline-offset-4 hover:text-fg text-muted">Explore the full demo report →</Link>
+            <h2 id="example" className="text-2xl font-semibold tracking-tight">Báo cáo giúp bạn hành động ngay</h2>
+            <p className="mt-3 text-muted">Mỗi phát hiện đều giải thích chúng tôi thấy gì, vì sao điều đó quan trọng, kèm bằng chứng và cấu hình có thể sao chép cho đúng hệ thống của bạn, hoặc hướng dẫn chung khi chưa xác định được bạn đang dùng gì. Chúng tôi không bao giờ tự bịa ra cấu hình.</p>
+            <Link href="/demo" className="inline-block mt-6 text-sm underline underline-offset-4 hover:text-fg text-muted">Xem báo cáo demo đầy đủ →</Link>
           </div>
-          <div className="border border-line rounded-lg p-5 sm:p-6 bg-surface" aria-label="Example report preview">
+          <div className="border border-line rounded-lg p-5 sm:p-6 bg-surface" aria-label="Xem trước báo cáo mẫu">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs text-muted">{demo.host}</p>
@@ -61,7 +62,7 @@ export default async function Home() {
             </ul>
             <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted">
               {CATEGORIES.slice(0, 4).map((c) => (
-                <div key={c} className="flex justify-between"><span>{c}</span><span className={`num ${scoreColor(demo.categoryScores[c] ?? null)}`}>{demo.categoryScores[c] ?? "n/a"}</span></div>
+                <div key={c} className="flex justify-between"><span>{CATEGORY_LABEL[c]}</span><span className={`num ${scoreColor(demo.categoryScores[c] ?? null)}`}>{demo.categoryScores[c] ?? "—"}</span></div>
               ))}
             </div>
           </div>
@@ -70,28 +71,29 @@ export default async function Home() {
 
       <section id="checks" className="border-t border-line" aria-labelledby="checks-h">
         <div className="mx-auto max-w-5xl px-5 py-16">
-          <h2 id="checks-h" className="text-2xl font-semibold tracking-tight">What we check</h2>
+          <h2 id="checks-h" className="text-2xl font-semibold tracking-tight">Những gì chúng tôi kiểm tra</h2>
           <dl className="mt-8 grid gap-x-16 gap-y-6 md:grid-cols-2">
             {CATEGORIES.map((c) => (
-              <div key={c}><dt className="font-medium">{c}</dt><dd className="text-muted text-[15px] mt-1">{CHECKS[c]}</dd></div>
+              <div key={c}><dt className="font-medium">{CATEGORY_LABEL[c]}</dt><dd className="text-muted text-[15px] mt-1">{CHECKS[c]}</dd></div>
             ))}
           </dl>
+          <p className="mt-8 text-sm"><Link href="/phuong-phap" className="underline underline-offset-4 text-muted hover:text-fg">Phương pháp chấm điểm &amp; danh sách kiểm tra</Link></p>
         </div>
       </section>
 
       <section className="border-t border-line" aria-labelledby="safe-h">
         <div className="mx-auto max-w-5xl px-5 py-16 grid gap-10 md:grid-cols-2">
           <div>
-            <h2 id="safe-h" className="text-2xl font-semibold tracking-tight">Safe by design</h2>
-            <p className="mt-3 text-muted">VibeSec only looks at what any visitor&apos;s browser can already see. It is deterministic — no AI guessing — and never touches anything it shouldn&apos;t.</p>
+            <h2 id="safe-h" className="text-2xl font-semibold tracking-tight">An toàn ngay từ thiết kế</h2>
+            <p className="mt-3 text-muted">VibeSec chỉ xem những gì trình duyệt của bất kỳ khách truy cập nào cũng thấy được. Kết quả mang tính xác định, không dùng AI đoán mò, và không bao giờ động vào những thứ không được phép.</p>
           </div>
           <ul className="space-y-2.5 text-[15px] text-muted">
             {[
-              "No password guessing, exploit payloads, SQL/XSS/command injection or fuzzing.",
-              "Only public websites on ports 80/443; private networks and cloud metadata are blocked.",
-              "A small, fixed number of requests to your homepage and a few same-origin files.",
-              "Identifies itself as VibeSecBot; no full page bodies are stored and secrets are redacted.",
-              "Rate limits and per-site cooldowns so it can’t be used to overload a website.",
+              "Không dò mật khẩu, không gửi mã khai thác, không SQL/XSS/command injection hay fuzzing.",
+              "Chỉ quét website công khai trên cổng 80/443; mạng nội bộ và metadata đám mây đều bị chặn.",
+              "Số lượng yêu cầu nhỏ và cố định tới trang chủ cùng một vài tệp cùng nguồn gốc.",
+              "Tự nhận diện là VibeSecBot; không lưu toàn bộ nội dung trang và các thông tin bí mật đều được che đi.",
+              "Có giới hạn tần suất và thời gian chờ cho từng website để không thể dùng làm công cụ gây quá tải.",
             ].map((t) => <li key={t} className="flex gap-3"><span className="text-ok mt-0.5" aria-hidden>✓</span>{t}</li>)}
           </ul>
         </div>

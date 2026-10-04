@@ -1,3 +1,4 @@
+import { X509Certificate } from "node:crypto";
 import http from "node:http";
 import https from "node:https";
 import type { TLSSocket } from "node:tls";
@@ -35,9 +36,9 @@ export class ScanBudget {
     return this.deadline - Date.now();
   }
   take() {
-    if (this.remainingMs() <= 0) throw new BudgetError("deadline", "Scan time limit reached.");
-    if (this.used >= this.maxRequests) throw new BudgetError("request_budget", "Request limit reached.");
-    if (this.bytes >= this.maxTotalBytes) throw new BudgetError("byte_budget", "Download limit reached.");
+    if (this.remainingMs() <= 0) throw new BudgetError("deadline", "Đã hết thời gian quét tối đa.");
+    if (this.used >= this.maxRequests) throw new BudgetError("request_budget", "Đã đạt giới hạn số request cho một lần quét.");
+    if (this.bytes >= this.maxTotalBytes) throw new BudgetError("byte_budget", "Đã đạt giới hạn dung lượng tải cho một lần quét.");
     this.used++;
   }
   addBytes(n: number) {
@@ -82,7 +83,7 @@ interface HopResult {
 }
 
 function describeCert(socket: TLSSocket): TlsInfo {
-  const cert = socket.getPeerCertificate();
+  const cert = socket.getPeerCertificate(true);
   const info: TlsInfo = {
     protocol: socket.getProtocol(),
     cipher: socket.getCipher()?.name ?? null,
@@ -93,10 +94,24 @@ function describeCert(socket: TLSSocket): TlsInfo {
     info.validFrom = cert.valid_from;
     info.validTo = cert.valid_to;
     const to = Date.parse(cert.valid_to);
+    const from = Date.parse(cert.valid_from);
     if (!Number.isNaN(to)) info.daysRemaining = Math.floor((to - Date.now()) / 86_400_000);
+    if (!Number.isNaN(to) && !Number.isNaN(from)) info.validityDays = Math.round((to - from) / 86_400_000);
     info.issuer = [cert.issuer?.O ?? cert.issuer?.CN].flat()[0];
     info.subject = [cert.subject?.CN].flat()[0];
     info.altNames = cert.subjectaltname?.split(",").map((s) => s.trim().replace(/^DNS:/, "")).slice(0, 25);
+    info.wildcard = info.altNames?.some((n) => n.startsWith("*.")) ?? false;
+    try {
+      const x = new X509Certificate(cert.raw);
+      info.keyType = x.publicKey.asymmetricKeyType ?? undefined;
+      const d = x.publicKey.asymmetricKeyDetails;
+      info.keyBits = d?.modulusLength ?? (typeof cert.bits === "number" ? cert.bits : undefined);
+      info.curve = d?.namedCurve;
+      info.selfSigned = x.verify(x.publicKey);
+    } catch { /* thông tin khoá là phần bổ sung; bỏ qua nếu không đọc được */ }
+    let depth = 1, cur = cert;
+    while (cur.issuerCertificate && cur.issuerCertificate !== cur && depth < 10) { cur = cur.issuerCertificate; depth++; }
+    info.chainLength = depth;
   }
   return info;
 }
@@ -231,10 +246,10 @@ export function createSafeFetcher(budget: ScanBudget, deps: FetcherDeps = {}) {
         }
       } catch (e) {
         if (e instanceof SsrfError) return fail(e.code, e.message, { blocked: true, detail: e.detail });
-        return fail("dns_failed", "DNS resolution failed.");
+        return fail("dns_failed", "Phân giải DNS thất bại.");
       }
       record.resolved = addrs.map((a) => a.address);
-      if (seen.has(url.href)) return fail("redirect_loop", "Redirect loop detected.");
+      if (seen.has(url.href)) return fail("redirect_loop", "Phát hiện vòng lặp chuyển hướng.");
       seen.add(url.href);
 
       try {
@@ -252,7 +267,7 @@ export function createSafeFetcher(budget: ScanBudget, deps: FetcherDeps = {}) {
         } catch (e) {
           const code = (e as NodeJS.ErrnoException).code ?? "";
           if (opts.tolerateBadCert && url.protocol === "https:" && CERT_ERRORS.has(code)) {
-            record.certError = { code, message: "TLS certificate could not be verified." };
+            record.certError = { code, message: "Không xác minh được chứng chỉ TLS." };
             budget.take();
             res = await requestOnce(url, addrs, { ...base, rejectUnauthorized: false }, follow);
           } else throw e;
@@ -275,11 +290,11 @@ export function createSafeFetcher(budget: ScanBudget, deps: FetcherDeps = {}) {
 
       const location = res.headers.location;
       if (follow && REDIRECT_STATUSES.has(res.status) && typeof location === "string") {
-        if (hop === maxRedirects) return fail("too_many_redirects", `More than ${maxRedirects} redirects.`);
+        if (hop === maxRedirects) return fail("too_many_redirects", `Chuyển hướng quá ${maxRedirects} lần.`);
         try {
           current = new URL(location, url).href;
         } catch {
-          return fail("bad_redirect", "Redirect target is not a valid URL.");
+          return fail("bad_redirect", "Đích chuyển hướng không phải URL hợp lệ.");
         }
         continue;
       }
@@ -291,7 +306,7 @@ export function createSafeFetcher(budget: ScanBudget, deps: FetcherDeps = {}) {
       record.durationMs = Date.now() - started;
       return record;
     }
-    return fail("too_many_redirects", `More than ${maxRedirects} redirects.`);
+    return fail("too_many_redirects", `Chuyển hướng quá ${maxRedirects} lần.`);
   };
 }
 
@@ -299,14 +314,14 @@ export type SafeFetch = ReturnType<typeof createSafeFetcher>;
 
 function friendlyNetError(code: string): string {
   switch (code) {
-    case "ETIMEDOUT": return "The request timed out.";
-    case "ECONNREFUSED": return "The connection was refused.";
-    case "ECONNRESET": return "The connection was reset.";
-    case "ENOTFOUND": return "The domain could not be found.";
+    case "ETIMEDOUT": return "Yêu cầu bị quá thời gian chờ.";
+    case "ECONNREFUSED": return "Kết nối bị từ chối.";
+    case "ECONNRESET": return "Kết nối bị ngắt đột ngột.";
+    case "ENOTFOUND": return "Không tìm thấy tên miền.";
     case "EPROTO":
-    case "ERR_SSL_WRONG_VERSION_NUMBER": return "The server does not speak TLS on this port.";
+    case "ERR_SSL_WRONG_VERSION_NUMBER": return "Máy chủ không dùng TLS trên cổng này.";
     default:
-      return CERT_ERRORS.has(code) ? "TLS certificate could not be verified." : "The request failed.";
+      return CERT_ERRORS.has(code) ? "Không xác minh được chứng chỉ TLS." : "Yêu cầu thất bại.";
   }
 }
 

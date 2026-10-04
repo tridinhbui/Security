@@ -46,20 +46,20 @@ export interface NormalizedTarget {
 
 export function assertPublicHostname(host: string): void {
   const h = host.toLowerCase().replace(/\.$/, "");
-  if (!h) throw new SsrfError("invalid_url", "The URL has no host.");
+  if (!h) throw new SsrfError("invalid_url", "URL không có tên miền.");
   // IP literals in any encoding (dotted, decimal, hex, octal, IPv6) are classified numerically.
   // Public literals are allowed; they are re-validated on every redirect hop.
   const literal = classifyLiteral(h);
   if (literal) {
-    if (!literal.public) throw new SsrfError("non_public_ip", "That address is not publicly routable.", literal.reason);
+    if (!literal.public) throw new SsrfError("non_public_ip", "Địa chỉ này không thể truy cập công khai.", literal.reason);
     return;
   }
   if (INTERNAL_NAMES.has(h) || INTERNAL_SUFFIXES.some((s) => h.endsWith(s))) {
-    throw new SsrfError("internal_hostname", "Internal hostnames cannot be scanned.", h);
+    throw new SsrfError("internal_hostname", "Không thể quét tên miền nội bộ.", h);
   }
-  if (!h.includes(".")) throw new SsrfError("internal_hostname", "Enter a full domain name, such as example.com.", h);
+  if (!h.includes(".")) throw new SsrfError("internal_hostname", "Hãy nhập tên miền đầy đủ, ví dụ example.com.", h);
   if (h.length > 253 || h.split(".").some((l) => l.length === 0 || l.length > 63)) {
-    throw new SsrfError("invalid_url", "That hostname is not valid.");
+    throw new SsrfError("invalid_url", "Tên miền này không hợp lệ.");
   }
 }
 
@@ -69,8 +69,8 @@ export function assertPublicHostname(host: string): void {
  */
 export function normalizeTargetUrl(input: string): NormalizedTarget {
   const raw = input.trim();
-  if (!raw || raw.length > MAX_URL_LENGTH) throw new SsrfError("invalid_url", "Enter a valid website address.");
-  if (/[\u0000-\u001f\u007f\s]/.test(raw)) throw new SsrfError("invalid_url", "The URL contains invalid characters.");
+  if (!raw || raw.length > MAX_URL_LENGTH) throw new SsrfError("invalid_url", "Hãy nhập địa chỉ website hợp lệ.");
+  if (/[\u0000-\u001f\u007f\s]/.test(raw)) throw new SsrfError("invalid_url", "URL chứa ký tự không hợp lệ.");
 
   // A scheme is explicit only when followed by "://". This makes "localhost:3000" and
   // "javascript:alert(1)" fall through to the https:// branch, where they fail validation.
@@ -79,18 +79,18 @@ export function normalizeTargetUrl(input: string): NormalizedTarget {
   try {
     u = new URL(hasScheme ? raw : `https://${raw}`);
   } catch {
-    throw new SsrfError("invalid_url", "That doesn't look like a valid URL.");
+    throw new SsrfError("invalid_url", "Đây không phải là URL hợp lệ.");
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") {
-    throw new SsrfError("scheme_not_allowed", "Only http and https URLs can be scanned.", u.protocol);
+    throw new SsrfError("scheme_not_allowed", "Chỉ có thể quét URL http và https.", u.protocol);
   }
   if (u.username || u.password) {
-    throw new SsrfError("credentials_not_allowed", "URLs containing credentials are not allowed.");
+    throw new SsrfError("credentials_not_allowed", "Không cho phép URL có chứa thông tin đăng nhập.");
   }
   const scheme = u.protocol === "https:" ? "https" : "http";
   const port = u.port ? Number(u.port) : scheme === "https" ? 443 : 80;
   if (!ALLOWED_PORTS.has(port)) {
-    throw new SsrfError("port_not_allowed", "Only the standard ports 80 and 443 can be scanned.", String(port));
+    throw new SsrfError("port_not_allowed", "Chỉ có thể quét các cổng tiêu chuẩn 80 và 443.", String(port));
   }
   // WHATWG parsing has already canonicalised decimal/hex/octal IPv4 and compressed IPv6.
   const host = u.hostname.toLowerCase().replace(/\.$/, "");
@@ -108,14 +108,14 @@ export function validateRequestUrl(raw: string): URL {
   try {
     u = new URL(raw);
   } catch {
-    throw new SsrfError("bad_redirect", "Invalid redirect target.");
+    throw new SsrfError("bad_redirect", "Đích chuyển hướng không hợp lệ.");
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") {
-    throw new SsrfError("scheme_not_allowed", "Only http and https URLs can be scanned.", u.protocol);
+    throw new SsrfError("scheme_not_allowed", "Chỉ có thể quét URL http và https.", u.protocol);
   }
-  if (u.username || u.password) throw new SsrfError("credentials_not_allowed", "Credentials in URL are not allowed.");
+  if (u.username || u.password) throw new SsrfError("credentials_not_allowed", "Không cho phép thông tin đăng nhập trong URL.");
   const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
-  if (!ALLOWED_PORTS.has(port)) throw new SsrfError("port_not_allowed", "Port not allowed.", String(port));
+  if (!ALLOWED_PORTS.has(port)) throw new SsrfError("port_not_allowed", "Cổng không được phép.", String(port));
   assertPublicHostname(u.hostname.toLowerCase().replace(/\.$/, ""));
   return u;
 }

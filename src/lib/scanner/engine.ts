@@ -47,14 +47,14 @@ export async function runScan(input: string, opts: RunScanOptions = {}): Promise
     throw e;
   }
 
-  const budget = opts.budget ?? new ScanBudget(28, 8 * 1024 * 1024, 60_000);
+  const budget = opts.budget ?? new ScanBudget(34, 8 * 1024 * 1024, 70_000);
   const fetch = createSafeFetcher(budget, { resolver: opts.resolver, dnsCache: opts.dnsCache ?? sharedDnsCache, testRoutes: opts.testRoutes });
   const obs = await collect(target, input, { fetch, budget, onStage: opts.onStage, ...opts.collectOverrides });
 
   if (!obs.page) {
     const err = obs.https?.error ?? obs.http?.error;
     if (err?.blocked) throw new ScanRefusedError(err.code, err.message, err.detail);
-    throw new ScanRefusedError("unreachable", "We couldn't reach that site over HTTPS or HTTP. Check the address and that the site is online, then try again.", err?.code);
+    throw new ScanRefusedError("unreachable", "Không kết nối được tới website này qua HTTPS lẫn HTTP. Hãy kiểm tra địa chỉ và chắc chắn website đang hoạt động, rồi thử lại.", err?.code);
   }
 
   await opts.onStage?.("generating_report");

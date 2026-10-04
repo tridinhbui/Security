@@ -11,16 +11,16 @@ export async function SiteHeader() {
           VibeSec
         </Link>
         <nav className="flex items-center gap-1 text-sm text-muted">
-          <Link href="/demo" className="px-3 py-1.5 hover:text-fg">Demo</Link>
+          <Link href="/demo" className="px-3 py-1.5 hover:text-fg">Bản demo</Link>
           {email ? (
             <>
-              <Link href="/dashboard" className="px-3 py-1.5 hover:text-fg">Dashboard</Link>
-              <Link href="/settings" className="px-3 py-1.5 hover:text-fg hidden sm:block">Settings</Link>
+              <Link href="/dashboard" className="px-3 py-1.5 hover:text-fg">Bảng điều khiển</Link>
+              <Link href="/settings" className="px-3 py-1.5 hover:text-fg hidden sm:block">Cài đặt</Link>
             </>
           ) : (
             <>
-              <Link href="/login" className="px-3 py-1.5 hover:text-fg">Sign in</Link>
-              <Link href="/signup" className="ml-1 px-3 py-1.5 rounded-md bg-fg text-bg font-medium hover:bg-white">Sign up</Link>
+              <Link href="/login" className="px-3 py-1.5 hover:text-fg">Đăng nhập</Link>
+              <Link href="/signup" className="ml-1 px-3 py-1.5 rounded-md bg-fg text-bg font-medium hover:bg-white">Đăng ký</Link>
             </>
           )}
         </nav>

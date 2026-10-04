@@ -1,6 +1,5 @@
 import type { Severity } from "./scanner/types";
-
-export const SEV_LABEL: Record<Severity, string> = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
+export { SEV_LABEL } from "./i18n";
 export const SEV_COLOR: Record<Severity, string> = {
   critical: "text-crit", high: "text-high", medium: "text-med", low: "text-low", info: "text-info",
 };
@@ -24,15 +23,18 @@ export function scoreColor(score: number | null | undefined): string {
   return score >= 80 ? "text-ok" : score >= 70 ? "text-med" : score >= 60 ? "text-high" : "text-crit";
 }
 
+const VN_TZ = "Asia/Ho_Chi_Minh";
+
+/** Ngày giờ theo múi giờ Việt Nam (GMT+7), ví dụ "04 thg 10, 2026, 20:46". */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(iso)) + " UTC";
+  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short", timeZone: VN_TZ }).format(new Date(iso)) + " (GMT+7)";
 }
 
 export function relativeTime(iso: string): string {
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return "vừa xong";
+  if (s < 3600) return `${Math.floor(s / 60)} phút trước`;
+  if (s < 86400) return `${Math.floor(s / 3600)} giờ trước`;
+  return `${Math.floor(s / 86400)} ngày trước`;
 }

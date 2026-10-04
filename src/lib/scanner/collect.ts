@@ -16,6 +16,7 @@ export interface CollectDeps {
   onStage?: (s: ScanStage) => void | Promise<void>;
   /** Overridable for tests. */
   probeLegacyTls?: (host: string, ip: string, version: "TLSv1" | "TLSv1.1") => Promise<boolean | null>;
+  probeHttp2?: (host: string, ip: string) => Promise<boolean | null>;
   lookupDns?: (domain: string, host: string) => Promise<DnsInfo>;
 }
 
@@ -25,7 +26,7 @@ const LOW_VALUE_SCRIPT = /(polyfill|webpack-|runtime-|google-analytics|googletag
 const MAX_SCRIPTS = 6;
 const MAX_SOURCE_MAPS = 3;
 
-// ------------------------------------------------------------------ DNS metadata (short TTL cache)
+// ------------------------------------------------------------------ DNS metadata (cache ngắn)
 
 const dnsCache = new Map<string, { at: number; value: DnsInfo }>();
 const DNS_TTL_MS = 5 * 60_000;
@@ -37,29 +38,56 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-export async function lookupDnsMetadata(domain: string): Promise<DnsInfo> {
-  const hit = dnsCache.get(domain);
+const noData = (e: unknown) => ["ENODATA", "ENOTFOUND", "NXDOMAIN"].includes((e as NodeJS.ErrnoException).code ?? "");
+
+/** DNSSEC: hỏi bộ phân giải công cộng của Cloudflare (không phải máy chủ của mục tiêu); cờ AD = đã xác thực. */
+async function lookupDnssec(domain: string): Promise<boolean | undefined> {
+  try {
+    const res = await withTimeout(fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A&do=1`, { headers: { accept: "application/dns-json" } }), 4000);
+    if (!res.ok) return undefined;
+    const body = (await res.json()) as { Status?: number; AD?: boolean };
+    return body.Status === 0 ? body.AD === true : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function lookupDnsMetadata(domain: string, host: string = domain): Promise<DnsInfo> {
+  const key = `${domain}|${host}`;
+  const hit = dnsCache.get(key);
   if (hit && Date.now() - hit.at < DNS_TTL_MS) return hit.value;
   const txt = async (name: string): Promise<string[] | undefined> => {
     try {
       return (await withTimeout(dns.resolveTxt(name), 3000)).map((r) => r.join(""));
     } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      return code === "ENODATA" || code === "ENOTFOUND" ? [] : undefined;
+      return noData(e) ? [] : undefined;
     }
   };
-  const [txts, dmarcTxts, caa] = await Promise.all([
+  const list = async <T>(p: Promise<T[]>): Promise<T[] | null> => withTimeout(p, 3000).catch((e) => (noData(e) ? [] : null));
+  const [txts, dmarcTxts, mtaTxts, caa, cname, mx, ns, dnssec] = await Promise.all([
     txt(domain),
     txt(`_dmarc.${domain}`),
-    withTimeout(dns.resolveCaa(domain), 3000).then((r) => r.map((x) => `${x.critical} ${"issue" in x ? `issue "${x.issue}"` : "issuewild" in x ? `issuewild "${x.issuewild}"` : "iodef"}`)).catch((e: NodeJS.ErrnoException) => (e.code === "ENODATA" || e.code === "ENOTFOUND" ? [] : null)),
+    txt(`_mta-sts.${domain}`),
+    list(dns.resolveCaa(domain)).then((r) => r && r.map((x) => `${x.critical} ${"issue" in x ? `issue "${x.issue}"` : "issuewild" in x ? `issuewild "${x.issuewild}"` : "iodef"}`)),
+    list(dns.resolveCname(host)),
+    list(dns.resolveMx(domain)).then((r) => r && r.map((x) => x.exchange)),
+    list(dns.resolveNs(domain)),
+    lookupDnssec(domain),
   ]);
+  const spfAll = txts?.filter((t) => /^v=spf1\b/i.test(t)) ?? [];
   const value: DnsInfo = {
     domain,
     caa,
-    spf: txts === undefined ? undefined : (txts.find((t) => /^v=spf1\b/i.test(t)) ?? null),
+    spf: txts === undefined ? undefined : (spfAll[0] ?? null),
+    spfRecords: spfAll.length,
     dmarc: dmarcTxts === undefined ? undefined : (dmarcTxts.find((t) => /^v=DMARC1\b/i.test(t)) ?? null),
+    mtaSts: mtaTxts === undefined ? undefined : mtaTxts.some((t) => /^v=STSv1\b/i.test(t)),
+    cname: cname && cname.length ? cname : null,
+    mx,
+    ns,
+    dnssec,
   };
-  dnsCache.set(domain, { at: Date.now(), value });
+  dnsCache.set(key, { at: Date.now(), value });
   return value;
 }
 
@@ -91,6 +119,21 @@ export function probeLegacyTlsVersion(host: string, ip: string, version: "TLSv1"
   });
 }
 
+/** Có thương lượng được HTTP/2 qua ALPN không? (true/false; null nếu không kết nối được). */
+export function probeHttp2(host: string, ip: string): Promise<boolean | null> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v: boolean | null) => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    const socket = tls.connect({ host: ip, port: 443, servername: host, ALPNProtocols: ["h2", "http/1.1"], rejectUnauthorized: false }, () => {
+      const proto = socket.alpnProtocol;
+      socket.destroy();
+      finish(proto === "h2");
+    });
+    const timer = setTimeout(() => { socket.destroy(); finish(null); }, 4000);
+    socket.on("error", () => finish(null));
+  });
+}
+
 // ------------------------------------------------------------------ helpers
 
 const ok = (r: FetchRecord | null): r is FetchRecord => !!r && !r.error && r.status !== null;
@@ -113,6 +156,15 @@ function pickScripts(scripts: ScriptRef[]): ScriptRef[] {
   return candidates.sort((a, b) => score(a) - score(b)).slice(0, MAX_SCRIPTS);
 }
 
+/** www.example.com <-> example.com. Trả về null với subdomain khác hoặc IP. */
+export function alternateHost(host: string): string | null {
+  const domain = getDomain(host);
+  if (!domain) return null;
+  if (host === domain) return `www.${host}`;
+  if (host === `www.${domain}`) return domain;
+  return null;
+}
+
 async function inBatches<T>(items: T[], size: number, fn: (t: T) => Promise<void>) {
   for (let i = 0; i < items.length; i += size) await Promise.all(items.slice(i, i + size).map(fn));
 }
@@ -129,7 +181,7 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
   const obs: Observations = {
     target: { input, url: target.url, origin: target.origin, host: target.host, scheme: target.scheme },
     https: null, http: null, page: null, pageIsHttps: false, html: null, scripts: [], sourceMaps: [],
-    files: { robots: null, sitemap: null, securityTxt: null }, cors: null, sensitivePage: null, dns: null, legacyTls: null,
+    files: { robots: null, sitemap: null, securityTxt: null }, cors: null, notFound: null, altHost: null, sensitivePage: null, dns: null, legacyTls: null,
     platforms: [], technologies: [], limits: { requestsUsed: 0, hitLimit: null },
     scannedAt: new Date().toISOString(),
   };
@@ -148,14 +200,14 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
 
   const domain = getDomain(target.host);
   const probe = deps.probeLegacyTls ?? probeLegacyTlsVersion;
-  const dnsJob = domain ? (deps.lookupDns ?? ((d: string) => lookupDnsMetadata(d)))(domain, target.host).catch(() => null) : Promise.resolve(null);
+  const dnsJob = domain ? (deps.lookupDns ?? lookupDnsMetadata)(domain, target.host).catch(() => null) : Promise.resolve(null);
   let legacyJob: Promise<Observations["legacyTls"]> = Promise.resolve(null);
   const ip = obs.https?.resolved[0];
   if (ok(obs.https) && !obs.https.certError && ip) {
     legacyJob = (async () => {
-      try { budget.take(); budget.take(); } catch { return null; }
-      const [tls10, tls11] = await Promise.all([probe(target.host, ip, "TLSv1"), probe(target.host, ip, "TLSv1.1")]);
-      return { tls10, tls11 };
+      try { budget.take(); budget.take(); budget.take(); } catch { return null; }
+      const [tls10, tls11, h2] = await Promise.all([probe(target.host, ip, "TLSv1"), probe(target.host, ip, "TLSv1.1"), (deps.probeHttp2 ?? probeHttp2)(target.host, ip)]);
+      return { tls10, tls11, h2 };
     })();
   }
   [obs.dns, obs.legacyTls] = await Promise.all([dnsJob, legacyJob]);
@@ -198,6 +250,19 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
   noteLimit(corsRec);
   if (!corsRec.error) {
     obs.cors = { testedOrigin: PROBE_ORIGIN, status: corsRec.status, acao: header(corsRec.headers, "access-control-allow-origin") ?? null, acac: header(corsRec.headers, "access-control-allow-credentials") ?? null, vary: header(corsRec.headers, "vary") ?? null } satisfies CorsProbe;
+  }
+
+  // Trang không tồn tại: một request GET bình thường tới đường dẫn ngẫu nhiên để xem trang lỗi có lộ thông tin nội bộ không.
+  const missing = await get(`${pageOrigin}/vibesec-khong-ton-tai-${crypto.randomUUID().slice(0, 8)}`, { maxBytes: 64 * 1024, timeoutMs: 6000, followRedirects: false });
+  noteLimit(missing);
+  if (!missing.error) obs.notFound = missing;
+
+  // www <-> không-www: người dùng gõ thiếu/thừa "www" vẫn phải vào được trang an toàn.
+  const alt = alternateHost(target.host);
+  if (alt) {
+    const altRec = await get(`https://${alt}/`, { tolerateBadCert: true, maxBytes: 16 * 1024, timeoutMs: 6000, followRedirects: false });
+    noteLimit(altRec);
+    obs.altHost = { host: alt, record: altRec.error?.code === "dns_failed" ? null : altRec };
   }
 
   // ---- client resources

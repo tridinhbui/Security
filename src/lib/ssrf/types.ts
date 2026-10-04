@@ -19,6 +19,14 @@ export interface TlsInfo {
   issuer?: string;
   subject?: string;
   altNames?: string[];
+  /** Khoá công khai của chứng chỉ lá. */
+  keyType?: string;
+  keyBits?: number;
+  curve?: string;
+  validityDays?: number;
+  selfSigned?: boolean;
+  wildcard?: boolean;
+  chainLength?: number;
 }
 
 export interface FetchRecord {

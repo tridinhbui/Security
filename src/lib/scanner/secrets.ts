@@ -33,7 +33,7 @@ interface Pattern {
 
 export function redact(value: string): string {
   const head = value.slice(0, Math.min(4, Math.floor(value.length / 4)));
-  return `${head}…(${value.length} chars)`;
+  return `${head}…(${value.length} ký tự)`;
 }
 
 const PLACEHOLDER = /(example|placeholder|your[_-]?|xxxx|\*{4,}|<[^>]+>|changeme|dummy|sample|test1234)/i;
@@ -52,78 +52,78 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
 
 const PATTERNS: Pattern[] = [
   {
-    id: "private-key", label: "Private key block", severity: "critical", confidence: "high",
+    id: "private-key", label: "Khoá riêng tư (private key)", severity: "critical", confidence: "high",
     re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----/g,
-    note: "A PEM private key header appears in publicly served content.",
+    note: "Phần đầu của khoá riêng tư (PEM) xuất hiện trong nội dung công khai.",
   },
   {
-    id: "aws-secret-pair", label: "AWS access key with secret key", severity: "critical", confidence: "high",
+    id: "aws-secret-pair", label: "AWS access key kèm secret key", severity: "critical", confidence: "high",
     re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b[\s\S]{0,120}?['"][A-Za-z0-9/+=]{40}['"]/g,
-    note: "An AWS access key ID appears next to a 40-character secret-looking value.",
+    note: "Một AWS access key ID xuất hiện cạnh chuỗi 40 ký tự trông giống khoá bí mật.",
     accept: (m) => !PLACEHOLDER.test(m),
   },
   {
     id: "aws-access-key-id", label: "AWS access key ID", severity: "medium", confidence: "medium",
     re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
-    note: "AWS access key IDs are identifiers, not secrets by themselves, but should not be shipped to browsers.",
+    note: "AWS access key ID chỉ là mã định danh, chưa phải bí mật, nhưng không nên đưa xuống trình duyệt.",
     accept: (m) => !PLACEHOLDER.test(m),
   },
   {
-    id: "stripe-live-secret", label: "Stripe live secret key", severity: "critical", confidence: "high",
+    id: "stripe-live-secret", label: "Khoá bí mật Stripe (live)", severity: "critical", confidence: "high",
     re: /\b(?:sk|rk)_live_[0-9a-zA-Z]{24,}\b/g,
-    note: "Stripe live secret/restricted keys grant API access to your Stripe account.",
+    note: "Khoá Stripe live (secret/restricted) cấp quyền gọi API vào tài khoản Stripe của bạn.",
   },
   {
-    id: "stripe-test-secret", label: "Stripe test secret key", severity: "low", confidence: "high",
+    id: "stripe-test-secret", label: "Khoá bí mật Stripe (test)", severity: "low", confidence: "high",
     re: /\b(?:sk|rk)_test_[0-9a-zA-Z]{24,}\b/g,
-    note: "A Stripe test-mode secret key. Lower risk (no real money) but it should still never be public.",
+    note: "Khoá bí mật Stripe chế độ thử nghiệm. Rủi ro thấp hơn (không có tiền thật) nhưng vẫn không bao giờ nên công khai.",
   },
   {
-    id: "github-token", label: "GitHub token", severity: "critical", confidence: "high",
+    id: "github-token", label: "Token GitHub", severity: "critical", confidence: "high",
     re: /\b(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{60,255})\b/g,
-    note: "GitHub personal/OAuth/app tokens can access repositories.",
+    note: "Token GitHub (cá nhân/OAuth/ứng dụng) có thể truy cập kho mã nguồn.",
   },
   {
-    id: "slack-token", label: "Slack token", severity: "high", confidence: "high",
+    id: "slack-token", label: "Token Slack", severity: "high", confidence: "high",
     re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g,
-    note: "Slack API tokens can read or post messages.",
+    note: "Token Slack có thể đọc hoặc đăng tin nhắn.",
     accept: (m) => !PLACEHOLDER.test(m),
   },
   {
-    id: "slack-webhook", label: "Slack incoming webhook URL", severity: "medium", confidence: "high",
+    id: "slack-webhook", label: "Webhook Slack", severity: "medium", confidence: "high",
     re: /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]{6,}\/B[A-Z0-9]{6,}\/[A-Za-z0-9]{20,}/g,
-    note: "Anyone with this URL can post to your Slack channel.",
+    note: "Bất kỳ ai có URL này đều đăng được tin nhắn vào kênh Slack của bạn.",
   },
   {
-    id: "sendgrid-key", label: "SendGrid API key", severity: "critical", confidence: "high",
+    id: "sendgrid-key", label: "Khoá API SendGrid", severity: "critical", confidence: "high",
     re: /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g,
-    note: "SendGrid keys allow sending email as your domain.",
+    note: "Khoá SendGrid cho phép gửi email mạo danh tên miền của bạn.",
   },
   {
-    id: "openai-key", label: "OpenAI API key", severity: "critical", confidence: "high",
+    id: "openai-key", label: "Khoá API OpenAI", severity: "critical", confidence: "high",
     re: /\b(?:sk-proj-[A-Za-z0-9_-]{40,}|sk-[A-Za-z0-9]{48})\b/g,
-    note: "Exposed LLM API keys are quickly abused and billed to you.",
+    note: "Khoá API LLM bị lộ rất nhanh bị lạm dụng và chi phí do bạn chịu.",
   },
   {
-    id: "anthropic-key", label: "Anthropic API key", severity: "critical", confidence: "high",
+    id: "anthropic-key", label: "Khoá API Anthropic", severity: "critical", confidence: "high",
     re: /\bsk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{60,}\b/g,
-    note: "Exposed LLM API keys are quickly abused and billed to you.",
+    note: "Khoá API LLM bị lộ rất nhanh bị lạm dụng và chi phí do bạn chịu.",
   },
   {
-    id: "npm-token", label: "npm access token", severity: "critical", confidence: "high",
+    id: "npm-token", label: "Token truy cập npm", severity: "critical", confidence: "high",
     re: /\bnpm_[A-Za-z0-9]{36}\b/g,
-    note: "npm tokens can publish packages as you.",
+    note: "Token npm có thể đăng gói phần mềm dưới danh nghĩa của bạn.",
   },
   {
-    id: "db-url-with-password", label: "Database URL containing a password", severity: "critical", confidence: "high",
+    id: "db-url-with-password", label: "URL cơ sở dữ liệu chứa mật khẩu", severity: "critical", confidence: "high",
     re: /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqps?):\/\/[^\s:@/'"`\\]{1,64}:([^\s@/'"`\\]{4,})@[^\s'"`\\]{3,}/g,
-    note: "A connection string with embedded credentials is publicly readable.",
+    note: "Chuỗi kết nối cơ sở dữ liệu có chứa mật khẩu đang hiển thị công khai.",
     accept: (m) => !PLACEHOLDER.test(m) && !/localhost|127\.0\.0\.1/.test(m),
   },
   {
-    id: "google-api-key", label: "Google API key", severity: "info", confidence: "high", publicByDesign: true,
+    id: "google-api-key", label: "Khoá Google API", severity: "info", confidence: "high", publicByDesign: true,
     re: /\bAIza[0-9A-Za-z_-]{35}\b/g,
-    note: "Google API keys for browser use are designed to be public, but should be restricted by HTTP referrer and API.",
+    note: "Khoá Google API cho trình duyệt được thiết kế để công khai, nhưng cần giới hạn theo HTTP referrer và theo API.",
   },
 ];
 
@@ -162,15 +162,15 @@ export function detectSecrets(text: string): SecretMatch[] {
     const role = String(payload.role ?? "");
     if (role === "service_role") {
       push({
-        id: "supabase-service-role", label: "Supabase service_role key", severity: "critical", confidence: "high",
+        id: "supabase-service-role", label: "Khoá Supabase service_role", severity: "critical", confidence: "high",
         redacted: redact(m[0]),
-        note: "A JWT with role=service_role bypasses all Row Level Security. It must only ever exist on a server.",
+        note: "JWT có role=service_role bỏ qua toàn bộ Row Level Security. Khoá này chỉ được tồn tại trên máy chủ.",
       });
     } else if (role === "anon" && (iss.includes("supabase") || "ref" in payload)) {
       push({
-        id: "supabase-anon-key", label: "Supabase anon key", severity: "info", confidence: "high", publicByDesign: true,
+        id: "supabase-anon-key", label: "Khoá Supabase anon", severity: "info", confidence: "high", publicByDesign: true,
         redacted: redact(m[0]),
-        note: "The anon key is meant to be public — your security depends on Row Level Security policies being enabled on every table.",
+        note: "Khoá anon được thiết kế để công khai — an toàn của bạn phụ thuộc vào việc bật Row Level Security trên mọi bảng.",
       });
     }
   }

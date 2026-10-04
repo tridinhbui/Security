@@ -4,13 +4,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 const ERRORS: Record<string, string> = {
-  invalid_url: "That doesn't look like a valid website address.",
-  scheme_not_allowed: "Only http and https addresses can be scanned.",
-  internal_hostname: "Internal or local hostnames can't be scanned. Enter a public website.",
-  non_public_ip: "That address isn't publicly reachable, so it can't be scanned.",
-  port_not_allowed: "Only the standard web ports (80 and 443) can be scanned.",
-  credentials_not_allowed: "Remove the username/password from the URL.",
-  dns_failed: "We couldn't find that domain. Check the spelling.",
+  invalid_url: "Địa chỉ website này không hợp lệ.",
+  scheme_not_allowed: "Chỉ có thể quét địa chỉ http và https.",
+  internal_hostname: "Không thể quét tên miền nội bộ hoặc cục bộ. Hãy nhập một website công khai.",
+  non_public_ip: "Địa chỉ này không truy cập được từ bên ngoài nên không thể quét.",
+  port_not_allowed: "Chỉ có thể quét các cổng web tiêu chuẩn (80 và 443).",
+  credentials_not_allowed: "Hãy xoá tên người dùng/mật khẩu khỏi URL.",
+  dns_failed: "Chúng tôi không tìm thấy tên miền này. Hãy kiểm tra lại chính tả.",
 };
 
 interface Props {
@@ -21,7 +21,7 @@ interface Props {
   label?: string;
 }
 
-export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "lg", label = "Scan website" }: Props) {
+export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "lg", label = "Quét website" }: Props) {
   const router = useRouter();
   const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
@@ -29,7 +29,7 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
   const started = useRef(false);
 
   async function submit(value: string) {
-    if (!value.trim()) return setError("Enter a website address, like example.com");
+    if (!value.trim()) return setError("Hãy nhập địa chỉ website, ví dụ example.com");
     if (!authed) {
       router.push(`/login?next=${encodeURIComponent(`/dashboard?scan=${encodeURIComponent(value.trim())}`)}`);
       return;
@@ -41,13 +41,13 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
       const body = await res.json().catch(() => ({}));
       if (res.status === 401) return router.push(`/login?next=/dashboard`);
       if (!res.ok) {
-        setError(body.message ?? ERRORS[body.error] ?? "Something went wrong. Please try again.");
+        setError(body.message ?? ERRORS[body.error] ?? "Đã xảy ra lỗi. Vui lòng thử lại.");
         setBusy(false);
         return;
       }
       router.push(`/scans/${body.id}`);
     } catch {
-      setError("Network error. Please try again.");
+      setError("Lỗi mạng. Vui lòng thử lại.");
       setBusy(false);
     }
   }
@@ -64,7 +64,7 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
   return (
     <form onSubmit={(e) => { e.preventDefault(); void submit(url); }} noValidate className="w-full">
       <div className={`flex flex-col sm:flex-row gap-2 ${big ? "" : ""}`}>
-        <label className="sr-only" htmlFor="scan-url">Website URL</label>
+        <label className="sr-only" htmlFor="scan-url">URL website</label>
         <input
           id="scan-url" name="url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false}
           placeholder="example.com" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy}
@@ -73,7 +73,7 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
         />
         <button type="submit" disabled={busy}
           className={`rounded-md bg-fg text-bg font-medium hover:bg-white disabled:opacity-60 transition-colors ${big ? "h-14 px-7 text-base" : "h-11 px-5 text-sm"}`}>
-          {busy ? "Starting…" : label}
+          {busy ? "Đang bắt đầu…" : label}
         </button>
       </div>
       {error && <p id="scan-error" role="alert" className="mt-3 text-sm text-high">{error}</p>}

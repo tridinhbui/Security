@@ -13,12 +13,12 @@ export type CreateScanResult =
 const stripQuery = (u: string) => u.split(/[?#]/)[0]!.slice(0, 120);
 
 const LIMIT_MESSAGES: Record<string, string> = {
-  account_blocked: "This account is temporarily suspended from scanning because of repeated blocked requests.",
-  too_many_concurrent: "You already have scans running. Wait for one to finish before starting another.",
-  hourly_limit: "Hourly scan limit reached. Please try again later.",
-  daily_quota: "Daily scan quota reached. It resets on a rolling 24-hour window.",
-  ip_limit: "Too many scans from your network. Please try again later.",
-  host_limit: "That website was scanned several times recently. To avoid overloading it, please wait before scanning it again.",
+  account_blocked: "Tài khoản của bạn tạm thời bị khoá chức năng quét do nhiều yêu cầu bị chặn liên tiếp.",
+  too_many_concurrent: "Bạn đang có lượt quét chạy. Hãy chờ lượt đó hoàn tất trước khi bắt đầu lượt mới.",
+  hourly_limit: "Bạn đã đạt giới hạn quét mỗi giờ. Vui lòng thử lại sau.",
+  daily_quota: "Bạn đã dùng hết hạn mức quét trong ngày. Hạn mức được tính theo cửa sổ trượt 24 giờ.",
+  ip_limit: "Có quá nhiều lượt quét từ mạng của bạn. Vui lòng thử lại sau.",
+  host_limit: "Website này vừa được quét nhiều lần. Để tránh gây quá tải cho website, vui lòng chờ một lúc rồi quét lại.",
 };
 
 /**
@@ -49,7 +49,7 @@ export async function createScan(db: D1Like, userId: string, rawUrl: string, ipH
   });
   if (!out.ok) {
     await repo.recordEvent(db, { type: "rate_limited", userId, level: "warn", message: out.code, meta: { code: out.code, host: target.host } });
-    return { ok: false, status: out.code === "account_blocked" ? 403 : 429, code: out.code, message: LIMIT_MESSAGES[out.code] ?? "Scan limit reached.", retryAfter: out.retryAfter };
+    return { ok: false, status: out.code === "account_blocked" ? 403 : 429, code: out.code, message: LIMIT_MESSAGES[out.code] ?? "Đã đạt giới hạn quét.", retryAfter: out.retryAfter };
   }
   await repo.recordEvent(db, { type: "scan_created", userId, scanId: out.id, meta: { host: target.host } });
   return { ok: true, id: out.id };

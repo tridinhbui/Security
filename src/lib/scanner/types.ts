@@ -107,6 +107,7 @@ export interface ParsedHtml {
   metaRefresh: string | null;
   generator: string | null;
   metaReferrer: string | null;
+  metaCharset: string | null;
   anchors: string[]; // absolute same-origin anchors (capped)
 }
 
@@ -140,6 +141,15 @@ export interface DnsInfo {
   spf: string | null | undefined; // undefined = lookup failed
   dmarc: string | null | undefined;
   domain: string | null;
+  /** Số bản ghi SPF tìm thấy (nhiều hơn 1 là lỗi cấu hình). */
+  spfRecords?: number;
+  /** CNAME của chính hostname được quét (null = không có CNAME). */
+  cname?: string[] | null;
+  mx?: string[] | null;
+  ns?: string[] | null;
+  /** true khi bộ phân giải xác thực DNSSEC (cờ AD); undefined = không tra được. */
+  dnssec?: boolean | null;
+  mtaSts?: boolean | null;
 }
 
 export interface Observations {
@@ -156,10 +166,14 @@ export interface Observations {
   sourceMaps: SourceMapProbe[];
   files: { robots: FileProbe | null; sitemap: FileProbe | null; securityTxt: FileProbe | null };
   cors: CorsProbe | null;
+  /** Phản hồi của một đường dẫn chắc chắn không tồn tại (để xem trang lỗi có lộ thông tin không). */
+  notFound: FetchRecord | null;
+  /** Phiên bản www / không-www của hostname (nếu có). */
+  altHost: { host: string; record: FetchRecord | null } | null;
   /** A login/account/admin-looking same-origin page, if one was discovered. */
   sensitivePage: FetchRecord | null;
   dns: DnsInfo | null;
-  legacyTls: { tls10: boolean | null; tls11: boolean | null } | null;
+  legacyTls: { tls10: boolean | null; tls11: boolean | null; h2?: boolean | null } | null;
   platforms: Platform[];
   technologies: string[];
   limits: { requestsUsed: number; hitLimit: string | null };

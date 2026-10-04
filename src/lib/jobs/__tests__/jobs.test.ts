@@ -68,7 +68,7 @@ describe("processScanJob — happy path", () => {
     expect(targets.every((x) => x.headers_enc!.startsWith("v1:"))).toBe(true);
     const home = targets.find((x) => x.role === "http_home")!;
     const headers = JSON.parse(await decrypt(home.headers_enc!));
-    expect(headers["set-cookie"]).toEqual(["session=<redacted>; Path=/"]);
+    expect(headers["set-cookie"]).toEqual(["session=<đã che>; Path=/"]);
 
     // Observability events were written.
     const events = db.sqlite.prepare("SELECT type FROM scan_events WHERE scan_id = ?").all(id).map((r) => (r as { type: string }).type);

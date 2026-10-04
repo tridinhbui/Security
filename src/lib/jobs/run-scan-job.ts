@@ -57,7 +57,7 @@ export async function processScanJob(db: D1Like, scanId: string, scanner: Scanne
       await repo.requeueScan(db, scan.id);
       return "retry";
     }
-    await repo.failScan(db, scan.id, "internal_error", "Something went wrong while scanning. Please try again.");
+    await repo.failScan(db, scan.id, "internal_error", "Đã xảy ra lỗi trong quá trình quét. Vui lòng thử lại.");
     await repo.recordEvent(db, { type: "scan_failed", scanId: scan.id, userId: scan.user_id, level: "error", message: "internal_error", meta: { code: "internal_error", error_name: (e as Error).name, latency_ms: Date.now() - started, attempts: scan.attempts } });
     return "done";
   }

@@ -58,7 +58,7 @@ describe("secrets helpers", () => {
   it("redact never returns the whole value", () => {
     const r = redact("sk_" + "live_" + "abcdefghijklmnopqrstuvwx") // built at runtime so secret scanners do not flag the fixture;
     expect(r).not.toContain("abcdefghij");
-    expect(r).toContain("chars");
+    expect(r).toContain("ký tự");
   });
   it("AKIA + 40-char secret pair is Critical; lone key id is Medium", () => {
     const secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYzZ9yXaB0cD";

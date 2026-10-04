@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest) {
   const user = await getUser();
   if (!user) return json({ error: "unauthenticated" }, 401);
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return json({ error: "invalid", message: "Choose 7, 30, 90 or 365 days." }, 400);
+  if (!parsed.success) return json({ error: "invalid", message: "Hãy chọn 7, 30, 90 hoặc 365 ngày." }, 400);
   await repo.setRetention(await getDb(), user.id, parsed.data.retention_days);
   return json({ ok: true });
 }

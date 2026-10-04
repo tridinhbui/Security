@@ -86,15 +86,15 @@ describe("runScan (end-to-end against a local site)", () => {
     expect(report.score.score).toBeLessThanOrEqual(59);
     expect(report.score.grade).toBe("F");
     expect(report.topRisks[0]!.severity).toBe("critical");
-    expect(report.disclaimer).toMatch(/not proof/);
+    expect(report.disclaimer).toMatch(/không chứng minh/);
     expect(report.stats.ruleErrors).toEqual([]);
-    expect(report.stats.requests).toBeLessThanOrEqual(28);
-    expect(report.targets.find((t) => t.role === "http_home")!.headers["set-cookie"]).toEqual(["session=<redacted>; Path=/"]);
+    expect(report.stats.requests).toBeLessThanOrEqual(34);
+    expect(report.targets.find((t) => t.role === "http_home")!.headers["set-cookie"]).toEqual(["session=<đã che>; Path=/"]);
   });
 
   it("only requests a small, fixed set of same-origin URLs (no crawling)", async () => {
     const allowed = new Set(["GET /", "GET /app.js", "GET /app.js.map", "GET /robots.txt", "GET /sitemap.xml", "GET /.well-known/security.txt", "GET /security.txt", "GET /login"]);
-    for (const h of hits) expect(allowed.has(h), h).toBe(true);
+    for (const h of hits) expect(allowed.has(h) || /^GET \/vibesec-khong-ton-tai-[0-9a-f]{8}$/.test(h), h).toBe(true);
   });
 
   it("refuses private/internal targets before any request", async () => {

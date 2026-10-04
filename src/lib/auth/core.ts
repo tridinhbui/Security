@@ -26,10 +26,10 @@ export async function signup(db: D1Like, a: { email: string; password: string; i
   const ipKey = a.ipHash ? await hashKey("ip", a.ipHash) : null;
   if (ipKey && (await repo.countAttempts(db, "signup_ip", ipKey, 3_600_000)) >= env.limits.signupsPerIpPerHour) {
     await repo.recordEvent(db, { type: "auth_throttled", level: "warn", message: "signup", meta: { kind: "signup_ip" } });
-    return { ok: false, status: 429, error: "throttled", message: "Too many sign-ups from your network. Try again later." };
+    return { ok: false, status: 429, error: "throttled", message: "Có quá nhiều lượt đăng ký từ mạng của bạn. Vui lòng thử lại sau." };
   }
   const created = await repo.createUser(db, v.email, await hashPassword(a.password));
-  if (!created.ok) return { ok: false, status: 409, error: "exists", message: "An account with that email already exists." };
+  if (!created.ok) return { ok: false, status: 409, error: "exists", message: "Đã có tài khoản sử dụng email này." };
   if (ipKey) await repo.recordAttempt(db, "signup_ip", ipKey);
   await repo.recordEvent(db, { type: "auth_signup", userId: created.id });
   return { ok: true, userId: created.id, ...(await startSession(db, created.id)) };
@@ -46,7 +46,7 @@ export async function login(db: D1Like, a: { email: string; password: string; ip
   ]);
   if (byEmail >= env.limits.loginFailsPerEmail || byIp >= env.limits.loginFailsPerIp) {
     await repo.recordEvent(db, { type: "auth_throttled", level: "warn", message: "login", meta: { by_email: byEmail >= env.limits.loginFailsPerEmail, by_ip: byIp >= env.limits.loginFailsPerIp } });
-    return { ok: false, status: 429, error: "throttled", message: "Too many failed attempts. Please wait 15 minutes and try again." };
+    return { ok: false, status: 429, error: "throttled", message: "Bạn đã thử sai quá nhiều lần. Vui lòng chờ 15 phút rồi thử lại." };
   }
 
   const user = await repo.getUserByEmail(db, email);
@@ -55,7 +55,7 @@ export async function login(db: D1Like, a: { email: string; password: string; ip
     await repo.recordAttempt(db, "login_fail_email", emailKey);
     if (ipKey) await repo.recordAttempt(db, "login_fail_ip", ipKey);
     await repo.recordEvent(db, { type: "auth_login_failed", level: "warn", userId: user?.id ?? null });
-    return { ok: false, status: 401, error: "invalid_credentials", message: "Incorrect email or password." }; // same message for unknown email
+    return { ok: false, status: 401, error: "invalid_credentials", message: "Email hoặc mật khẩu không đúng." }; // same message for unknown email
   }
   await repo.clearAttempts(db, "login_fail_email", emailKey);
   await repo.recordEvent(db, { type: "auth_login", userId: user.id });

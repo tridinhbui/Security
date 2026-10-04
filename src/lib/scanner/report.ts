@@ -35,9 +35,9 @@ export function redactHeaders(h: Headers): Headers {
   for (const [k, v] of Object.entries(h)) {
     if (k === "set-cookie") {
       const list = Array.isArray(v) ? v : [v];
-      out[k] = list.map((c) => c.replace(/^([^=;]+)=([^;]*)/, "$1=<redacted>"));
+      out[k] = list.map((c) => c.replace(/^([^=;]+)=([^;]*)/, "$1=<đã che>"));
     } else if (/^(authorization|proxy-authorization|cookie|x-api-key)$/i.test(k)) {
-      out[k] = "<redacted>";
+      out[k] = "<đã che>";
     } else {
       out[k] = v;
     }

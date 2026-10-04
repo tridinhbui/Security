@@ -24,7 +24,7 @@ export async function resolvePublicAddresses(
 ): Promise<ResolvedAddress[]> {
   const literal = classifyLiteral(host);
   if (literal) {
-    if (!literal.public) throw new SsrfError("non_public_ip", "That address is not publicly routable.", literal.reason);
+    if (!literal.public) throw new SsrfError("non_public_ip", "Địa chỉ này không phải địa chỉ công khai trên Internet.", literal.reason);
     // Re-derive canonical form through the URL parser so we pin the real address.
     const bare = new URL(`http://${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}`).hostname;
     const addr = bare.replace(/^\[|\]$/g, "");
@@ -38,16 +38,16 @@ export async function resolvePublicAddresses(
   try {
     addrs = await resolver(host);
   } catch (e) {
-    throw new SsrfError("dns_failed", "We couldn't resolve that domain.", (e as NodeJS.ErrnoException).code);
+    throw new SsrfError("dns_failed", "Không phân giải được tên miền này. Hãy kiểm tra lại chính tả.", (e as NodeJS.ErrnoException).code);
   }
-  if (addrs.length === 0) throw new SsrfError("dns_failed", "That domain has no IP address.");
+  if (addrs.length === 0) throw new SsrfError("dns_failed", "Tên miền này chưa có địa chỉ IP.");
 
   const bad = addrs.filter((a) => !classifyIpString(a.address).public);
   if (bad.length === addrs.length) {
-    throw new SsrfError("non_public_ip", "That domain resolves to a non-public address.", classifyIpString(bad[0]!.address).reason);
+    throw new SsrfError("non_public_ip", "Tên miền này trỏ tới địa chỉ nội bộ/không công khai nên không thể quét.", classifyIpString(bad[0]!.address).reason);
   }
   if (bad.length > 0) {
-    throw new SsrfError("dns_mixed_answers", "That domain resolves to both public and non-public addresses.", bad[0]!.address);
+    throw new SsrfError("dns_mixed_answers", "Tên miền này vừa trỏ tới địa chỉ công khai vừa trỏ tới địa chỉ nội bộ nên bị từ chối.", bad[0]!.address);
   }
   cache?.set(host, { at: Date.now(), addrs });
   return addrs;

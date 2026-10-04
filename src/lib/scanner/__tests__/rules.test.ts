@@ -40,7 +40,7 @@ describe("tls.https-available", () => {
     o.https = rec({ status: null, error: { code: "ECONNREFUSED", message: "x" } });
     expect(failing(o, id)[0]).toMatchObject({ severity: "high", confidence: "high" });
   });
-  it.each([["CERT_HAS_EXPIRED", "expired"], ["DEPTH_ZERO_SELF_SIGNED_CERT", "self-signed"], ["ERR_TLS_CERT_ALTNAME_INVALID", "does not match"]])("untrusted cert %s", (code, text) => {
+  it.each([["CERT_HAS_EXPIRED", "hết hạn"], ["DEPTH_ZERO_SELF_SIGNED_CERT", "tự ký"], ["ERR_TLS_CERT_ALTNAME_INVALID", "không khớp"]])("untrusted cert %s", (code, text) => {
     const o = baseline();
     o.https!.certError = { code, message: "x" };
     const f = failing(o, id)[0]!;
@@ -130,7 +130,7 @@ describe("tls.hsts", () => {
   it("max-age=0 is handled by headers.broken, not here", () => {
     const o = baseline(); hdr(o)["strict-transport-security"] = "max-age=0";
     expect(failing(o, id)).toHaveLength(0);
-    expect(failing(o, "headers.broken").some((f) => f.title.includes("max-age=0"))).toBe(true);
+    expect(failing(o, "headers.broken").some((f) => f.fingerprint.endsWith("|hsts-zero"))).toBe(true);
   });
   it("skipped when HTTPS unavailable", () => {
     const o = baseline(); o.https = rec({ status: null, error: { code: "ECONNREFUSED", message: "x" } });
@@ -247,30 +247,31 @@ describe("headers.x-content-type-options", () => {
 
 describe("headers.broken", () => {
   const id = "headers.broken";
+  /** Khoá ổn định của từng phát hiện (không phụ thuộc ngôn ngữ hiển thị). */
   const titleFor = (mut: (h: Record<string, string | string[]>) => void) => {
     const o = baseline(); mut(hdr(o));
-    return failing(o, id).map((f) => f.title);
+    return failing(o, id).map((f) => f.fingerprint.split("|")[1]);
   };
   it("X-Frame-Options ALLOW-FROM / invalid", () => {
-    expect(titleFor((h) => (h["x-frame-options"] = "ALLOW-FROM https://a.com"))).toContain("X-Frame-Options has an invalid value");
-    expect(titleFor((h) => (h["x-frame-options"] = "DENY, SAMEORIGIN"))).toContain("X-Frame-Options has an invalid value");
+    expect(titleFor((h) => (h["x-frame-options"] = "ALLOW-FROM https://a.com"))).toContain("xfo");
+    expect(titleFor((h) => (h["x-frame-options"] = "DENY, SAMEORIGIN"))).toContain("xfo");
   });
   it("HSTS without max-age", () => {
-    expect(titleFor((h) => (h["strict-transport-security"] = "includeSubDomains"))).toContain("HSTS header has no max-age");
+    expect(titleFor((h) => (h["strict-transport-security"] = "includeSubDomains"))).toContain("hsts-no-maxage");
   });
   it("CSP with unquoted keywords", () => {
-    expect(titleFor((h) => (h["content-security-policy"] = "default-src self; script-src none"))).toContain("CSP uses an unquoted keyword");
+    expect(titleFor((h) => (h["content-security-policy"] = "default-src self; script-src none"))).toContain("csp-unquoted");
     expect(titleFor((h) => (h["content-security-policy"] = "default-src 'self'"))).toHaveLength(0);
   });
   it("Referrer-Policy / Permissions-Policy garbage", () => {
-    expect(titleFor((h) => (h["referrer-policy"] = "banana"))).toContain("Referrer-Policy has an invalid value");
-    expect(titleFor((h) => (h["permissions-policy"] = "camera none"))).toContain("Permissions-Policy is malformed");
+    expect(titleFor((h) => (h["referrer-policy"] = "banana"))).toContain("referrer");
+    expect(titleFor((h) => (h["permissions-policy"] = "camera none"))).toContain("permissions");
     expect(titleFor((h) => (h["permissions-policy"] = "geolocation=(self), camera=()"))).toHaveLength(0);
   });
   it("meta CSP with ignored directives", () => {
     const o = baseline(); delete hdr(o)["content-security-policy"];
     setHtml(o, `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-ancestors 'none'">`);
-    expect(failing(o, id).map((f) => f.title)).toContain("CSP <meta> contains directives browsers ignore");
+    expect(failing(o, id).map((f) => f.fingerprint.split("|")[1])).toContain("csp-meta-ignored");
   });
   it("deprecated X-XSS-Protection is informational", () => {
     const o = baseline(); hdr(o)["x-xss-protection"] = "1; mode=block";
@@ -285,7 +286,8 @@ describe("browser.mixed-content", () => {
   const id = "browser.mixed-content";
   it("http script on https page → Medium (active)", () => {
     const o = baseline(); setHtml(o, `<script src="http://cdn.example.net/x.js"></script>`);
-    expect(failing(o, id)[0]).toMatchObject({ severity: "medium", title: "Page loads scripts or styles over HTTP" });
+    expect(failing(o, id)[0]).toMatchObject({ severity: "medium" });
+    expect(failing(o, id)[0]!.fingerprint).toMatch(/\|active$/);
   });
   it("http image → Low (passive)", () => {
     const o = baseline(); setHtml(o, `<img src="http://example.com/a.png">`);
@@ -356,7 +358,7 @@ describe("cookies.flags", () => {
   it("evidence never contains the cookie value", () => {
     const f = failing(withCookie("session=SUPERSECRETVALUE; Path=/"), id)[0]!;
     expect(JSON.stringify(f)).not.toContain("SUPERSECRETVALUE");
-    expect(f.evidence[0]).toContain("session=<redacted>");
+    expect(f.evidence[0]).toContain("session=<đã che>");
   });
   it("benign cookie missing only HttpOnly/SameSite is not a failure", () => {
     expect(failing(withCookie("theme=dark; Secure; Path=/"), id)).toHaveLength(0);
@@ -372,7 +374,7 @@ describe("cookies.flags", () => {
   });
   it("well-configured cookie passes; no cookies passes", () => {
     expect(run(withCookie("session=abc; Secure; HttpOnly; SameSite=Lax; Path=/"), id)[0]!.status).toBe("pass");
-    expect(run(baseline(), id)[0]!.title).toContain("No cookies");
+    expect(run(baseline(), id)[0]!.title).toContain("không đặt cookie");
   });
   it("one finding per cookie", () => {
     const f = failing(withCookie(["a_session=1; Path=/", "b_token=2; Path=/"]), id);
@@ -504,9 +506,9 @@ describe("exposure files", () => {
     expect(miss).toMatchObject({ status: "info", severity: "info" });
     expect(miss.remediation!.snippets[0]!.code).toContain("Contact:");
     o.files.securityTxt = { url: "u", present: true, status: 200, contentType: "text/plain", body: "Contact: mailto:a@b.c\nExpires: 2020-01-01T00:00:00Z" };
-    expect(failing(o, "exposure.security-txt")[0]!.summary).toContain("expired");
+    expect(failing(o, "exposure.security-txt")[0]!.summary).toContain("hết hạn");
     o.files.securityTxt = { url: "u", present: true, status: 200, contentType: "text/plain", body: "Expires: 2099-01-01T00:00:00Z" };
-    expect(failing(o, "exposure.security-txt")[0]!.summary).toContain("no Contact");
+    expect(failing(o, "exposure.security-txt")[0]!.summary).toContain("thiếu trường Contact");
     expect(run(baseline(), "exposure.security-txt")[0]!.status).toBe("pass");
   });
 });
@@ -539,10 +541,10 @@ describe("config.suspicious-redirects", () => {
   it("long chains and raw-IP redirects → Low", () => {
     const o = baseline();
     o.http!.chain = Array.from({ length: 6 }, (_, i) => ({ url: `https://example.com/${i}`, status: 301, headers: {} }));
-    expect(failing(o, id).map((f) => f.title)).toContain("Long redirect chain");
+    expect(failing(o, id).map((f) => f.fingerprint.split("|")[1])).toContain("long:http");
     const p = baseline();
     p.http!.chain = [{ url: "http://example.com/", status: 302, headers: {} }, { url: "http://93.184.216.34/", status: 200, headers: {} }];
-    expect(failing(p, id).map((f) => f.title)).toContain("Redirect to a raw IP address");
+    expect(failing(p, id).map((f) => f.fingerprint.split("|")[1])).toContain("ip:http");
   });
   it("cross-domain redirect is informational; meta refresh cross-domain → Low", () => {
     const o = baseline();
@@ -554,7 +556,7 @@ describe("config.suspicious-redirects", () => {
   it("refused redirect to a private address is reported as info", () => {
     const o = baseline();
     o.https!.error = { code: "non_public_ip", message: "blocked", blocked: true };
-    expect(run(o, id).some((f) => f.status === "info" && f.title.includes("refused"))).toBe(true);
+    expect(run(o, id).some((f) => f.status === "info" && f.fingerprint.endsWith("|blocked:https"))).toBe(true);
   });
   it("passes when clean", () => expect(run(baseline(), id)[0]!.status).toBe("pass"));
 });
@@ -566,7 +568,7 @@ describe("config.dns-email-security", () => {
     const f = failing(o, id);
     expect(f.map((x) => x.severity)).toEqual(["low", "low"]);
     expect(f.every((x) => x.confidence === "low")).toBe(true);
-    expect(run(o, id).some((x) => x.title === "No CAA record" && x.status === "info")).toBe(true);
+    expect(run(o, id).some((x) => x.fingerprint.endsWith("|caa") && x.status === "info")).toBe(true);
   });
   it("lookup failures (undefined) produce nothing", () => {
     const o = baseline(); o.dns = { domain: "example.com", caa: null, spf: undefined, dmarc: undefined };
@@ -599,7 +601,7 @@ describe("privacy rules", () => {
     const o = baseline(); delete hdr(o)["referrer-policy"];
     expect(failing(o, "privacy.referrer-policy")[0]).toMatchObject({ severity: "low" });
     hdr(o)["referrer-policy"] = "unsafe-url";
-    expect(failing(o, "privacy.referrer-policy")[0]!.title).toContain("leaks");
+    expect(failing(o, "privacy.referrer-policy")[0]!.title).toContain("lộ URL");
     delete hdr(o)["referrer-policy"];
     setHtml(o, `<meta name="referrer" content="same-origin">`);
     o.html!.metaReferrer = "same-origin";

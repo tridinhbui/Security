@@ -11,11 +11,11 @@ import { clientIp, json, sameOrigin } from "@/lib/http/guards";
 const Body = z.object({ email: z.string().max(320), password: z.string().max(256), turnstile: z.string().max(4096).optional() });
 
 export async function POST(req: NextRequest) {
-  if (!sameOrigin(req)) return json({ error: "forbidden", message: "Cross-origin request rejected." }, 403);
+  if (!sameOrigin(req)) return json({ error: "forbidden", message: "Yêu cầu từ nguồn khác đã bị từ chối." }, 403);
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return json({ error: "invalid", message: "Enter an email and password." }, 400);
+  if (!parsed.success) return json({ error: "invalid", message: "Hãy nhập email và mật khẩu." }, 400);
   const ip = clientIp(req);
-  if (!(await verifyTurnstile(env.turnstileSecret, parsed.data.turnstile, ip))) return json({ error: "captcha", message: "Please complete the verification challenge." }, 400);
+  if (!(await verifyTurnstile(env.turnstileSecret, parsed.data.turnstile, ip))) return json({ error: "captcha", message: "Vui lòng hoàn tất bước xác minh." }, 400);
 
   const r = await signup(await getDb(), { email: parsed.data.email, password: parsed.data.password, ipHash: ip ? await hashIp(ip) : null });
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status);

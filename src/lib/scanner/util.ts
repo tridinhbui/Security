@@ -13,10 +13,10 @@ export function setCookies(h: Headers | undefined): string[] {
   return Array.isArray(v) ? v : [v];
 }
 
-/** Evidence line for a header, or "(header not present)". Truncated to keep reports small. */
+/** Dòng bằng chứng cho một header, hoặc "(không có)". Cắt ngắn để báo cáo gọn. */
 export function headerEvidence(h: Headers | undefined, name: string): string {
   const v = header(h, name);
-  return v === undefined ? `${name}: (not present)` : `${name}: ${truncate(v, 300)}`;
+  return v === undefined ? `${name}: (không có)` : `${name}: ${truncate(v, 300)}`;
 }
 
 export function truncate(s: string, n: number): string {

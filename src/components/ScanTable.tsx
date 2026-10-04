@@ -3,7 +3,7 @@ import type { ScanRow } from "@/lib/db-types";
 import { formatDate, gradeColor, relativeTime, scoreColor } from "@/lib/format";
 
 export function ScanTable({ scans }: { scans: ScanRow[] }) {
-  if (scans.length === 0) return <p className="text-sm text-muted mt-3">No scans yet — paste a URL above.</p>;
+  if (scans.length === 0) return <p className="text-sm text-muted mt-3">Chưa có lượt quét nào. Hãy dán một URL vào ô phía trên.</p>;
   return (
     <ul className="mt-3 divide-y divide-line border-y border-line">
       {scans.map((s) => (
@@ -15,7 +15,7 @@ export function ScanTable({ scans }: { scans: ScanRow[] }) {
               <span className="block truncate">{s.normalized_url.replace(/^https?:\/\//, "")}</span>
               <span className="block text-xs text-muted num" title={formatDate(s.created_at)}>{relativeTime(s.created_at)}</span>
             </span>
-            <span className={`text-xs ${s.status === "failed" ? "text-high" : s.status === "completed" ? "text-faint" : "text-muted"}`}>{s.status === "completed" ? "" : s.status === "failed" ? "Failed" : "In progress"}</span>
+            <span className={`text-xs ${s.status === "failed" ? "text-high" : s.status === "completed" ? "text-faint" : "text-muted"}`}>{s.status === "completed" ? "" : s.status === "failed" ? "Thất bại" : "Đang xử lý"}</span>
           </Link>
         </li>
       ))}

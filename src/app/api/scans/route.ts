@@ -13,11 +13,11 @@ const Body = z.object({ url: z.string().min(1).max(2048) });
 
 /** Create a scan and enqueue it. Returns immediately with the scan id; the queue consumer + container do the rest. */
 export async function POST(req: NextRequest) {
-  if (!sameOrigin(req)) return json({ error: "forbidden", message: "Cross-origin request rejected." }, 403);
+  if (!sameOrigin(req)) return json({ error: "forbidden", message: "Yêu cầu từ nguồn khác đã bị từ chối." }, 403);
   const user = await getUser();
-  if (!user) return json({ error: "unauthenticated", message: "Sign in to scan a website." }, 401);
+  if (!user) return json({ error: "unauthenticated", message: "Hãy đăng nhập để quét website." }, 401);
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return json({ error: "invalid_url", message: "Enter a website address." }, 400);
+  if (!parsed.success) return json({ error: "invalid_url", message: "Hãy nhập địa chỉ website." }, 400);
 
   const { DB, SCAN_QUEUE } = await bindings();
   const ip = clientIp(req);

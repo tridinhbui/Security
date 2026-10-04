@@ -32,7 +32,7 @@ export function ScanProgress({ scanId, initialStatus, url }: { scanId: string; i
   const idx = PROGRESS_STEPS.findIndex((s) => s.status === status);
   return (
     <div className="mx-auto max-w-xl px-5 py-16" aria-live="polite">
-      <p className="text-sm text-muted">Scanning</p>
+      <p className="text-sm text-muted">Đang quét</p>
       <h1 className="text-2xl font-semibold tracking-tight break-all mt-1">{url}</h1>
       <ol className="mt-10 space-y-3">
         {PROGRESS_STEPS.map((s, i) => {
@@ -45,8 +45,8 @@ export function ScanProgress({ scanId, initialStatus, url }: { scanId: string; i
           );
         })}
       </ol>
-      <p className="mt-10 text-sm text-muted">Usually takes 10–30 seconds. You can leave this page — the report will be in your history.</p>
-      {stale && <p className="mt-3 text-sm text-med">This is taking longer than usual. The worker may be busy; the scan will still complete.</p>}
+      <p className="mt-10 text-sm text-muted">Thường mất 10–30 giây. Bạn có thể rời khỏi trang này, báo cáo sẽ nằm trong lịch sử quét của bạn.</p>
+      {stale && <p className="mt-3 text-sm text-med">Lần này lâu hơn bình thường. Hệ thống xử lý có thể đang bận, nhưng lượt quét vẫn sẽ hoàn tất.</p>}
     </div>
   );
 }

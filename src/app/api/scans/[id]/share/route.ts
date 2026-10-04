@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const db = await getDb();
   const scan = await repo.getScan(db, user.id, id); // ownership
   if (!scan) return json({ error: "not_found" }, 404);
-  if (scan.status !== "completed") return json({ error: "not_ready", message: "Only completed reports can be shared." }, 409);
+  if (scan.status !== "completed") return json({ error: "not_ready", message: "Chỉ có thể chia sẻ báo cáo đã hoàn tất." }, 409);
 
   const { token, hash } = await newShareToken();
   await repo.createShare(db, { scanId: id, userId: user.id, tokenHash: hash, expiresAt: scan.expires_at });
