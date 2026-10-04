@@ -4,3 +4,6 @@ IP_HASH_SECRET=
 CRON_SECRET=
 # Optional Cloudflare Turnstile (also set NEXT_PUBLIC_TURNSTILE_SITE_KEY in .env.local at build time)
 # TURNSTILE_SECRET_KEY=
+
+# DEV ONLY: run the scanner locally (no Docker needed) with `npm run scanner`, then uncomment:
+# LOCAL_SCANNER_URL=http://127.0.0.1:8080

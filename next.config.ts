@@ -1,5 +1,16 @@
+import { readFileSync } from "node:fs";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import type { NextConfig } from "next";
+
+// `next dev` does not expose .dev.vars on process.env (the built Worker does), so load it for local development.
+if (process.env.NODE_ENV !== "production") {
+  try {
+    for (const line of readFileSync(".dev.vars", "utf8").split("\n")) {
+      const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+      if (m && !line.trim().startsWith("#") && process.env[m[1]!] === undefined) process.env[m[1]!] = m[2]!.replace(/^["']|["']$/g, "");
+    }
+  } catch { /* no .dev.vars: fine */ }
+}
 
 // Gives `next dev` access to local D1/Queues bindings from wrangler.jsonc.
 initOpenNextCloudflareForDev();

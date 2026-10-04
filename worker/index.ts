@@ -19,6 +19,8 @@ interface Env {
   DB: D1Like;
   SCAN_QUEUE: Queue<{ scanId: string }>;
   SCANNER: DurableObjectNamespace<ScannerContainer>;
+  /** DEV ONLY (.dev.vars): send scans to a locally running `npm run scanner` instead of the Container. Never set in production. */
+  LOCAL_SCANNER_URL?: string;
 }
 
 const SCANNER_POOL_SIZE = 3;
@@ -46,8 +48,10 @@ export default {
   async queue(batch, env): Promise<void> {
     for (const msg of batch.messages) {
       try {
-        const stub = await getRandom(env.SCANNER, SCANNER_POOL_SIZE);
-        const scanner = createNdjsonScanner((req) => stub.fetch(req));
+        const send = env.LOCAL_SCANNER_URL
+          ? (req: Request) => fetch(new URL(new URL(req.url).pathname, env.LOCAL_SCANNER_URL), { method: req.method, headers: req.headers, body: req.body })
+          : await getRandom(env.SCANNER, SCANNER_POOL_SIZE).then((stub) => (req: Request) => stub.fetch(req));
+        const scanner = createNdjsonScanner(send);
         const outcome = await processScanJob(env.DB, msg.body.scanId, scanner);
         if (outcome === "retry") msg.retry({ delaySeconds: 15 * msg.attempts });
         else msg.ack();
