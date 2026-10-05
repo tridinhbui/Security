@@ -1,6 +1,7 @@
 import type { FetchRecord } from "../ssrf/types";
 import type { ScanBudget } from "../ssrf/budget";
 import type { NormalizedTarget } from "../ssrf/url";
+import { attachFixCommands } from "./fixes";
 import { ALL_RULES } from "./rules";
 import { evaluate } from "./evaluate";
 import { redactHeaders, type RedactedTarget, type ScanReport } from "./report";
@@ -22,7 +23,8 @@ export function targetsFrom(obs: Observations): RedactedTarget[] {
 }
 
 export function buildReport(input: string, target: NormalizedTarget, obs: Observations, budget: ScanBudget, started: number, quick = false): ScanReport {
-  const { findings, errors } = evaluate(obs);
+  const { findings: raw, errors } = evaluate(obs);
+  const findings = attachFixCommands(raw, { host: target.host, platforms: obs.platforms });
   const score = calculateScore(findings);
   return {
     version: 1,

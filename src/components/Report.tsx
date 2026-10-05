@@ -415,7 +415,7 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
                   {effort && <p className="mt-2 text-xs text-faint">Ước lượng công sức: {effort.title} — {effort.hint.toLowerCase()}.</p>}
                 </Section>
                 {f.remediation.snippets.length > 0 && (
-                  <Section title="Ví dụ cấu hình">
+                  <Section title="Lệnh và cấu hình để dán">
                     <div className="space-y-3">
                       {f.remediation.snippets.map((s, k) => (
                         <div key={k}>
@@ -424,7 +424,7 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
                         </div>
                       ))}
                     </div>
-                    {f.remediation.platformUnknown && <p className="mt-2 text-xs text-muted">Chúng tôi không nhận diện được hệ thống hosting của bạn, nên chỉ hiển thị chính header — không đoán file cấu hình.</p>}
+                    {f.remediation.platformUnknown && <p className="mt-2 text-xs text-muted">Chúng tôi không nhận diện được hệ thống hosting của bạn, nên liệt kê các lựa chọn phổ biến: hãy chọn đúng mục bạn đang dùng.</p>}
                   </Section>
                 )}
                 <Section title="Quét lại sau khi sửa">

@@ -21,13 +21,13 @@ describe("rule registry", () => {
   it("baseline hardened site: no failing findings from any rule", () => {
     expect(failing(baseline()).map((f) => `${f.ruleId}: ${f.title}`)).toEqual([]);
   });
-  it("every rule that can fail ships remediation, and failing findings never fabricate framework configs", () => {
+  it("every rule that can fail ships remediation; with an unknown platform the choices are explicit labelled alternatives, never a silent guess", () => {
     const o = baseline();
     delete hdr(o)["content-security-policy"];
     for (const f of failing(o)) {
       expect(f.remediation).toBeTruthy();
-      // unknown platform → generic header only, no framework snippets
-      expect(f.remediation!.snippets.every((s) => s.platform === "generic")).toBe(true);
+      // nền tảng chưa rõ → cờ platformUnknown + mọi snippet theo nền tảng đều có nhãn "Nginx / Apache / …" để người dùng tự chọn
+      if (f.remediation!.platformUnknown) expect(f.remediation!.snippets.every((s) => s.label.length > 3)).toBe(true);
     }
   });
 });

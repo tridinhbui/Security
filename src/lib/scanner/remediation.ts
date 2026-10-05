@@ -84,6 +84,8 @@ export default nextConfig;`,
   return out;
 }
 
+export const ALL_PLATFORMS: Platform[] = ["nextjs", "vercel", "cloudflare", "nginx", "apache", "express"];
+
 export function headerFix(name: string, value: string, platforms: Platform[], summary?: string): Remediation {
   const snippets = headerSnippets(name, value, platforms);
   if (snippets.length === 0) {
@@ -91,9 +93,9 @@ export function headerFix(name: string, value: string, platforms: Platform[], su
       summary: summary ?? `Gửi header phản hồi ${name}: ${value}`,
       steps: [
         `Thêm header phản hồi sau trên máy chủ web, CDN hoặc nền tảng hosting của bạn: ${name}: ${value}`,
-        "Chúng tôi không xác định chắc chắn được hệ thống hosting của bạn nên không đoán định dạng file cấu hình.",
+        "Chúng tôi không xác định chắc chắn được hệ thống hosting của bạn, nên liệt kê các lựa chọn phổ biến bên dưới: hãy chọn đúng mục bạn đang dùng.",
       ],
-      snippets: [{ platform: "generic", label: "Header cần thêm", language: "http", code: `${name}: ${value}` }],
+      snippets: [{ platform: "generic", label: "Header cần thêm", language: "http", code: `${name}: ${value}` }, ...headerSnippets(name, value, ALL_PLATFORMS)],
       platformUnknown: true,
     };
   }
@@ -148,9 +150,9 @@ export function httpsRedirectFix(platforms: Platform[]): Remediation {
       summary: "Chuyển hướng mọi request http:// sang cùng URL đó trên https:// bằng chuyển hướng vĩnh viễn (301/308).",
       steps: [
         "Cấu hình máy chủ web, CDN hoặc nhà cung cấp hosting để cổng 80 trả về chuyển hướng 301 tới phiên bản https:// của cùng URL.",
-        "Chúng tôi không xác định chắc chắn được hệ thống hosting của bạn nên không đoán định dạng file cấu hình.",
+        "Chúng tôi không xác định chắc chắn được hệ thống hosting của bạn, nên liệt kê các lựa chọn phổ biến bên dưới: hãy chọn đúng mục bạn đang dùng.",
       ],
-      snippets: [],
+      snippets: httpsRedirectFix(ALL_PLATFORMS).snippets,
       platformUnknown: true,
     };
   }
