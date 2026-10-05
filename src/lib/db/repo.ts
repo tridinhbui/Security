@@ -11,7 +11,7 @@ import { isoAgo, isoIn, newId, nowIso, parseJson, type D1Like } from "./d1";
 
 // ------------------------------------------------------------------ users
 
-export interface UserRow { id: string; email: string; password_hash: string; retention_days: number; abuse_score: number; blocked_until: string | null; created_at: string }
+export interface UserRow { id: string; email: string; password_hash: string; retention_days: number; abuse_score: number; blocked_until: string | null; created_at: string; google_sub: string | null; display_name: string | null; avatar_url: string | null }
 
 export async function createUser(db: D1Like, email: string, passwordHash: string): Promise<{ ok: true; id: string } | { ok: false; reason: "exists" }> {
   const id = newId();
@@ -23,6 +23,39 @@ export async function createUser(db: D1Like, email: string, passwordHash: string
     throw e;
   }
 }
+export const OAUTH_PASSWORD_MARKER = "oauth:google";
+
+/**
+ * Tạo hoặc liên kết tài khoản từ danh tính Google ĐÃ XÁC MINH (email_verified=true được kiểm tra ở lớp trên).
+ * Thứ tự: trùng google_sub → cập nhật hồ sơ; trùng email → liên kết (an toàn vì Google đã xác minh quyền sở hữu email);
+ * không có → tạo mới. Không bao giờ tạo bản sao.
+ */
+export async function upsertGoogleUser(db: D1Like, g: { sub: string; email: string; name?: string | null; picture?: string | null }): Promise<{ user: UserRow; created: boolean }> {
+  const bySub = await db.prepare("SELECT * FROM users WHERE google_sub = ?").bind(g.sub).first<UserRow>();
+  if (bySub) {
+    await db.prepare("UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?").bind(g.name ?? null, g.picture ?? null, bySub.id).run();
+    return { user: { ...bySub, display_name: g.name ?? null, avatar_url: g.picture ?? null }, created: false };
+  }
+  const byEmail = await getUserByEmail(db, g.email);
+  if (byEmail) {
+    if (byEmail.google_sub && byEmail.google_sub !== g.sub) throw new Error("email_linked_to_other_google_account");
+    await db.prepare("UPDATE users SET google_sub = ?, display_name = COALESCE(display_name, ?), avatar_url = ? WHERE id = ?").bind(g.sub, g.name ?? null, g.picture ?? null, byEmail.id).run();
+    return { user: { ...byEmail, google_sub: g.sub, display_name: byEmail.display_name ?? g.name ?? null, avatar_url: g.picture ?? null }, created: false };
+  }
+  const id = newId();
+  try {
+    await db.prepare("INSERT INTO users (id,email,password_hash,created_at,google_sub,display_name,avatar_url) VALUES (?,?,?,?,?,?,?)")
+      .bind(id, g.email, OAUTH_PASSWORD_MARKER, nowIso(), g.sub, g.name ?? null, g.picture ?? null).run();
+  } catch (e) {
+    if (/UNIQUE/i.test(String((e as Error).message))) { // hai callback đồng thời: lấy bản vừa được tạo
+      const again = await db.prepare("SELECT * FROM users WHERE google_sub = ? OR email = ?").bind(g.sub, g.email).first<UserRow>();
+      if (again) return { user: again, created: false };
+    }
+    throw e;
+  }
+  return { user: (await getUserById(db, id))!, created: true };
+}
+
 export const getUserByEmail = (db: D1Like, email: string) => db.prepare("SELECT * FROM users WHERE email = ?").bind(email).first<UserRow>();
 export const getUserById = (db: D1Like, id: string) => db.prepare("SELECT * FROM users WHERE id = ?").bind(id).first<UserRow>();
 
@@ -49,7 +82,7 @@ export const deleteUserSessions = (db: D1Like, userId: string) => db.prepare("DE
 
 // ------------------------------------------------------------------ auth throttling
 
-export type AttemptKind = "login_fail_email" | "login_fail_ip" | "signup_ip";
+export type AttemptKind = "login_fail_email" | "login_fail_ip" | "signup_ip" | "oauth_fail_ip";
 export const recordAttempt = (db: D1Like, kind: AttemptKind, key: string) => db.prepare("INSERT INTO auth_attempts (kind,key,at) VALUES (?,?,?)").bind(kind, key, nowIso()).run();
 export async function countAttempts(db: D1Like, kind: AttemptKind, key: string, windowMs: number): Promise<number> {
   const r = await db.prepare("SELECT COUNT(*) AS c FROM auth_attempts WHERE kind = ? AND key = ? AND at > ?").bind(kind, key, isoAgo(windowMs)).first<{ c: number }>();

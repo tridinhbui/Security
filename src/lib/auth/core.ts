@@ -13,7 +13,7 @@ export type AuthResult =
   | { ok: true; userId: string; token: string; expiresAt: string }
   | { ok: false; status: 400 | 401 | 409 | 429; error: string; message: string };
 
-async function startSession(db: D1Like, userId: string) {
+export async function startSessionFor(db: D1Like, userId: string) {
   const token = toB64Url(randomBytes(32)); // 256-bit; only its hash is stored
   const expiresAt = isoIn(SESSION_TTL_MS);
   await repo.insertSession(db, await sha256Hex(token), userId, expiresAt);
@@ -32,7 +32,7 @@ export async function signup(db: D1Like, a: { email: string; password: string; i
   if (!created.ok) return { ok: false, status: 409, error: "exists", message: "Đã có tài khoản sử dụng email này." };
   if (ipKey) await repo.recordAttempt(db, "signup_ip", ipKey);
   await repo.recordEvent(db, { type: "auth_signup", userId: created.id });
-  return { ok: true, userId: created.id, ...(await startSession(db, created.id)) };
+  return { ok: true, userId: created.id, ...(await startSessionFor(db, created.id)) };
 }
 
 export async function login(db: D1Like, a: { email: string; password: string; ipHash: string | null }): Promise<AuthResult> {
@@ -59,7 +59,7 @@ export async function login(db: D1Like, a: { email: string; password: string; ip
   }
   await repo.clearAttempts(db, "login_fail_email", emailKey);
   await repo.recordEvent(db, { type: "auth_login", userId: user.id });
-  return { ok: true, userId: user.id, ...(await startSession(db, user.id)) };
+  return { ok: true, userId: user.id, ...(await startSessionFor(db, user.id)) };
 }
 
 /** Resolve a session cookie value to a user, sliding the expiry forward when it is half used. */
@@ -69,7 +69,7 @@ export async function resolveSession(db: D1Like, token: string | undefined | nul
   const row = await repo.getSessionUser(db, idHash);
   if (!row) return null;
   if (Date.parse(row.session_expires) - Date.now() < REFRESH_WHEN_LEFT_MS) await repo.extendSession(db, idHash, isoIn(SESSION_TTL_MS));
-  return { id: row.id, email: row.email, retention_days: row.retention_days };
+  return { id: row.id, email: row.email, retention_days: row.retention_days, name: row.display_name, avatar_url: row.avatar_url };
 }
 
 export async function logout(db: D1Like, token: string | undefined | null) {

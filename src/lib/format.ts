@@ -3,6 +3,12 @@ export { SEV_LABEL } from "./i18n";
 export const SEV_COLOR: Record<Severity, string> = {
   critical: "text-crit", high: "text-high", medium: "text-med", low: "text-low", info: "text-info",
 };
+/** Chip theo mức độ (định nghĩa trong globals.css). */
+export const SEV_CHIP: Record<Severity, string> = { critical: "chip-crit", high: "chip-high", medium: "chip-med", low: "chip-low", info: "chip-info" };
+/** Màu thanh/nền theo mức độ. */
+export const SEV_BAR: Record<Severity, string> = { critical: "bg-crit", high: "bg-high", medium: "bg-med", low: "bg-low", info: "bg-info" };
+export const SEV_RAIL: Record<Severity, string> = { critical: "border-l-crit", high: "border-l-high", medium: "border-l-med", low: "border-l-low", info: "border-l-line-strong" };
+
 export const SEV_DOT: Record<Severity, string> = {
   critical: "bg-crit", high: "bg-high", medium: "bg-med", low: "bg-low", info: "bg-info",
 };

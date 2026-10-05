@@ -125,6 +125,23 @@ Quan sát: Workers Logs bật sẵn (JSON có cấu trúc, không bao giờ ghi 
 
 **Ngoài phạm vi có chủ đích:** đoán mật khẩu, vượt xác thực, payload SQLi/XSS, fuzzing, quét cổng, dò `/.env` hay `/.git`. Nếu sau này thêm kiểm tra nâng cao, bắt buộc xác minh quyền sở hữu tên miền trước.
 
+## Đăng nhập bằng Google
+
+Triển khai OAuth 2.0 **authorization code + PKCE** hoàn toàn ở phía Worker (không dùng SDK phía trình duyệt): `client_secret` chỉ tồn tại ở máy chủ, `state`/`nonce`/`code_verifier` nằm trong cookie HttpOnly **được mã hoá AES-GCM** (10 phút), `id_token` được xác minh chữ ký RS256 bằng khoá công khai của Google và kiểm tra `iss`, `aud`, `exp`, `iat`, `nonce`, `email_verified` (chặn `alg=none` và tấn công đổi thuật toán). Email trùng với tài khoản mật khẩu có sẵn sẽ được **liên kết** (không tạo bản sao); `next` chỉ nhận đường dẫn tương đối cùng site. Nếu chưa cấu hình, nút Google hiển thị rõ là chưa bật — không giả lập đăng nhập.
+
+Cấu hình (một lần):
+1. Google Cloud Console → **APIs & Services → OAuth consent screen**: loại *External*, scope `openid`, `email`, `profile`.
+2. **Credentials → Create credentials → OAuth client ID → Web application**. Thêm *Authorized redirect URIs*:
+   - `http://localhost:8787/api/auth/google/callback` (chạy local)
+   - `https://<địa-chỉ-thật-của-bạn>/api/auth/google/callback` (production — phải trùng `NEXT_PUBLIC_SITE_URL` trong `wrangler.jsonc`)
+3. Local: thêm `GOOGLE_CLIENT_ID` và `GOOGLE_CLIENT_SECRET` vào `.dev.vars`.
+4. Production: `GOOGLE_CLIENT_ID` đặt trong `vars` của `wrangler.jsonc` (công khai), còn `GOOGLE_CLIENT_SECRET` đặt bằng `npx wrangler secret put GOOGLE_CLIENT_SECRET`.
+5. Áp migration mới lên D1 thật: `npm run db:migrate` (thêm cột `google_sub`, `display_name`, `avatar_url`).
+
+## Hệ thống thiết kế
+
+Giao diện **chế độ sáng** duy nhất, một nguồn token trong `src/app/globals.css` (nền trắng, chữ gần đen, xám lạnh, xanh điện làm nhấn, màu trạng thái đều đạt tương phản WCAG AA). Lớp tiện ích dùng chung: `.btn-*`, `.chip-*`, `.panel`, `.term` (terminal sáng), `.eyebrow`, `.bg-grid`, `.skeleton`. Chuyển động chỉ dùng `transform`/`opacity` (trừ vòng điểm dùng `stroke-dashoffset`), toàn bộ tắt khi người dùng bật *giảm chuyển động*. Hiệu ứng gõ terminal (`src/components/motion/Typed.tsx`) chỉ dùng cho kết quả quét và hướng dẫn khắc phục, có thể bỏ qua bằng nút hoặc Esc, chỉ phát một lần cho mỗi báo cáo, và trình đọc màn hình luôn nhận văn bản đầy đủ.
+
 ## Xác thực & cách ly dữ liệu
 
 D1 **không có row-level security** nên quyền sở hữu được thực thi trong `src/lib/db/repo.ts`: mọi hàm đọc/sửa dữ liệu người dùng đều nhận `userId` trong mệnh đề `WHERE` (test phủ việc đọc chéo, xoá chéo, thu hồi liên kết, tra phát hiện của người khác). Liên kết chia sẻ công khai đi qua băm token và không bao giờ lộ header gốc.

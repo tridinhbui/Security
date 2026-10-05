@@ -23,7 +23,7 @@ export default async function SharedReport({ params }: { params: Promise<{ token
   return (
     <Report
       data={toReportData(view, { variant: "shared" })}
-      actions={<Link href="/" className="h-9 px-4 inline-flex items-center rounded-md bg-fg text-bg text-sm font-medium hover:bg-white">Quét website của bạn</Link>}
+      actions={<Link href="/" className="btn-primary btn-sm">Quét website của bạn</Link>}
     />
   );
 }

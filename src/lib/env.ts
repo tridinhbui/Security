@@ -20,6 +20,10 @@ export const env = {
   get siteUrl() { return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"; },
   /** Optional Cloudflare Turnstile on signup/login. Enabled when both keys are set. */
   get turnstileSecret() { return process.env.TURNSTILE_SECRET_KEY || null; },
+  /** Google OAuth: client ID là công khai; client secret là bí mật (chỉ ở Worker). Cả hai phải có thì mới bật. */
+  get googleClientId() { return process.env.GOOGLE_CLIENT_ID || null; },
+  get googleClientSecret() { return process.env.GOOGLE_CLIENT_SECRET || null; },
+  get googleEnabled() { return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET); },
   get isProd() { return process.env.NODE_ENV === "production"; },
   limits: {
     get dailyQuota() { return int("SCAN_DAILY_QUOTA", 20); },
@@ -30,6 +34,7 @@ export const env = {
     get ssrfStrikeThreshold() { return int("ABUSE_SSRF_STRIKES", 5); },
     get loginFailsPerEmail() { return int("AUTH_LOGIN_FAILS_PER_EMAIL", 5); },
     get loginFailsPerIp() { return int("AUTH_LOGIN_FAILS_PER_IP", 20); },
+    get oauthFailsPerIp() { return int("AUTH_OAUTH_FAILS_PER_IP", 20); },
     get signupsPerIpPerHour() { return int("AUTH_SIGNUPS_PER_IP_HOUR", 5); },
   },
 };

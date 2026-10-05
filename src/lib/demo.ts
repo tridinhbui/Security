@@ -75,7 +75,7 @@ export function demoReport(): ReportData {
   const s0 = calculateScore(prevFindings);
   const c = compareScans({ score: s0.score, findings: prevFindings }, { score: s1.score, findings: nowFindings });
   return {
-    url: HOME, host: HOST, scannedAt: "2026-10-02T09:14:00.000Z", score: s1.score, grade: s1.grade, categoryScores: s1.categoryScores,
+    id: "demo", url: HOME, host: HOST, scannedAt: "2026-10-02T09:14:00.000Z", score: s1.score, grade: s1.grade, categoryScores: s1.categoryScores,
     severityCounts: s1.severityCounts, platforms: ["nextjs", "vercel"], requestCount: 21, findings: nowFindings, targets: [],
     comparison: { previousScore: s0.score, previousAt: "2026-09-25T09:10:00.000Z", scoreDelta: c.scoreDelta, newFindings: c.newFindings, resolvedFindings: c.resolvedFindings, unchanged: c.unchanged },
     variant: "demo", disclaimer: SCORE_DISCLAIMER,

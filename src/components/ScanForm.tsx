@@ -13,14 +13,12 @@ const ERRORS: Record<string, string> = {
   dns_failed: "Chúng tôi không tìm thấy tên miền này. Hãy kiểm tra lại chính tả.",
 };
 
-interface Props {
-  authed: boolean;
-  initialUrl?: string;
-  autoStart?: boolean;
-  size?: "lg" | "md";
-  label?: string;
-}
+interface Props { authed: boolean; initialUrl?: string; autoStart?: boolean; size?: "lg" | "md"; label?: string }
 
+/**
+ * Ô nhập mục tiêu. Kiểm tra phía client chỉ để phản hồi nhanh; MỌI quy tắc an toàn (SSRF, cổng, giao thức)
+ * được kiểm tra lại ở máy chủ và không bao giờ tin giá trị từ trình duyệt.
+ */
 export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "lg", label = "Quét website" }: Props) {
   const router = useRouter();
   const [url, setUrl] = useState(initialUrl);
@@ -63,20 +61,23 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
   const big = size === "lg";
   return (
     <form onSubmit={(e) => { e.preventDefault(); void submit(url); }} noValidate className="w-full">
-      <div className={`flex flex-col sm:flex-row gap-2 ${big ? "" : ""}`}>
+      <div className={`flex flex-col gap-2 rounded-2xl border bg-white p-2 shadow-pop transition-[border-color,box-shadow] duration-200 focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15 sm:flex-row ${error ? "border-crit/50" : "border-line-strong"}`}>
         <label className="sr-only" htmlFor="scan-url">URL website</label>
-        <input
-          id="scan-url" name="url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false}
-          placeholder="example.com" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy}
-          aria-invalid={!!error} aria-describedby={error ? "scan-error" : undefined}
-          className={`flex-1 min-w-0 bg-surface border border-line-strong rounded-md px-4 text-fg placeholder:text-faint focus:border-fg/60 focus:outline-none ${big ? "h-14 text-lg" : "h-11 text-base"}`}
-        />
-        <button type="submit" disabled={busy}
-          className={`rounded-md bg-fg text-bg font-medium hover:bg-white disabled:opacity-60 transition-colors ${big ? "h-14 px-7 text-base" : "h-11 px-5 text-sm"}`}>
-          {busy ? "Đang bắt đầu…" : label}
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
+          <span className="prompt mono select-none text-base" aria-hidden>$</span>
+          <span className="mono hidden select-none text-sm text-faint sm:inline" aria-hidden>scan</span>
+          <input
+            id="scan-url" name="url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false}
+            placeholder="example.com" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy} maxLength={2048}
+            aria-invalid={!!error} aria-describedby={error ? "scan-error" : undefined}
+            className={`mono min-w-0 flex-1 bg-transparent text-fg placeholder:text-faint focus:outline-none ${big ? "h-12 text-base sm:text-lg" : "h-10 text-[15px]"}`}
+          />
+        </div>
+        <button type="submit" disabled={busy} className={`btn-primary ${big ? "btn-lg" : ""} sm:min-w-40`}>
+          {busy ? <><span className="live-dot !bg-white" aria-hidden />Đang bắt đầu…</> : <>{label}<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></>}
         </button>
       </div>
-      {error && <p id="scan-error" role="alert" className="mt-3 text-sm text-high">{error}</p>}
+      {error && <p id="scan-error" role="alert" className="pop mt-3 flex items-start gap-2 text-sm text-crit"><svg viewBox="0 0 24 24" className="mt-0.5 size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.01" /></svg>{error}</p>}
     </form>
   );
 }

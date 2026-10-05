@@ -12,16 +12,18 @@ export function RescanButton({ url, variant = "primary", label = "Quét lại" }
         type="button" disabled={busy}
         onClick={async () => {
           setBusy(true); setErr(null);
-          const res = await fetch("/api/scans", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
-          const body = await res.json().catch(() => ({}));
-          if (res.ok) router.push(`/scans/${body.id}`);
-          else { setErr(body.message ?? "Không thể bắt đầu lượt quét."); setBusy(false); }
+          try {
+            const res = await fetch("/api/scans", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
+            const body = await res.json().catch(() => ({}));
+            if (res.ok) router.push(`/scans/${body.id}`);
+            else { setErr(body.message ?? "Không thể bắt đầu lượt quét."); setBusy(false); }
+          } catch { setErr("Lỗi mạng. Vui lòng thử lại."); setBusy(false); }
         }}
-        className={variant === "primary" ? "h-9 px-4 rounded-md bg-fg text-bg text-sm font-medium hover:bg-white disabled:opacity-60" : "h-9 px-4 rounded-md border border-line-strong text-sm hover:border-fg/50 disabled:opacity-60"}
+        className={`${variant === "primary" ? "btn-primary" : "btn-ghost"} btn-sm`}
       >
-        {busy ? "Đang bắt đầu…" : label}
+        {busy ? <><span className="live-dot" aria-hidden />Đang bắt đầu…</> : <><svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5" /></svg>{label}</>}
       </button>
-      {err && <span role="alert" className="text-xs text-high mt-1 max-w-64">{err}</span>}
+      {err && <span role="alert" className="mt-1 max-w-64 text-xs text-crit">{err}</span>}
     </span>
   );
 }

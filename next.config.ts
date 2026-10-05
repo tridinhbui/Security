@@ -31,7 +31,7 @@ const securityHeaders = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${turnstile ? " https://challenges.cloudflare.com" : ""}`, // inline: Next.js bootstrap (nonces via proxy.ts would tighten this); eval: React dev tooling only
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
+      "img-src 'self' data: https://*.googleusercontent.com", // ảnh đại diện Google
       "font-src 'self'",
       `connect-src 'self'${isDev ? " ws:" : ""}`,
       ...(turnstile ? ["frame-src https://challenges.cloudflare.com"] : []),

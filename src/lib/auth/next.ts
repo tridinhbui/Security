@@ -10,7 +10,7 @@ export function sessionCookieOptions(expiresAt?: string) {
   return { httpOnly: true, secure: env.isProd, sameSite: "lax" as const, path: "/", ...(expiresAt ? { expires: new Date(expiresAt) } : { maxAge: SESSION_TTL_MS / 1000 }) };
 }
 
-export interface SessionUser { id: string; email: string; retention_days: number }
+export interface SessionUser { id: string; email: string; retention_days: number; name: string | null; avatar_url: string | null }
 
 /** Current user from the session cookie, or null. Never throws (pages must render when bindings are unavailable). */
 export async function getUser(): Promise<SessionUser | null> {

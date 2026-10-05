@@ -3,14 +3,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { glossaryFor, PLAIN_TITLES } from "@/lib/beginner";
 import type { TargetView } from "@/lib/db-types";
-import { formatDate, gradeColor, scoreColor, SEV_COLOR, SEV_DOT } from "@/lib/format";
-import { buildRoadmap, buildSummary, EFFORT_LABEL, effortFor, OWASP_MAP, scoringTable, toMarkdown, CONFIDENCE_FACTOR } from "@/lib/guidance";
+import { formatDate, scoreColor, SEV_BAR, SEV_CHIP, SEV_COLOR, SEV_RAIL } from "@/lib/format";
+import { buildRoadmap, buildSummary, CONFIDENCE_FACTOR, EFFORT_LABEL, effortFor, OWASP_MAP, scoringTable, toMarkdown } from "@/lib/guidance";
 import { CATEGORY_LABEL, CONFIDENCE_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { CATEGORIES, SEVERITIES, type Finding, type Severity } from "@/lib/scanner/types";
 import { CopyButton } from "./CopyButton";
+import { AnimatedNumber } from "./motion/AnimatedNumber";
+import { ScoreRing } from "./motion/ScoreRing";
+import { TermTyper, Typed, type TermLine } from "./motion/Typed";
 import { RescanButton } from "./RescanButton";
 
 export interface ReportData {
+  /** Id lượt quét (dùng để chỉ phát hiệu ứng xuất kết quả một lần cho mỗi báo cáo). */
+  id?: string;
   url: string;
   host: string;
   scannedAt: string;
@@ -25,7 +30,6 @@ export interface ReportData {
   comparison?: { previousScore: number; previousAt: string; scoreDelta: number; newFindings: Finding[]; resolvedFindings: Finding[]; unchanged: number } | null;
   /** Hiện nút Quét lại (chỉ chủ báo cáo). */
   canRescan?: boolean;
-  /** "demo" hiện banner giới thiệu. */
   variant?: "owner" | "shared" | "demo";
   disclaimer: string;
 }
@@ -33,22 +37,32 @@ export interface ReportData {
 type Mode = "beginner" | "technical";
 type Filter = "issues" | "notes" | "passed";
 
+const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+const displayTitle = (f: Finding, mode: Mode) => (mode === "beginner" ? PLAIN_TITLES[f.ruleId] ?? f.title : f.title);
+const stagger = (i: number) => ({ ["--i" as string]: Math.min(i, 14) });
+
 export function Report({ data, actions }: { data: ReportData; actions?: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("beginner");
   const [filter, setFilter] = useState<Filter>("issues");
+  const [sev, setSev] = useState<Severity | "all">("all");
+  const [fresh, setFresh] = useState(false);
 
   useEffect(() => {
     try { const m = localStorage.getItem("vibesec-mode"); if (m === "technical" || m === "beginner") setMode(m); } catch { /* không đọc được localStorage */ }
-  }, []);
+    try { if (data.variant === "demo" || sessionStorage.getItem(`vibesec-fresh-${data.id}`) === "1") setFresh(true); } catch { /* bỏ qua */ }
+  }, [data.id, data.variant]);
   const choose = (m: Mode) => { setMode(m); try { localStorage.setItem("vibesec-mode", m); } catch { /* bỏ qua */ } };
 
   const issues = useMemo(() => data.findings.filter((f) => f.status === "fail" && f.severity !== "info"), [data.findings]);
   const notes = useMemo(() => data.findings.filter((f) => f.status === "info" || f.status === "unknown" || (f.status === "fail" && f.severity === "info")), [data.findings]);
   const passed = useMemo(() => data.findings.filter((f) => f.status === "pass"), [data.findings]);
-  const list = filter === "issues" ? issues : filter === "notes" ? notes : passed;
   const summary = useMemo(() => buildSummary(data), [data]);
   const roadmap = useMemo(() => buildRoadmap(data.findings, data.score), [data.findings, data.score]);
-  const failCounts = SEVERITIES.filter((s) => s !== "info").map((s) => ({ s, n: data.severityCounts[s] ?? 0 }));
+  const base = filter === "issues" ? issues : filter === "notes" ? notes : passed;
+  const list = filter === "issues" && sev !== "all" ? base.filter((f) => f.severity === sev) : base;
+  const urgent = issues.filter((f) => f.severity === "critical" || f.severity === "high");
+  const counts = SEVERITIES.filter((s) => s !== "info").map((s) => ({ s, n: data.severityCounts[s] ?? 0 }));
+  const totalIssues = counts.reduce((a, c) => a + c.n, 0);
 
   function download() {
     const blob = new Blob([toMarkdown(data)], { type: "text/markdown;charset=utf-8" });
@@ -59,296 +73,372 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
     URL.revokeObjectURL(a.href);
   }
 
+  // Nội dung "engine" xuất ra ở khối terminal (dữ liệu thật, chỉ khác cách trình bày).
+  const termLines: TermLine[] = useMemo(() => {
+    const L: TermLine[] = [{ prefix: "$", text: `vibesec scan ${data.host}`, tone: "accent" }];
+    L.push({ prefix: "✓", text: `${passed.length} kiểm tra đạt`, tone: "ok" });
+    if (issues.length) {
+      const worst = issues[0]!.severity;
+      L.push({ prefix: "!", text: `${issues.length} vấn đề cần xử lý (${counts.filter((c) => c.n).map((c) => `${c.n} ${SEV_LABEL[c.s].toLowerCase()}`).join(", ")})`, tone: worst === "critical" || worst === "high" ? "crit" : "warn" });
+      for (const f of issues.slice(0, 3)) L.push({ prefix: "→", text: `[${SEV_LABEL[f.severity].toUpperCase()}] ${f.title}`, tone: f.severity === "critical" || f.severity === "high" ? "crit" : "warn" });
+    } else L.push({ prefix: "✓", text: "Không phát hiện vấn đề cần xử lý", tone: "ok" });
+    L.push({ prefix: "=", text: `điểm ${data.score}/100 · hạng ${data.grade}`, tone: "accent" });
+    return L;
+  }, [data.host, data.score, data.grade, passed.length, issues, counts]);
+
   return (
-    <div className="mx-auto max-w-5xl px-5 py-10">
-      {data.variant === "demo" && (
-        <p className="mb-6 text-sm border-l-2 border-line-strong pl-3 text-muted">
-          <strong className="text-fg font-medium">Báo cáo demo.</strong> Được tạo bằng cách chạy chính bộ luật quét thật của VibeSec trên một website mẫu — không có website thật nào được quét.
-        </p>
-      )}
-
-      {/* ---- đầu trang */}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm text-muted">Báo cáo bảo mật</p>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight break-all">{data.host}</h1>
-          <p className="text-sm text-muted mt-1 num">{formatDate(data.scannedAt)}{data.requestCount ? ` · ${data.requestCount} request` : ""}</p>
-        </div>
-        <div className="flex flex-col gap-3 lg:items-end">
-          <div role="group" aria-label="Mức chi tiết của báo cáo" className="inline-flex rounded-md border border-line-strong p-0.5 text-sm self-start lg:self-auto">
-            {([["beginner", "Chế độ dễ hiểu"], ["technical", "Chế độ kỹ thuật"]] as const).map(([m, label]) => (
-              <button key={m} onClick={() => choose(m)} aria-pressed={mode === m}
-                className={`px-3 h-8 rounded ${mode === m ? "bg-raised text-fg" : "text-muted hover:text-fg"}`}>{label}</button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2 items-start">
-            {actions}
-            <button onClick={download} className="h-9 px-3 rounded-md border border-line-strong text-sm hover:border-fg/50">Tải báo cáo (.md)</button>
-          </div>
-        </div>
-      </div>
-
-      {/* ---- điểm số */}
-      <section className="mt-10 grid gap-10 lg:grid-cols-[auto_1fr] lg:gap-16 items-start" aria-label="Điểm tổng thể">
-        <div className="flex items-end gap-5">
-          <div className={`num text-8xl font-semibold leading-none tracking-tighter ${scoreColor(data.score)}`}>{data.score}</div>
-          <div className="pb-2">
-            <div className={`text-5xl font-semibold leading-none ${gradeColor(data.grade)}`} aria-label={`Hạng ${data.grade}`}>{data.grade}</div>
-            <div className="text-xs text-muted mt-2 uppercase tracking-wider">trên 100 điểm</div>
-          </div>
-        </div>
-        <div>
-          <dl className="flex flex-wrap gap-x-8 gap-y-3">
-            {failCounts.map(({ s, n }) => (
-              <div key={s} className="flex items-baseline gap-2">
-                <dt className="flex items-center gap-1.5 text-sm text-muted"><span className={`size-2 rounded-full ${n ? SEV_DOT[s] : "bg-line-strong"}`} />{SEV_LABEL[s]}</dt>
-                <dd className={`num text-xl font-semibold ${n ? SEV_COLOR[s] : "text-faint"}`}>{n}</dd>
-              </div>
-            ))}
-            <div className="flex items-baseline gap-2">
-              <dt className="flex items-center gap-1.5 text-sm text-muted"><span className="size-2 rounded-full bg-ok" />Đạt</dt>
-              <dd className="num text-xl font-semibold text-ok">{passed.length}</dd>
-            </div>
-          </dl>
-          <p className="mt-5 text-sm text-muted max-w-2xl">{data.disclaimer}</p>
-        </div>
-      </section>
-
-      {/* ---- tóm tắt */}
-      <section className="mt-10 border-t border-line pt-6" aria-label="Tóm tắt">
-        <h2 className="text-sm font-medium text-muted">Tóm tắt</h2>
-        <div className="mt-3 space-y-2 max-w-3xl text-[15px] leading-relaxed">
-          {summary.map((p, i) => <p key={i} className={i === 0 ? "text-fg text-lg" : "text-muted"}>{p}</p>)}
-        </div>
-      </section>
-
-      {/* ---- kế hoạch khắc phục */}
-      {roadmap.length > 0 && (
-        <section className="mt-10 border-t border-line pt-6" aria-label="Kế hoạch khắc phục">
-          <h2 className="text-sm font-medium text-muted">Kế hoạch khắc phục — nên làm theo thứ tự này</h2>
-          <div className="mt-4 grid gap-8 md:grid-cols-3">
-            {roadmap.map((g) => (
-              <div key={g.effort}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="font-medium">{EFFORT_LABEL[g.effort].title}</h3>
-                  {g.gain > 0 && <span className="text-xs text-ok num">≈ +{g.gain} điểm</span>}
-                </div>
-                <p className="text-xs text-muted mt-0.5">{EFFORT_LABEL[g.effort].hint}</p>
-                <ol className="mt-3 space-y-2 text-sm">
-                  {g.items.map((f) => (
-                    <li key={f.fingerprint}>
-                      <a href={`#f-${slug(f.fingerprint)}`} onClick={() => setFilter("issues")} className="flex gap-2 hover:text-fg text-muted">
-                        <span className={`shrink-0 text-xs font-semibold uppercase mt-0.5 w-20 ${SEV_COLOR[f.severity]}`}>{SEV_LABEL[f.severity]}</span>
-                        <span className="min-w-0">{displayTitle(f, mode)}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ---- so sánh */}
-      {data.comparison && (
-        <section className="mt-10 border-t border-line pt-6" aria-label="So sánh với lần quét trước">
-          <h2 className="text-sm font-medium text-muted">So sánh với lần quét trước <span className="num">({formatDate(data.comparison.previousAt)})</span></h2>
-          <p className="mt-2 text-lg">
-            <span className="num text-muted">{data.comparison.previousScore}</span> → <span className={`num font-semibold ${scoreColor(data.score)}`}>{data.score}</span>{" "}
-            <span className={`num text-sm ${data.comparison.scoreDelta > 0 ? "text-ok" : data.comparison.scoreDelta < 0 ? "text-high" : "text-muted"}`}>
-              ({data.comparison.scoreDelta > 0 ? "+" : ""}{data.comparison.scoreDelta})
-            </span>
+    <div className="relative">
+      <div aria-hidden className="bg-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-72" />
+      <div className="container-x py-10 sm:py-14">
+        {data.variant === "demo" && (
+          <p className="reveal mb-6 flex items-start gap-2.5 rounded-lg border border-accent/20 bg-accent-soft px-3.5 py-2.5 text-sm text-accent">
+            <span className="chip-accent !px-1.5">DEMO</span>
+            <span className="text-fg/80">Báo cáo này được tạo bằng cách chạy chính bộ luật quét thật của VibeSec trên một website mẫu — không có website thật nào được quét.</span>
           </p>
-          <div className="mt-4 grid sm:grid-cols-2 gap-6 text-sm">
-            <DiffList title={`Đã khắc phục (${data.comparison.resolvedFindings.length})`} tone="ok" items={data.comparison.resolvedFindings} empty="Chưa có vấn đề nào được khắc phục từ lần quét trước." />
-            <DiffList title={`Phát sinh mới (${data.comparison.newFindings.length})`} tone="risk" items={data.comparison.newFindings} empty="Không có vấn đề mới." />
-          </div>
-          <p className="mt-3 text-xs text-muted num">{data.comparison.unchanged} vấn đề giữ nguyên.</p>
-        </section>
-      )}
-
-      {/* ---- điểm theo nhóm */}
-      <section className="mt-10 border-t border-line pt-6" aria-label="Điểm theo nhóm">
-        <h2 className="text-sm font-medium text-muted">Điểm theo nhóm</h2>
-        <ul className="mt-4 grid gap-x-12 gap-y-4 sm:grid-cols-2">
-          {CATEGORIES.map((c) => {
-            const v = data.categoryScores[c];
-            return (
-              <li key={c}>
-                <div className="flex justify-between text-sm mb-1.5">
-                  <span>{CATEGORY_LABEL[c]}</span>
-                  <span className={`num ${v === null || v === undefined ? "text-faint" : scoreColor(v)}`}>{v ?? "—"}</span>
-                </div>
-                <div className="h-1 rounded bg-line" role="progressbar" aria-valuenow={v ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label={`Điểm nhóm ${CATEGORY_LABEL[c]}`}>
-                  <div className={`h-1 rounded ${v === null || v === undefined ? "" : v >= 80 ? "bg-ok" : v >= 60 ? "bg-med" : "bg-crit"}`} style={{ width: `${v ?? 0}%` }} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {/* ---- danh sách phát hiện */}
-      <section className="mt-12 border-t border-line pt-6" aria-label="Các phát hiện">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold tracking-tight">Các phát hiện</h2>
-          <div role="tablist" className="flex gap-1 text-sm">
-            {([["issues", "Vấn đề", issues.length], ["notes", "Ghi chú", notes.length], ["passed", "Đạt", passed.length]] as const).map(([k, label, n]) => (
-              <button key={k} role="tab" aria-selected={filter === k} onClick={() => setFilter(k)}
-                className={`px-3 h-8 rounded ${filter === k ? "bg-raised text-fg" : "text-muted hover:text-fg"}`}>{label} <span className="num text-faint">{n}</span></button>
-            ))}
-          </div>
-        </div>
-        {list.length === 0 ? (
-          <p className="py-10 text-muted text-sm">{filter === "issues" ? "Các kiểm tra không phát hiện vấn đề nào. Đây là tin tốt — nhưng hãy nhớ rằng chúng chỉ bao phủ những gì nhìn thấy được từ bên ngoài." : "Chưa có mục nào."}</p>
-        ) : (
-          <ul className="mt-4 divide-y divide-line border-y border-line">
-            {list.map((f) => <FindingItem key={f.fingerprint} f={f} mode={mode} data={data} />)}
-          </ul>
         )}
-      </section>
 
-      {/* ---- chi tiết kỹ thuật */}
-      {mode === "technical" && (
-        <section className="mt-12 border-t border-line pt-6" aria-label="Chi tiết kỹ thuật">
-          <h2 className="text-lg font-semibold tracking-tight">Chi tiết kỹ thuật</h2>
-          {data.platforms.length > 0 && <p className="mt-2 text-sm text-muted">Nền tảng được nhận diện (dùng để chọn đoạn cấu hình gợi ý): <span className="text-fg">{data.platforms.join(", ")}</span></p>}
-          {data.platforms.length === 0 && <p className="mt-2 text-sm text-muted">Không nhận diện được chắc chắn nền tảng hosting nào, nên chỉ gợi ý giá trị header chung chung.</p>}
-          {(data.targets ?? []).length === 0 && data.variant === "shared" && <p className="mt-3 text-sm text-muted">Header phản hồi gốc chỉ hiển thị cho chủ báo cáo.</p>}
-          <div className="mt-4 space-y-3">
-            {(data.targets ?? []).filter((t) => t.role !== "script").map((t, i) => (
-              <details key={i} className="group border border-line rounded-md">
-                <summary className="px-3 py-2.5 flex items-center gap-3 text-sm">
-                  <span className="text-faint group-open:rotate-90 transition-transform">▸</span>
-                  <span className="font-mono text-xs text-muted">{t.role}</span>
-                  <span className="truncate flex-1">{t.final_url ?? t.url}</span>
-                  <span className="num text-muted">{t.status_code ?? t.error_code ?? "—"}</span>
-                </summary>
-                <div className="px-3 pb-3 space-y-3">
-                  {t.tls && <p className="text-xs text-muted font-mono">TLS: {t.tls.protocol} · {t.tls.cipher} · nhà cấp: {t.tls.issuer ?? "?"}{t.tls.keyType ? ` · khoá ${t.tls.keyType.toUpperCase()}${t.tls.keyBits ? ` ${t.tls.keyBits}` : ""}` : ""} · hiệu lực đến {t.tls.validTo ?? "?"}</p>}
-                  <pre className="text-xs font-mono text-muted overflow-x-auto bg-surface rounded p-3 leading-relaxed">
-                    {t.headers ? Object.entries(t.headers).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map((x) => `${k}: ${x}`)).join("\n") : "(không ghi nhận header)"}
-                  </pre>
+        {/* ---- đầu trang */}
+        <header className="reveal flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="eyebrow">báo cáo bảo mật <span aria-hidden>/</span> {formatDate(data.scannedAt)}{data.requestCount ? ` · ${data.requestCount} request` : ""}</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">{data.host}</h1>
+            {data.platforms.length > 0 && <p className="mt-3 flex flex-wrap gap-1.5">{data.platforms.map((p) => <span key={p} className="chip-info">{p}</span>)}</p>}
+          </div>
+          <div className="flex flex-col gap-3 lg:items-end">
+            <div role="group" aria-label="Mức chi tiết của báo cáo" className="inline-flex self-start rounded-lg border border-line-strong bg-surface p-0.5 text-[13px] lg:self-auto">
+              {([["beginner", "Dễ hiểu"], ["technical", "Kỹ thuật"]] as const).map(([m, label]) => (
+                <button key={m} onClick={() => choose(m)} aria-pressed={mode === m}
+                  className={`h-8 rounded-md px-3.5 font-medium transition-colors ${mode === m ? "bg-white text-fg shadow-crisp" : "text-muted hover:text-fg"}`}>{label}</button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-start gap-2">
+              {actions}
+              <button onClick={download} className="btn-ghost btn-sm">Tải báo cáo (.md)</button>
+            </div>
+          </div>
+        </header>
+
+        {/* ---- cảnh báo khẩn */}
+        {urgent.length > 0 && (
+          <a href={`#f-${slug(urgent[0]!.fingerprint)}`} onClick={() => { setFilter("issues"); setSev("all"); }}
+            className="reveal mt-8 flex items-center gap-3 rounded-xl border border-crit/25 bg-crit/5 px-4 py-3 text-sm transition-colors hover:bg-crit/10" style={stagger(1)} role="alert">
+            <span className="live-dot !bg-crit" aria-hidden />
+            <span className="min-w-0 flex-1"><strong className="font-semibold text-crit">{urgent.length} vấn đề mức Cao/Nghiêm trọng cần xử lý ngay.</strong> <span className="text-fg/80">{urgent[0]!.title}{urgent.length > 1 ? ` và ${urgent.length - 1} vấn đề khác` : ""}.</span></span>
+            <span className="hidden text-xs font-medium text-crit sm:block">Xem chi tiết →</span>
+          </a>
+        )}
+
+        {/* ---- điểm & phân bố */}
+        <section className="reveal mt-10 grid items-center gap-10 lg:grid-cols-[auto_1fr] lg:gap-16" style={stagger(2)} aria-label="Điểm tổng thể">
+          <ScoreRing score={data.score} grade={data.grade} />
+          <div>
+            <h2 className="eyebrow">phân bố mức độ</h2>
+            <div className="mt-3 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`${totalIssues} vấn đề: ${counts.map((c) => `${c.n} ${SEV_LABEL[c.s]}`).join(", ")}`}>
+              {totalIssues === 0 ? <div className="h-full w-full bg-ok" /> : counts.filter((c) => c.n).map((c) => <div key={c.s} className={`h-full ${SEV_BAR[c.s]} transition-[flex-grow] duration-700`} style={{ flexGrow: c.n }} />)}
+            </div>
+            <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
+              {counts.map(({ s, n }, i) => (
+                <div key={s}>
+                  <dt className="flex items-center gap-1.5 text-xs text-muted"><span className={`size-2 rounded-full ${n ? SEV_BAR[s] : "bg-line-strong"}`} />{SEV_LABEL[s]}</dt>
+                  <dd className={`mt-0.5 text-3xl font-semibold ${n ? SEV_COLOR[s] : "text-faint"}`}><AnimatedNumber value={n} delay={i * 80} /></dd>
                 </div>
-              </details>
-            ))}
+              ))}
+              <div>
+                <dt className="flex items-center gap-1.5 text-xs text-muted"><span className="size-2 rounded-full bg-ok" />Đạt</dt>
+                <dd className="mt-0.5 text-3xl font-semibold text-ok"><AnimatedNumber value={passed.length} delay={320} /></dd>
+              </div>
+            </dl>
+            <p className="mt-6 max-w-2xl text-xs leading-relaxed text-faint">{data.disclaimer}</p>
           </div>
         </section>
-      )}
 
-      {/* ---- cách tính điểm */}
-      <section className="mt-12 border-t border-line pt-6" aria-label="Cách tính điểm">
-        <details className="group">
-          <summary className="flex items-center gap-2 text-sm font-medium text-muted hover:text-fg"><span className="group-open:rotate-90 transition-transform">▸</span>Điểm được tính như thế nào?</summary>
-          <div className="mt-4 text-sm text-muted space-y-3 max-w-3xl">
-            <p>Mỗi website bắt đầu với 100 điểm. Mỗi vấn đề “Có vấn đề” bị trừ <strong className="text-fg font-medium">trọng số mức độ × hệ số độ tin cậy</strong>. Kết quả Đạt, Ghi chú hay “chưa kiểm tra được” không bao giờ làm giảm điểm.</p>
-            <ul className="flex flex-wrap gap-x-6 gap-y-1">
-              {scoringTable().map((r) => <li key={r.severity}><span className={SEV_COLOR[r.severity]}>{r.label}</span>: <span className="num text-fg">−{r.weight}</span></li>)}
-              <li>Độ tin cậy: cao <span className="num text-fg">×{CONFIDENCE_FACTOR.high}</span> · {CONFIDENCE_LABEL.medium} <span className="num text-fg">×{CONFIDENCE_FACTOR.medium}</span> · thấp <span className="num text-fg">×{CONFIDENCE_FACTOR.low}</span></li>
-            </ul>
-            <p>Để một lỗi nặng không bị che bởi nhiều mục nhỏ đạt, có trần điểm: có vấn đề <em>Nghiêm trọng</em> thì tối đa 59 điểm; có vấn đề <em>Cao</em> thì tối đa 79 điểm. Hạng: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, còn lại F.</p>
+        {/* ---- terminal xuất kết quả */}
+        <section className="reveal mt-10" style={stagger(3)} aria-label="Kết quả phân tích">
+          <TermTyper lines={termLines} title="vibesec ~ kết-quả" storageKey={`vibesec-typed-${data.id ?? data.host}`} fresh={fresh} />
+        </section>
+
+        {/* ---- tóm tắt & kế hoạch */}
+        <section className="mt-14 grid gap-10 lg:grid-cols-[1fr_1.6fr]" aria-label="Tóm tắt và kế hoạch khắc phục">
+          <div className="reveal" style={stagger(4)}>
+            <h2 className="eyebrow">tóm tắt</h2>
+            <div className="mt-3 space-y-2.5 text-[15px] leading-relaxed">
+              {summary.map((p, i) => <p key={i} className={i === 0 ? "text-lg font-medium leading-snug text-fg" : "text-muted"}>{p}</p>)}
+            </div>
           </div>
-        </details>
-      </section>
+          {roadmap.length > 0 && (
+            <div className="reveal" style={stagger(5)}>
+              <h2 className="eyebrow">kế hoạch khắc phục</h2>
+              <div className="mt-3 divide-y divide-line rounded-xl border border-line bg-white shadow-crisp">
+                {roadmap.map((g) => (
+                  <div key={g.effort} className="p-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3 className="text-sm font-semibold">{EFFORT_LABEL[g.effort].title} <span className="font-normal text-muted">· {EFFORT_LABEL[g.effort].hint.toLowerCase()}</span></h3>
+                      {g.gain > 0 && <span className="mono num shrink-0 text-xs font-medium text-ok">≈ +{g.gain} điểm</span>}
+                    </div>
+                    <ol className="mt-2.5 space-y-1.5 text-sm">
+                      {g.items.map((f) => (
+                        <li key={f.fingerprint}>
+                          <a href={`#f-${slug(f.fingerprint)}`} onClick={() => { setFilter("issues"); setSev("all"); }} className="group flex items-start gap-2.5 rounded-md px-1 py-0.5 transition-colors hover:bg-surface">
+                            <span className={`${SEV_CHIP[f.severity]} mt-0.5 shrink-0`}>{SEV_LABEL[f.severity]}</span>
+                            <span className="min-w-0 text-muted transition-colors group-hover:text-fg">{displayTitle(f, mode)}</span>
+                          </a>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ---- so sánh */}
+        {data.comparison && (
+          <section className="reveal mt-14" style={stagger(6)} aria-label="So sánh với lần quét trước">
+            <h2 className="eyebrow">so với lần quét trước · {formatDate(data.comparison.previousAt)}</h2>
+            <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="num text-2xl text-faint">{data.comparison.previousScore}</span>
+              <span aria-hidden className="text-faint">→</span>
+              <span className={`num text-3xl font-semibold ${scoreColor(data.score)}`}>{data.score}</span>
+              <span className={`chip ${data.comparison.scoreDelta > 0 ? "chip-ok" : data.comparison.scoreDelta < 0 ? "chip-high" : "chip-info"}`}>{data.comparison.scoreDelta > 0 ? "+" : ""}{data.comparison.scoreDelta} điểm</span>
+            </div>
+            <div className="mt-5 grid gap-6 text-sm sm:grid-cols-2">
+              <DiffList title={`Đã khắc phục (${data.comparison.resolvedFindings.length})`} tone="ok" items={data.comparison.resolvedFindings} empty="Chưa có vấn đề nào được khắc phục từ lần quét trước." />
+              <DiffList title={`Phát sinh mới (${data.comparison.newFindings.length})`} tone="risk" items={data.comparison.newFindings} empty="Không có vấn đề mới." />
+            </div>
+            <p className="mono mt-3 text-xs text-faint">{data.comparison.unchanged} vấn đề giữ nguyên</p>
+          </section>
+        )}
+
+        {/* ---- điểm theo nhóm */}
+        <section className="mt-14" aria-label="Điểm theo nhóm">
+          <h2 className="eyebrow">điểm theo nhóm</h2>
+          <ul className="mt-4 grid gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+            {CATEGORIES.map((c, i) => {
+              const v = data.categoryScores[c];
+              return (
+                <li key={c} className="reveal" style={stagger(i)}>
+                  <div className="mb-1.5 flex items-baseline justify-between text-sm">
+                    <span>{CATEGORY_LABEL[c]}</span>
+                    <span className={`mono text-[13px] font-medium ${v === null || v === undefined ? "text-faint" : scoreColor(v)}`}>{v === null || v === undefined ? "—" : <AnimatedNumber value={v} delay={i * 60} />}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={v ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label={`Điểm nhóm ${CATEGORY_LABEL[c]}`}>
+                    <div className={`h-full origin-left rounded-full transition-[width] duration-1000 ${v === null || v === undefined ? "" : v >= 80 ? "bg-ok" : v >= 60 ? "bg-med" : "bg-crit"}`} style={{ width: `${v ?? 0}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        {/* ---- danh sách phát hiện */}
+        <section className="mt-16" aria-label="Các phát hiện">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h2 className="text-2xl font-semibold tracking-tight">Các phát hiện</h2>
+            <div role="tablist" aria-label="Lọc theo loại" className="inline-flex rounded-lg border border-line-strong bg-surface p-0.5 text-[13px]">
+              {([["issues", "Vấn đề", issues.length], ["notes", "Ghi chú", notes.length], ["passed", "Đạt", passed.length]] as const).map(([k, label, n]) => (
+                <button key={k} role="tab" aria-selected={filter === k} onClick={() => { setFilter(k); setSev("all"); }}
+                  className={`h-8 rounded-md px-3.5 font-medium transition-colors ${filter === k ? "bg-white text-fg shadow-crisp" : "text-muted hover:text-fg"}`}>{label} <span className="mono text-faint">{n}</span></button>
+              ))}
+            </div>
+          </div>
+          {filter === "issues" && issues.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Lọc theo mức độ">
+              {(["all", "critical", "high", "medium", "low"] as const).map((s) => {
+                const n = s === "all" ? issues.length : issues.filter((f) => f.severity === s).length;
+                if (s !== "all" && n === 0) return null;
+                return <button key={s} onClick={() => setSev(s)} aria-pressed={sev === s} className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${sev === s ? "border-fg bg-fg text-white" : "border-line-strong bg-white text-muted hover:border-fg/40 hover:text-fg"}`}>{s === "all" ? "Tất cả" : SEV_LABEL[s]} <span className="mono opacity-70">{n}</span></button>;
+              })}
+            </div>
+          )}
+          {list.length === 0 ? (
+            <div className="mt-6 rounded-xl border border-dashed border-line-strong bg-surface px-6 py-14 text-center">
+              <p className="pop mx-auto grid size-10 place-items-center rounded-full bg-ok/10 text-ok"><svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></p>
+              <p className="mt-3 font-medium">{filter === "issues" ? "Các kiểm tra không phát hiện vấn đề nào" : "Chưa có mục nào"}</p>
+              {filter === "issues" && <p className="mx-auto mt-1 max-w-md text-sm text-muted">Đây là tin tốt — nhưng hãy nhớ rằng chúng chỉ bao phủ những gì nhìn thấy được từ bên ngoài.</p>}
+            </div>
+          ) : (
+            <ul className="mt-5 space-y-2.5">
+              {list.map((f, i) => <FindingItem key={f.fingerprint} f={f} mode={mode} data={data} i={i} />)}
+            </ul>
+          )}
+        </section>
+
+        {/* ---- chi tiết kỹ thuật */}
+        {mode === "technical" && (
+          <section className="mt-16" aria-label="Chi tiết kỹ thuật">
+            <h2 className="text-2xl font-semibold tracking-tight">Chi tiết kỹ thuật</h2>
+            <p className="mt-2 text-sm text-muted">{data.platforms.length > 0 ? <>Nền tảng nhận diện được (dùng để chọn đoạn cấu hình gợi ý): <span className="mono text-fg">{data.platforms.join(", ")}</span></> : "Không nhận diện được chắc chắn nền tảng hosting nào, nên chỉ gợi ý giá trị header chung chung."}</p>
+            {(data.targets ?? []).length === 0 && data.variant === "shared" && <p className="mt-3 text-sm text-muted">Header phản hồi gốc chỉ hiển thị cho chủ báo cáo.</p>}
+            <div className="mt-4 space-y-2.5">
+              {(data.targets ?? []).filter((t) => t.role !== "script").map((t, i) => (
+                <details key={i} className="group panel overflow-hidden">
+                  <summary className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-surface">
+                    <Chevron />
+                    <span className="chip-info">{t.role}</span>
+                    <span className="mono min-w-0 flex-1 truncate text-[13px]">{t.final_url ?? t.url}</span>
+                    <span className="mono num text-xs text-muted">{t.status_code ?? t.error_code ?? "—"}</span>
+                  </summary>
+                  <div className="space-y-3 border-t border-line px-4 py-4">
+                    {t.tls && <p className="mono text-xs text-muted">TLS: {t.tls.protocol} · {t.tls.cipher} · nhà cấp: {t.tls.issuer ?? "?"}{t.tls.keyType ? ` · khoá ${t.tls.keyType.toUpperCase()}${t.tls.keyBits ? ` ${t.tls.keyBits}` : ""}` : ""} · hiệu lực đến {t.tls.validTo ?? "?"}</p>}
+                    <CodeBlock lines={t.headers ? Object.entries(t.headers).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map((x) => `${k}: ${x}`)) : ["(không ghi nhận header)"]} />
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ---- cách tính điểm */}
+        <section className="mt-16 border-t border-line pt-8" aria-label="Cách tính điểm">
+          <details className="group">
+            <summary className="flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-fg"><Chevron />Điểm được tính như thế nào?</summary>
+            <div className="mt-4 max-w-3xl space-y-3 text-sm leading-relaxed text-muted">
+              <p>Mỗi website bắt đầu với 100 điểm. Mỗi vấn đề “Có vấn đề” bị trừ <strong className="font-medium text-fg">trọng số mức độ × hệ số độ tin cậy</strong>. Kết quả Đạt, Ghi chú hay “chưa kiểm tra được” không bao giờ làm giảm điểm.</p>
+              <ul className="flex flex-wrap gap-x-6 gap-y-1.5">
+                {scoringTable().map((r) => <li key={r.severity}><span className={`${SEV_COLOR[r.severity]} font-medium`}>{r.label}</span>: <span className="mono num text-fg">−{r.weight}</span></li>)}
+                <li>Độ tin cậy: cao <span className="mono num text-fg">×{CONFIDENCE_FACTOR.high}</span> · {CONFIDENCE_LABEL.medium} <span className="mono num text-fg">×{CONFIDENCE_FACTOR.medium}</span> · thấp <span className="mono num text-fg">×{CONFIDENCE_FACTOR.low}</span></li>
+              </ul>
+              <p>Để một lỗi nặng không bị che bởi nhiều mục nhỏ đạt, có trần điểm: có vấn đề <em>Nghiêm trọng</em> thì tối đa 59 điểm; có vấn đề <em>Cao</em> thì tối đa 79 điểm. Hạng: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, còn lại F.</p>
+            </div>
+          </details>
+        </section>
+      </div>
     </div>
   );
 }
+
+const Chevron = () => <svg viewBox="0 0 24 24" className="size-4 shrink-0 text-faint transition-transform duration-200 group-open:rotate-90" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 6 6 6-6 6" /></svg>;
 
 function DiffList({ title, items, tone, empty }: { title: string; items: Finding[]; tone: "ok" | "risk"; empty: string }) {
   return (
     <div>
       <h3 className={`font-medium ${tone === "ok" ? "text-ok" : "text-high"}`}>{title}</h3>
-      {items.length === 0 ? <p className="text-muted mt-1">{empty}</p> : (
-        <ul className="mt-1 space-y-1">{items.slice(0, 8).map((f) => <li key={f.fingerprint} className="text-muted"><span className={SEV_COLOR[f.severity]}>{SEV_LABEL[f.severity]}</span> · {f.title}</li>)}</ul>
+      {items.length === 0 ? <p className="mt-1.5 text-muted">{empty}</p> : (
+        <ul className="mt-2 space-y-1.5">{items.slice(0, 8).map((f) => <li key={f.fingerprint} className="flex items-start gap-2 text-muted"><span className={`${SEV_CHIP[f.severity]} mt-0.5 shrink-0`}>{SEV_LABEL[f.severity]}</span><span>{f.title}</span></li>)}</ul>
       )}
     </div>
   );
 }
 
-const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-const displayTitle = (f: Finding, mode: Mode) => (mode === "beginner" ? PLAIN_TITLES[f.ruleId] ?? f.title : f.title);
+/** Khối mã có đánh số dòng. Nội dung luôn được React escape (không dùng innerHTML) nên dữ liệu lấy từ website đích không thể chèn mã. */
+function CodeBlock({ lines, copy }: { lines: string[]; copy?: string }) {
+  return (
+    <div className="group relative overflow-hidden rounded-lg border border-line bg-surface">
+      {copy && <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"><CopyButton text={copy} /></div>}
+      <pre className="overflow-x-auto py-3 text-[12.5px] leading-6">
+        {lines.map((l, i) => (
+          <div key={i} className="flex px-3 transition-colors hover:bg-raised/60">
+            <span className="mr-4 w-5 shrink-0 select-none text-right text-faint" aria-hidden>{i + 1}</span>
+            <code className="whitespace-pre-wrap break-all text-fg/90">{l || " "}</code>
+          </div>
+        ))}
+      </pre>
+    </div>
+  );
+}
 
-function FindingItem({ f, mode, data }: { f: Finding; mode: Mode; data: ReportData }) {
+function Confidence({ level }: { level: Finding["confidence"] }) {
+  const n = level === "high" ? 3 : level === "medium" ? 2 : 1;
+  return (
+    <span className="inline-flex items-center gap-2" title={`Độ tin cậy ${CONFIDENCE_LABEL[level]}`}>
+      <span className="flex gap-0.5" aria-hidden>{[1, 2, 3].map((i) => <span key={i} className={`h-3 w-1.5 rounded-sm ${i <= n ? "bg-accent" : "bg-line-strong"}`} />)}</span>
+      <span className="text-xs text-muted">{CONFIDENCE_LABEL[level]}</span>
+    </span>
+  );
+}
+
+function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: ReportData; i: number }) {
   const isPass = f.status === "pass";
   const isFail = f.status === "fail";
+  const [opened, setOpened] = useState(false);
   const glossary = mode === "beginner" ? glossaryFor(f.title, f.summary, f.remediation?.summary ?? "") : [];
   const effort = isFail ? EFFORT_LABEL[effortFor(f)] : null;
   const owasp = OWASP_MAP[f.ruleId];
+  const component = f.affectedUrl ? (() => { try { const u = new URL(f.affectedUrl); return u.pathname === "/" ? u.host : u.host + u.pathname; } catch { return f.affectedUrl; } })() : CATEGORY_LABEL[f.category];
+  const rail = isFail ? SEV_RAIL[f.severity] : isPass ? "border-l-ok/50" : "border-l-line-strong";
+  const steps = f.remediation?.steps ?? [];
+  const fixText = f.remediation ? [f.remediation.summary, ...steps.map((s, k) => `${k + 1}. ${s}`)].join("\n") : "";
+
   return (
-    <li id={`f-${slug(f.fingerprint)}`} className="scroll-mt-20">
-      <details className="group">
-        <summary className="flex items-start gap-3 py-4 hover:bg-surface -mx-2 px-2 rounded">
-          <span className="mt-2 shrink-0">
-            {isPass ? <span className="block size-2 rounded-full bg-ok" aria-label="Đạt" /> : <span className={`block size-2 rounded-full ${f.status === "unknown" ? "bg-line-strong" : SEV_DOT[f.severity]}`} aria-hidden />}
-          </span>
-          <span className="flex-1 min-w-0">
-            <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              {isFail && <span className={`text-xs font-semibold uppercase tracking-wide ${SEV_COLOR[f.severity]}`}>{SEV_LABEL[f.severity]}</span>}
-              {isPass && <span className="text-xs font-semibold uppercase tracking-wide text-ok">Đạt</span>}
-              {!isPass && !isFail && <span className="text-xs font-semibold uppercase tracking-wide text-info">{f.status === "unknown" ? "Chưa kiểm tra được" : "Ghi chú"}</span>}
-              <span className="font-medium">{displayTitle(f, mode)}</span>
+    <li id={`f-${slug(f.fingerprint)}`} className="reveal scroll-mt-24" style={stagger(i)}>
+      <details className={`group panel border-l-[3px] ${rail} transition-shadow open:shadow-pop`} onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) setOpened(true); }}>
+        <summary className="flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-surface/70 sm:items-center">
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              {isFail ? <span className={SEV_CHIP[f.severity]}>{SEV_LABEL[f.severity]}</span> : isPass ? <span className="chip-ok">Đạt</span> : <span className="chip-info">{f.status === "unknown" ? "Chưa kiểm tra được" : "Ghi chú"}</span>}
+              <span className="font-medium leading-snug">{displayTitle(f, mode)}</span>
             </span>
-            <span className="block text-sm text-muted mt-0.5">
-              {CATEGORY_LABEL[f.category]}
-              {effort && <> · {effort.title.toLowerCase()}</>}
-              {mode === "technical" && <> · <span className="font-mono text-xs">{f.ruleId}</span> · độ tin cậy {CONFIDENCE_LABEL[f.confidence]}</>}
+            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
+              <span>{CATEGORY_LABEL[f.category]}</span>
+              <span className="mono max-w-full truncate text-faint">{component}</span>
+              {effort && <span className="hidden sm:inline">· {effort.title.toLowerCase()}</span>}
+              {mode === "technical" && <span className="mono text-faint">· {f.ruleId}</span>}
             </span>
           </span>
-          <span className="text-faint mt-1 group-open:rotate-90 transition-transform" aria-hidden>▸</span>
+          <span className="hidden shrink-0 sm:block"><Confidence level={f.confidence} /></span>
+          <Chevron />
         </summary>
 
-        <div className="pb-6 pl-5 sm:pl-6 space-y-5 text-[15px] leading-relaxed">
-          <Section title="Chúng tôi phát hiện"><p>{f.summary}</p></Section>
-          <Section title="Vì sao quan trọng"><p className="text-muted">{f.explanation}</p></Section>
-          {glossary.length > 0 && (
-            <div className="text-sm border-l-2 border-line-strong pl-3 space-y-1">
-              {glossary.map((g) => <p key={g.term}><strong className="font-medium text-fg">{g.term}:</strong> <span className="text-muted">{g.meaning}</span></p>)}
-            </div>
-          )}
-          {f.evidence.length > 0 && (
-            <Section title="Bằng chứng">
-              <pre className="text-xs font-mono bg-surface rounded p-3 overflow-x-auto whitespace-pre-wrap break-all text-muted leading-relaxed">{f.evidence.join("\n")}</pre>
-              {mode === "technical" && f.affectedUrl && <p className="mt-2 text-xs text-muted font-mono break-all">URL bị ảnh hưởng: {f.affectedUrl}</p>}
-            </Section>
-          )}
-          {mode === "technical" && f.technical && <Section title="Chi tiết kỹ thuật"><p className="text-sm text-muted font-mono whitespace-pre-wrap">{f.technical}</p></Section>}
-          {mode === "technical" && owasp && <Section title="Ánh xạ OWASP Top 10"><p className="text-sm text-muted">{owasp.join(" · ")}</p></Section>}
+        <div className="grid gap-x-8 gap-y-6 border-t border-line px-4 py-5 md:grid-cols-2">
+          <div className="min-w-0 space-y-5">
+            <Section title="Chúng tôi phát hiện"><p className="text-[15px] leading-relaxed">{f.summary}</p></Section>
+            <Section title="Tác động tiềm ẩn"><p className="text-[15px] leading-relaxed text-muted">{f.explanation}</p></Section>
+            {glossary.length > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-accent/15 bg-accent-soft/60 px-3.5 py-3 text-sm">
+                {glossary.map((g) => <p key={g.term}><strong className="font-medium text-fg">{g.term}:</strong> <span className="text-muted">{g.meaning}</span></p>)}
+              </div>
+            )}
+            {f.evidence.length > 0 && (
+              <Section title="Bằng chứng">
+                <CodeBlock lines={f.evidence} />
+              </Section>
+            )}
+            {mode === "technical" && f.technical && <Section title="Chi tiết kỹ thuật"><p className="mono whitespace-pre-wrap text-xs leading-relaxed text-muted">{f.technical}</p></Section>}
+          </div>
 
-          {f.remediation && !isPass && (
-            <>
-              <Section title="Cách khắc phục">
-                <p>{f.remediation.summary}</p>
-                {f.remediation.steps && <ul className="mt-2 list-disc pl-5 space-y-1 text-muted">{f.remediation.steps.map((s, i) => <li key={i}>{s}</li>)}</ul>}
-                {effort && <p className="mt-2 text-xs text-faint">Ước lượng công sức: {effort.title} — {effort.hint.toLowerCase()}.</p>}
-              </Section>
-              {f.remediation.snippets.length > 0 && (
-                <Section title="Ví dụ cấu hình">
-                  <div className="space-y-3">
-                    {f.remediation.snippets.map((s, i) => (
-                      <div key={i}>
-                        <div className="flex items-center justify-between gap-3 mb-1.5">
-                          <span className="text-xs text-muted">{s.label}</span>
-                          <CopyButton text={s.code} />
-                        </div>
-                        <pre className="text-xs font-mono bg-surface border border-line rounded p-3 overflow-x-auto leading-relaxed">{s.code}</pre>
-                      </div>
-                    ))}
-                  </div>
-                  {f.remediation.platformUnknown && <p className="mt-2 text-xs text-muted">Chúng tôi không nhận diện được hệ thống hosting của bạn, nên chỉ hiển thị chính header — không đoán file cấu hình.</p>}
-                </Section>
-              )}
-              <Section title="Quét lại sau khi sửa">
-                <p className="text-sm text-muted mb-3">Triển khai thay đổi, đợi khoảng một phút cho bộ nhớ đệm hết hiệu lực, rồi quét lại để xác nhận vấn đề này đã được giải quyết.</p>
-                {data.canRescan ? <RescanButton url={data.url} variant="ghost" label="Quét lại website này" /> : <p className="text-xs text-faint">Hãy đăng nhập bằng tài khoản chủ báo cáo để quét lại.</p>}
-              </Section>
-            </>
-          )}
-          {mode === "technical" && f.references.length > 0 && (
-            <Section title="Tài liệu tham khảo">
-              <ul className="space-y-1 text-sm">{f.references.map((r) => <li key={r.url}><a className="text-muted hover:text-fg underline underline-offset-2 break-all" href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a></li>)}</ul>
+          <div className="min-w-0 space-y-5">
+            <Section title="Thành phần bị ảnh hưởng">
+              <p className="mono break-all text-[13px]">{f.affectedUrl ?? CATEGORY_LABEL[f.category]}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5"><Confidence level={f.confidence} />{mode === "technical" && owasp && <span className="text-xs text-muted">{owasp.join(" · ")}</span>}</div>
             </Section>
-          )}
+
+            {f.remediation && !isPass && (
+              <>
+                <Section title="Cách khắc phục">
+                  <div className="term">
+                    <div className="term-body whitespace-pre-wrap break-words text-[13px] leading-6">
+                      <span className="prompt" aria-hidden>→ </span>
+                      <Typed text={fixText} play={opened} cps={260} />
+                    </div>
+                  </div>
+                  {effort && <p className="mt-2 text-xs text-faint">Ước lượng công sức: {effort.title} — {effort.hint.toLowerCase()}.</p>}
+                </Section>
+                {f.remediation.snippets.length > 0 && (
+                  <Section title="Ví dụ cấu hình">
+                    <div className="space-y-3">
+                      {f.remediation.snippets.map((s, k) => (
+                        <div key={k}>
+                          <p className="mb-1.5 text-xs text-muted">{s.label}</p>
+                          <CodeBlock lines={s.code.split("\n")} copy={s.code} />
+                        </div>
+                      ))}
+                    </div>
+                    {f.remediation.platformUnknown && <p className="mt-2 text-xs text-muted">Chúng tôi không nhận diện được hệ thống hosting của bạn, nên chỉ hiển thị chính header — không đoán file cấu hình.</p>}
+                  </Section>
+                )}
+                <Section title="Quét lại sau khi sửa">
+                  <p className="mb-3 text-sm text-muted">Triển khai thay đổi, đợi khoảng một phút cho bộ nhớ đệm hết hiệu lực, rồi quét lại để xác nhận vấn đề đã được giải quyết.</p>
+                  {data.canRescan ? <RescanButton url={data.url} variant="ghost" label="Quét lại website này" /> : <p className="text-xs text-faint">Hãy đăng nhập bằng tài khoản chủ báo cáo để quét lại.</p>}
+                </Section>
+              </>
+            )}
+            {mode === "technical" && f.references.length > 0 && (
+              <Section title="Tài liệu tham khảo">
+                <ul className="space-y-1 text-sm">{f.references.map((r) => <li key={r.url}><a className="break-all text-accent underline-offset-2 hover:underline" href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a></li>)}</ul>
+              </Section>
+            )}
+          </div>
         </div>
       </details>
     </li>
@@ -358,7 +448,7 @@ function FindingItem({ f, mode, data }: { f: Finding; mode: Mode; data: ReportDa
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-faint mb-1.5">{title}</h3>
+      <h3 className="eyebrow mb-2">{title}</h3>
       {children}
     </div>
   );

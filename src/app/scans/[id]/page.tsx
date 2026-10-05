@@ -30,11 +30,14 @@ export default async function ScanPage({ params, searchParams }: { params: Promi
 
   if (scan.status === "failed") {
     return (
-      <div className="mx-auto max-w-xl px-5 py-20">
-        <p className="text-sm text-muted">Quét thất bại</p>
-        <h1 className="text-2xl font-semibold tracking-tight break-all mt-1">{scan.normalized_url}</h1>
-        <p className="mt-6 text-high">{scan.error_message ?? "Không thể hoàn tất lượt quét này."}</p>
-        <div className="mt-8 flex gap-3 items-start"><RescanButton url={scan.input_url} label="Thử lại" /><Link href="/dashboard" className="h-9 px-4 inline-flex items-center rounded-md border border-line-strong text-sm">Quay lại</Link></div>
+      <div className="container-x max-w-2xl py-16 sm:py-24">
+        <span className="chip-crit"><span className="size-1.5 rounded-full bg-crit" aria-hidden />Quét thất bại</span>
+        <h1 className="mono mt-4 break-all text-2xl font-semibold tracking-tight sm:text-3xl">{scan.normalized_url}</h1>
+        <div className="term mt-8" role="alert">
+          <div className="term-bar"><span className="term-dot" /><span className="term-dot" /><span className="term-dot" /><span className="ml-1">vibesec — lỗi</span></div>
+          <div className="term-body"><p><span className="prompt">$</span> vibesec scan {scan.normalized_url}</p><p className="text-crit">✗ {scan.error_message ?? "Không thể hoàn tất lượt quét này."}</p><p className="text-faint">mã: {scan.error_code ?? "unknown"}</p></div>
+        </div>
+        <div className="mt-8 flex flex-wrap items-start gap-3"><RescanButton url={scan.input_url} label="Thử lại" /><Link href="/dashboard" className="btn-ghost btn-sm">Quay lại</Link></div>
       </div>
     );
   }
@@ -49,10 +52,10 @@ export default async function ScanPage({ params, searchParams }: { params: Promi
     <>
       <Report data={data} actions={<ReportActions scanId={id} url={scan.input_url} />} />
       {earlier.length > 1 && (
-        <div className="mx-auto max-w-5xl px-5 -mt-4 pb-10 text-sm text-muted">
+        <div className="container-x -mt-4 pb-10 text-sm text-muted">
           <span>So sánh với lượt quét trước đó: </span>
           {earlier.map((e) => (
-            <Link key={e.id} href={`/scans/${id}?vs=${e.id}`} className={`mr-3 underline underline-offset-2 hover:text-fg ${comparison?.previous.id === e.id ? "text-fg" : ""}`}>{formatDate(e.completed_at ?? e.created_at)} ({e.score})</Link>
+            <Link key={e.id} href={`/scans/${id}?vs=${e.id}`} className={`mono mr-3 text-xs underline underline-offset-2 hover:text-fg ${comparison?.previous.id === e.id ? "font-semibold text-fg" : ""}`}>{formatDate(e.completed_at ?? e.created_at)} ({e.score})</Link>
           ))}
         </div>
       )}

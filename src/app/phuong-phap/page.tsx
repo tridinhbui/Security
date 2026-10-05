@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function MethodPage() {
   return (
-    <div className="mx-auto max-w-3xl px-5 py-12">
+    <div className="container-x max-w-3xl py-12 sm:py-16">
       <h1 className="text-3xl font-semibold tracking-tight">Phương pháp chấm điểm &amp; danh sách kiểm tra</h1>
       <p className="mt-3 text-muted">Mọi kết luận của VibeSec đều đến từ các luật cố định, có thể tái lập — không dùng AI để “đoán” lỗ hổng. Cùng một website ở cùng một trạng thái sẽ luôn cho cùng một kết quả.</p>
 

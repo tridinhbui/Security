@@ -1,41 +1,171 @@
 @import "tailwindcss";
 
+/*
+ * Hệ thống thiết kế VibeSec — giao diện sáng, kỹ thuật, chính xác.
+ * Một nguồn token duy nhất. Màu chỉ mang nghĩa: xanh điện = hành động/thương hiệu,
+ * đỏ/cam/vàng = rủi ro, xanh lá = đạt. Mọi cặp chữ/nền đạt tương phản WCAG AA (≥ 4.5:1) trên nền trắng.
+ */
 @theme {
-  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Inter, system-ui, sans-serif;
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", Inter, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
-  /* Neutral dark surface */
-  --color-bg: #0a0b0d;
-  --color-surface: #0f1115;
-  --color-raised: #14171c;
-  --color-line: #1d2027;
-  --color-line-strong: #2a2e37;
-  --color-fg: #e9eaec;
-  --color-muted: #8b909a;
-  --color-faint: #5f6470;
+  /* Nền & chữ */
+  --color-bg: #ffffff;
+  --color-surface: #f6f8fb;       /* xám lạnh rất nhạt: khối phụ, terminal, code */
+  --color-raised: #eef2f7;        /* trạng thái hover/nhấn */
+  --color-line: #e4e9f0;
+  --color-line-strong: #cdd5e0;
+  --color-fg: #0b1220;            /* gần đen, ngả xanh */
+  --color-muted: #566274;
+  --color-faint: #6b7788;
 
-  /* Colour is reserved for meaning: red/orange = risk, green = passed. */
-  --color-crit: #ff5a4d;
-  --color-high: #ff7f45;
-  --color-med: #eba23e;
-  --color-low: #b9ad6a;
-  --color-info: #7d8391;
-  --color-ok: #3fb27f;
+  /* Nhấn: xanh điện + cyan */
+  --color-accent: #0b57ff;
+  --color-accent-strong: #0847d1;
+  --color-accent-soft: #eaf1ff;
+  --color-cyan: #0891b2;
+
+  /* Trạng thái bảo mật (chữ ≥ 4.5:1 trên trắng) */
+  --color-crit: #c4271b;
+  --color-high: #c2410c;
+  --color-med: #a16207;
+  --color-low: #2f6db5;
+  --color-info: #566274;
+  --color-ok: #0a7a43;
+
+  --shadow-crisp: 0 1px 0 rgb(11 18 32 / 0.04), 0 1px 2px rgb(11 18 32 / 0.06);
+  --shadow-pop: 0 12px 32px -12px rgb(11 18 32 / 0.22), 0 2px 6px rgb(11 18 32 / 0.06);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-html { color-scheme: dark; }
+html { color-scheme: light; scroll-behavior: smooth; }
 body {
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv11";
+  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.006em;
+  text-rendering: optimizeLegibility;
 }
-::selection { background: #2c3340; }
+::selection { background: #cfe0ff; color: var(--color-fg); }
 .num { font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 2px solid #8aa4ff; outline-offset: 2px; border-radius: 4px; }
+pre, code, kbd { font-family: var(--font-mono); }
 details > summary { list-style: none; cursor: pointer; }
 details > summary::-webkit-details-marker { display: none; }
-pre, code { font-family: var(--font-mono); }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 6px; }
+
+/* Lớp nền dùng lại bằng @apply (Tailwind v4 yêu cầu @utility) */
+@utility btn {
+    @apply inline-flex h-10 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-medium
+      transition-[background-color,border-color,box-shadow,transform,color] duration-150 active:translate-y-px
+      disabled:pointer-events-none disabled:opacity-50;
+}
+@utility chip {
+  @apply inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider;
+}
+
+/* ------------------------------------------------------------------ thành phần */
+@layer components {
+  .container-x { @apply mx-auto w-full max-w-6xl px-5 sm:px-8 2xl:max-w-7xl; }
+
+  .eyebrow { @apply font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-faint; }
+  .mono { @apply font-mono; }
+
+  /* Nút (nền .btn khai báo bằng @utility phía trên) */
+  .btn-primary { @apply btn bg-accent text-white shadow-crisp hover:bg-accent-strong; }
+  .btn-dark { @apply btn bg-fg text-white shadow-crisp hover:bg-[#1a2540]; }
+  .btn-ghost { @apply btn border border-line-strong bg-white text-fg hover:border-fg/40 hover:bg-surface; }
+  .btn-danger { @apply btn border border-line-strong bg-white text-crit hover:border-crit/50 hover:bg-crit/5; }
+  .btn-sm { @apply h-8 rounded-md px-3 text-[13px]; }
+  .btn-lg { @apply h-12 rounded-xl px-6 text-[15px]; }
+
+  /* Ô nhập */
+  .input {
+    @apply h-11 w-full rounded-lg border border-line-strong bg-white px-3.5 text-[15px] text-fg shadow-crisp placeholder:text-faint
+      transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/15 disabled:bg-surface;
+  }
+
+  /* Nhãn / chip */
+  .chip-crit { @apply chip border-crit/25 bg-crit/8 text-crit; }
+  .chip-high { @apply chip border-high/25 bg-high/8 text-high; }
+  .chip-med { @apply chip border-med/30 bg-med/10 text-med; }
+  .chip-low { @apply chip border-low/30 bg-low/10 text-low; }
+  .chip-info { @apply chip border-line-strong bg-surface text-info; }
+  .chip-ok { @apply chip border-ok/25 bg-ok/8 text-ok; }
+  .chip-accent { @apply chip border-accent/25 bg-accent-soft text-accent; }
+
+  /* Khối nội dung */
+  .panel { @apply rounded-xl border border-line bg-white shadow-crisp; }
+  .panel-soft { @apply rounded-xl border border-line bg-surface; }
+  .hairline { @apply border-t border-line; }
+
+  /* Terminal sáng */
+  .term { @apply overflow-hidden rounded-xl border border-line-strong bg-surface font-mono text-[13px] leading-6 text-fg shadow-crisp; }
+  .term-bar { @apply flex items-center gap-2 border-b border-line bg-white/70 px-3.5 py-2 text-[11px] text-faint; }
+  .term-dot { @apply size-2.5 rounded-full border border-line-strong bg-white; }
+  .term-body { @apply px-4 py-3.5; }
+  .prompt { @apply select-none text-accent; }
+
+  /* Lưới + chấm kỹ thuật làm nền */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgb(11 18 32 / 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(11 18 32 / 0.045) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 75%);
+  }
+
+  /* Skeleton */
+  .skeleton {
+    @apply rounded-md bg-raised;
+    background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.7), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+}
+
+/* ------------------------------------------------------------------ chuyển động (chỉ transform/opacity) */
+@keyframes reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.7; } 100% { transform: scale(2.1); opacity: 0; } }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+
+.page-enter { animation: reveal 0.45s var(--ease-out-expo) both; }
+.reveal { animation: reveal 0.55s var(--ease-out-expo) both; animation-delay: calc(var(--i, 0) * 55ms); }
+.fade-in { animation: fade-in 0.4s ease both; animation-delay: calc(var(--i, 0) * 55ms); }
+.pop { animation: pop 0.35s var(--ease-out-expo) both; }
+
+/* Con trỏ terminal nhấp nháy */
+.cursor {
+  display: inline-block; width: 0.55ch; height: 1.1em; margin-left: 2px; vertical-align: -0.18em;
+  background: var(--color-accent); animation: blink 1s steps(1) infinite;
+}
+/* Điểm "đang quét": chấm có vòng sóng */
+.live-dot { position: relative; display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background: var(--color-accent); }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--color-accent); animation: pulse-ring 1.6s ease-out infinite; }
+/* Thanh quét chạy ngang */
+.scanline { position: relative; overflow: hidden; }
+.scanline::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(11 87 255 / 0.18), transparent); animation: sweep 1.8s var(--ease-out-expo) infinite; }
+
+/* Tôn trọng yêu cầu giảm chuyển động */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+  .reveal, .page-enter, .fade-in, .pop { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .cursor { animation: none !important; opacity: 1; }
+}
+
+/* Đường biểu đồ tự "vẽ" khi xuất hiện (pathLength=1) */
+@keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.draw-line { stroke-dasharray: 1; stroke-dashoffset: 0; animation: draw 1.1s var(--ease-out-expo) both; }
+@media (prefers-reduced-motion: reduce) { .draw-line { animation: none !important; } }
+
+/* Hộp thoại xác nhận (thẻ <dialog> gốc: tự khoá focus, Esc để đóng) */
+dialog.confirm { border: 0; padding: 0; background: transparent; max-width: calc(100vw - 2rem); }
+dialog.confirm::backdrop { background: rgb(11 18 32 / 0.35); backdrop-filter: blur(2px); animation: fade-in 0.2s ease both; }
+dialog.confirm[open] { animation: pop 0.25s var(--ease-out-expo) both; }

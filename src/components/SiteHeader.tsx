@@ -1,29 +1,49 @@
 import Link from "next/link";
 import { getUser } from "@/lib/auth/next";
+import { UserMenu } from "./UserMenu";
+
+export function Logo({ className = "" }: { className?: string }) {
+  return (
+    <Link href="/" className={`group flex items-center gap-2.5 ${className}`} aria-label="VibeSec — trang chủ">
+      <span aria-hidden className="grid size-7 place-items-center rounded-lg bg-fg text-white shadow-crisp transition-transform duration-200 group-hover:-rotate-6">
+        <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 4.5 6v5.5c0 4.4 3 7.9 7.5 9.5 4.5-1.6 7.5-5.1 7.5-9.5V6L12 3Z" /><path d="m9 12 2.2 2.2L15.5 10" /></svg>
+      </span>
+      <span className="mono text-[15px] font-semibold tracking-tight">vibesec</span>
+    </Link>
+  );
+}
 
 export async function SiteHeader() {
-  const email = (await getUser())?.email ?? null;
+  const user = await getUser();
+  const links = [{ href: "/demo", label: "Bản demo" }, { href: "/phuong-phap", label: "Phương pháp" }];
   return (
-    <header className="border-b border-line">
-      <div className="mx-auto max-w-5xl px-5 h-14 flex items-center justify-between gap-4">
-        <Link href="/" className="font-semibold tracking-tight text-[15px] flex items-center gap-2">
-          <span aria-hidden className="inline-block size-2 rounded-[2px] bg-fg" />
-          VibeSec
-        </Link>
-        <nav className="flex items-center gap-1 text-sm text-muted">
-          <Link href="/demo" className="px-3 py-1.5 hover:text-fg">Bản demo</Link>
-          {email ? (
-            <>
-              <Link href="/dashboard" className="px-3 py-1.5 hover:text-fg">Bảng điều khiển</Link>
-              <Link href="/settings" className="px-3 py-1.5 hover:text-fg hidden sm:block">Cài đặt</Link>
-            </>
+    <header className="sticky top-0 z-40 border-b border-line bg-white/80 backdrop-blur-md supports-[backdrop-filter]:bg-white/70">
+      <div className="container-x flex h-14 items-center justify-between gap-4">
+        <div className="flex items-center gap-8">
+          <Logo />
+          <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 text-sm sm:flex">
+            {links.map((l) => <Link key={l.href} href={l.href} className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">{l.label}</Link>)}
+            {user && <Link href="/dashboard" className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">Bảng điều khiển</Link>}
+          </nav>
+        </div>
+        <div className="flex items-center gap-2">
+          {user ? (
+            <UserMenu name={user.name} email={user.email} avatarUrl={user.avatar_url} />
           ) : (
             <>
-              <Link href="/login" className="px-3 py-1.5 hover:text-fg">Đăng nhập</Link>
-              <Link href="/signup" className="ml-1 px-3 py-1.5 rounded-md bg-fg text-bg font-medium hover:bg-white">Đăng ký</Link>
+              <Link href="/login" className="btn-ghost btn-sm hidden sm:inline-flex">Đăng nhập</Link>
+              <Link href="/signup" className="btn-dark btn-sm">Bắt đầu miễn phí</Link>
             </>
           )}
-        </nav>
+          {/* Menu thu gọn cho điện thoại: <details> thuần HTML nên không phụ thuộc JS */}
+          <details className="relative sm:hidden">
+            <summary aria-label="Mở menu" className="grid size-8 cursor-pointer place-items-center rounded-md border border-line-strong bg-white"><svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg></summary>
+            <div className="absolute right-0 mt-2 w-52 rounded-xl border border-line bg-white p-1.5 shadow-pop">
+              {links.map((l) => <Link key={l.href} href={l.href} className="block rounded-lg px-3 py-2 text-sm hover:bg-surface">{l.label}</Link>)}
+              {user ? <Link href="/dashboard" className="block rounded-lg px-3 py-2 text-sm hover:bg-surface">Bảng điều khiển</Link> : <Link href="/login" className="block rounded-lg px-3 py-2 text-sm hover:bg-surface">Đăng nhập</Link>}
+            </div>
+          </details>
+        </div>
       </div>
     </header>
   );
