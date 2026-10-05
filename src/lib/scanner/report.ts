@@ -16,6 +16,8 @@ export interface RedactedTarget {
 
 export interface ScanReport {
   version: 1;
+  /** Phiên bản bộ luật/cách chấm đã tạo báo cáo này (xem version.ts). */
+  engineVersion?: number;
   target: { input: string; url: string; host: string };
   scannedAt: string;
   durationMs: number;

@@ -1,5 +1,6 @@
 import type { FindingRow, ScanRow, TargetView } from "../db-types";
 import { log } from "../log";
+import { ENGINE_VERSION } from "../scanner/version";
 import type { Finding } from "../scanner/types";
 import { isoAgo, isoIn, newId, nowIso, parseJson, type D1Like } from "./d1";
 
@@ -203,7 +204,7 @@ export async function failScan(db: D1Like, id: string, code: string, message: st
 }
 
 export interface CompleteInput {
-  score: number; grade: string; categoryScores: unknown; severityCounts: unknown; platforms: string[]; requests: number; retentionDays: number;
+  score: number; grade: string; categoryScores: unknown; severityCounts: unknown; platforms: string[]; requests: number; retentionDays: number; engineVersion?: number;
   findings: Finding[]; targets: { role: string; url: string; finalUrl: string; status: number | null; tls: unknown; headersEnc: string; resolved: string[]; errorCode: string | null; durationMs: number }[];
 }
 
@@ -216,8 +217,8 @@ export async function completeScan(db: D1Like, scanId: string, c: CompleteInput)
       JSON.stringify(f.evidence), f.explanation, f.summary, f.technical ?? null, JSON.stringify(f.remediation ?? {}), f.affectedUrl, JSON.stringify(f.references))),
     ...c.targets.map((t) => db.prepare(`INSERT INTO scan_targets (id,scan_id,role,url,final_url,status_code,tls,headers_enc,resolved_ips,error_code,duration_ms,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(newId(), scanId, t.role, t.url, t.finalUrl, t.status, t.tls ? JSON.stringify(t.tls) : null, t.headersEnc, JSON.stringify(t.resolved), t.errorCode, t.durationMs, done.toISOString())),
-    db.prepare(`UPDATE scans SET status='completed', score=?, grade=?, category_scores=?, severity_counts=?, platforms=?, request_count=?, completed_at=?, expires_at=?, locked_at=NULL WHERE id=?`)
-      .bind(c.score, c.grade, JSON.stringify(c.categoryScores), JSON.stringify(c.severityCounts), JSON.stringify(c.platforms), c.requests, done.toISOString(), new Date(done.getTime() + c.retentionDays * 86_400_000).toISOString(), scanId),
+    db.prepare(`UPDATE scans SET status='completed', score=?, grade=?, category_scores=?, severity_counts=?, platforms=?, request_count=?, completed_at=?, expires_at=?, engine_version=?, locked_at=NULL WHERE id=?`)
+      .bind(c.score, c.grade, JSON.stringify(c.categoryScores), JSON.stringify(c.severityCounts), JSON.stringify(c.platforms), c.requests, done.toISOString(), new Date(done.getTime() + c.retentionDays * 86_400_000).toISOString(), c.engineVersion ?? 0, scanId),
   ];
   await db.batch(stmts);
 }
@@ -415,9 +416,9 @@ export const CACHE_TTL_OTHERS_MS = 6 * HOUR, CACHE_TTL_OWN_MS = 15 * 60_000, CAC
  * Bản sao thuộc về người gọi, tuân thủ thời hạn lưu trữ của họ và KHÔNG tính vào hạn mức.
  */
 export async function cloneRecentScan(db: D1Like, a: { userId: string; url: string; host: string; ipHash: string | null; mode?: ScanMode }): Promise<string | null> {
-  const src = await db.prepare(`SELECT id FROM scans WHERE normalized_url = ? AND status = 'completed' AND cached = 0 AND (mode = 'full' OR ? = 'quick') AND (
+  const src = await db.prepare(`SELECT id FROM scans WHERE normalized_url = ? AND status = 'completed' AND cached = 0 AND engine_version = ? AND (mode = 'full' OR ? = 'quick') AND (
       (user_id <> ? AND completed_at > ?) OR (user_id = ? AND completed_at > ?)) ORDER BY completed_at DESC LIMIT 1`)
-    .bind(a.url, a.mode ?? "full", a.userId, isoAgo(CACHE_TTL_OTHERS_MS), a.userId, isoAgo(CACHE_TTL_OWN_MS)).first<{ id: string }>();
+    .bind(a.url, ENGINE_VERSION, a.mode ?? "full", a.userId, isoAgo(CACHE_TTL_OTHERS_MS), a.userId, isoAgo(CACHE_TTL_OWN_MS)).first<{ id: string }>();
   if (!src) return null;
   const recent = (await db.prepare("SELECT COUNT(*) c FROM scans WHERE user_id = ? AND cached = 1 AND created_at > ?").bind(a.userId, isoAgo(HOUR)).first<{ c: number }>())?.c ?? 0;
   if (recent >= CACHE_CLONES_PER_HOUR) return null; // quá nhiều → rơi về luồng quét thật (có hạn mức)
@@ -426,8 +427,8 @@ export async function cloneRecentScan(db: D1Like, a: { userId: string; url: stri
   const expires = new Date(Date.now() + (u?.retention_days ?? 30) * DAY).toISOString();
   const rid = "lower(hex(randomblob(16)))";
   await db.batch([
-    db.prepare(`INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,score,grade,category_scores,severity_counts,platforms,request_count,cached,created_at,started_at,completed_at,expires_at,mode)
-      SELECT ?,?,normalized_url,normalized_url,host,?,'completed',score,grade,category_scores,severity_counts,platforms,0,1,?,?,?,?,mode FROM scans WHERE id = ?`)
+    db.prepare(`INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,score,grade,category_scores,severity_counts,platforms,request_count,cached,created_at,started_at,completed_at,expires_at,mode,engine_version)
+      SELECT ?,?,normalized_url,normalized_url,host,?,'completed',score,grade,category_scores,severity_counts,platforms,0,1,?,?,?,?,mode,engine_version FROM scans WHERE id = ?`)
       .bind(id, a.userId, a.ipHash, now, now, now, expires, src.id),
     db.prepare(`INSERT INTO findings (id,scan_id,rule_id,fingerprint,title,category,severity,confidence,status,evidence,explanation,summary,technical,remediation,affected_url,refs)
       SELECT ${rid},?,rule_id,fingerprint,title,category,severity,confidence,status,evidence,explanation,summary,technical,remediation,affected_url,refs FROM findings WHERE scan_id = ?`).bind(id, src.id),

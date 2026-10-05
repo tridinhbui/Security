@@ -2,6 +2,7 @@ import type { FetchRecord } from "../ssrf/types";
 import type { ScanBudget } from "../ssrf/budget";
 import type { NormalizedTarget } from "../ssrf/url";
 import { attachFixCommands } from "./fixes";
+import { ENGINE_VERSION } from "./version";
 import { ALL_RULES } from "./rules";
 import { evaluate } from "./evaluate";
 import { redactHeaders, type RedactedTarget, type ScanReport } from "./report";
@@ -28,6 +29,7 @@ export function buildReport(input: string, target: NormalizedTarget, obs: Observ
   const score = calculateScore(findings, { limitedCoverage: quick || obs.limits.hitLimit !== null });
   return {
     version: 1,
+    engineVersion: ENGINE_VERSION,
     target: { input, url: target.url, host: target.host },
     scannedAt: obs.scannedAt,
     durationMs: Date.now() - started,

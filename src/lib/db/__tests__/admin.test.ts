@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { ENGINE_VERSION } from "@/lib/scanner/version";
 import * as repo from "../repo";
 import { createTestD1, seedUser } from "./test-d1";
 
@@ -67,7 +68,7 @@ describe("cloneRecentScan — dùng lại kết quả", () => {
   async function completed(user: string, url = "https://site.com/") {
     const r = await repo.createScanChecked(db, { userId: user, url, host: "site.com", ipHash: null, limits: L });
     if (!r.ok) throw new Error("x");
-    db.sqlite.prepare("UPDATE scans SET status='completed', score=80, grade='B', completed_at=? WHERE id=?").run(new Date().toISOString(), r.id);
+    db.sqlite.prepare("UPDATE scans SET status='completed', score=80, grade='B', completed_at=?, engine_version=? WHERE id=?").run(new Date().toISOString(), ENGINE_VERSION, r.id);
     db.sqlite.prepare("INSERT INTO findings (id,scan_id,rule_id,fingerprint,title,category,severity,confidence,status,explanation,summary) VALUES ('f1',?,'r','fp','t','Headers','low','high','fail','e','s')").run(r.id);
     return r.id;
   }
@@ -86,13 +87,25 @@ describe("cloneRecentScan — dùng lại kết quả", () => {
     db.sqlite.prepare("UPDATE scans SET completed_at=?").run(new Date(Date.now() - 3_600_000).toISOString());
     expect(await repo.cloneRecentScan(db, { userId: u1, url: "https://site.com/", host: "site.com", ipHash: null })).toBeNull();
   });
+  it("không dùng lại kết quả chấm bằng bộ luật phiên bản cũ", async () => {
+    const id = await completed(u1);
+    db.sqlite.prepare("UPDATE scans SET engine_version=? WHERE id=?").run(ENGINE_VERSION - 1, id);
+    expect(await repo.cloneRecentScan(db, { userId: u2, url: "https://site.com/", host: "site.com", ipHash: null })).toBeNull();
+    db.sqlite.prepare("UPDATE scans SET engine_version=0 WHERE id=?").run(id); // báo cáo từ container cũ không có phiên bản
+    expect(await repo.cloneRecentScan(db, { userId: u2, url: "https://site.com/", host: "site.com", ipHash: null })).toBeNull();
+  });
+  it("bản sao giữ nguyên phiên bản bộ luật của bản gốc", async () => {
+    await completed(u1);
+    const id = await repo.cloneRecentScan(db, { userId: u2, url: "https://site.com/", host: "site.com", ipHash: null });
+    expect(db.sqlite.prepare("SELECT engine_version v FROM scans WHERE id=?").get(id!)).toMatchObject({ v: ENGINE_VERSION });
+  });
   it("không có kết quả gần đây → null", async () => {
     expect(await repo.cloneRecentScan(db, { userId: u2, url: "https://none.com/", host: "none.com", ipHash: null })).toBeNull();
   });
   it("quét nhanh có thể dùng lại kết quả đầy đủ, nhưng quét đầy đủ không dùng lại kết quả nhanh", async () => {
     const r = await repo.createScanChecked(db, { userId: u1, url: "https://q.com/", host: "q.com", ipHash: null, limits: L, mode: "quick" });
     if (!r.ok) throw new Error("x");
-    db.sqlite.prepare("UPDATE scans SET status='completed', score=70, grade='C', completed_at=? WHERE id=?").run(new Date().toISOString(), r.id);
+    db.sqlite.prepare("UPDATE scans SET status='completed', score=70, grade='C', completed_at=?, engine_version=? WHERE id=?").run(new Date().toISOString(), ENGINE_VERSION, r.id);
     expect(db.sqlite.prepare("SELECT mode FROM scans WHERE id=?").get(r.id)).toMatchObject({ mode: "quick" });
     expect(await repo.cloneRecentScan(db, { userId: u2, url: "https://q.com/", host: "q.com", ipHash: null, mode: "full" })).toBeNull();
     const id = await repo.cloneRecentScan(db, { userId: u2, url: "https://q.com/", host: "q.com", ipHash: null, mode: "quick" });

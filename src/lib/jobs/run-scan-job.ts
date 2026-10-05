@@ -13,7 +13,7 @@ async function persist(db: D1Like, scanId: string, userId: string, report: ScanR
   const user = await repo.getUserById(db, userId);
   await repo.completeScan(db, scanId, {
     score: report.score.score, grade: report.score.grade, categoryScores: report.score.categoryScores, severityCounts: report.score.severityCounts,
-    platforms: report.platforms, requests: report.stats.requests, retentionDays: user?.retention_days ?? 90, findings: report.findings,
+    platforms: report.platforms, requests: report.stats.requests, engineVersion: report.engineVersion, retentionDays: user?.retention_days ?? 90, findings: report.findings,
     targets: await Promise.all(report.targets.map(async (t) => ({
       role: t.role, url: t.url, finalUrl: t.finalUrl, status: t.status, tls: t.tls ?? null, headersEnc: await encrypt(JSON.stringify(t.headers)),
       resolved: t.resolved, errorCode: t.errorCode ?? null, durationMs: t.durationMs,
