@@ -17,7 +17,7 @@ export function ScoreRing({ score, grade, size = 176 }: { score: number; grade: 
   const stroke = 10, r = (size - stroke) / 2, c = 2 * Math.PI * r;
   const tone = score >= 80 ? "var(--color-ok)" : score >= 70 ? "var(--color-med)" : score >= 60 ? "var(--color-high)" : "var(--color-crit)";
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={`Điểm ${score} trên 100, hạng ${grade}`}>
+    <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={`Điểm ${score}, hạng ${grade}`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-line)" strokeWidth={stroke} />
         {/* vạch chia 80 điểm (ngưỡng "tốt") */}

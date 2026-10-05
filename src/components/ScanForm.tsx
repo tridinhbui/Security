@@ -19,7 +19,7 @@ interface Props { authed: boolean; initialUrl?: string; autoStart?: boolean; siz
  * Ô nhập mục tiêu. Kiểm tra phía client chỉ để phản hồi nhanh; MỌI quy tắc an toàn (SSRF, cổng, giao thức)
  * được kiểm tra lại ở máy chủ và không bao giờ tin giá trị từ trình duyệt.
  */
-export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "lg", label = "Quét website" }: Props) {
+export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "lg", label = "Quét ngay" }: Props) {
   const router = useRouter();
   const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
@@ -62,19 +62,18 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
   const big = size === "lg";
   return (
     <form onSubmit={(e) => { e.preventDefault(); void submit(url); }} noValidate className="w-full">
-      <div className={`flex flex-col gap-2 rounded-2xl border bg-white p-2 shadow-pop transition-[border-color,box-shadow] duration-200 focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15 sm:flex-row ${error ? "border-crit/50" : "border-line-strong"}`}>
+      <div className={`flex flex-col gap-2 rounded-2xl border bg-white p-2 shadow-glow transition-[border-color,box-shadow] duration-200 focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15 sm:flex-row sm:items-center ${error ? "border-crit/50" : "border-line-strong"}`}>
         <label className="sr-only" htmlFor="scan-url">URL website</label>
-        <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
-          <span className="prompt mono select-none text-base" aria-hidden>$</span>
-          <span className="mono hidden select-none text-sm text-faint sm:inline" aria-hidden>scan</span>
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-3">
+          <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-fg" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 8 5 4-5 4" /><path d="M13 17h6" /></svg>
           <input
             id="scan-url" name="url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false}
-            placeholder="example.com" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy} maxLength={2048}
+            placeholder="Nhập URL để quét (ví dụ: https://example.com)" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy} maxLength={2048}
             aria-invalid={!!error} aria-describedby={error ? "scan-error" : undefined}
-            className={`mono min-w-0 flex-1 bg-transparent text-fg placeholder:text-faint focus:outline-none ${big ? "h-12 text-base sm:text-lg" : "h-10 text-[15px]"}`}
+            className={`min-w-0 flex-1 bg-transparent text-fg placeholder:text-faint focus:outline-none ${big ? "h-12 text-[15px]" : "h-10 text-[15px]"}`}
           />
         </div>
-        <button type="submit" disabled={busy} className={`btn-primary ${big ? "btn-lg" : ""} sm:min-w-40`}>
+        <button type="submit" disabled={busy} className={`btn-primary ${big ? "btn-lg" : ""} sm:min-w-36`}>
           {busy ? <><span className="live-dot !bg-white" aria-hidden />Đang bắt đầu…</> : <>{label}<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></>}
         </button>
       </div>

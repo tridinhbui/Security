@@ -50,7 +50,7 @@ export interface FetchRecord {
 }
 
 export interface FetchOptions {
-  method?: "GET" | "HEAD";
+  method?: "GET" | "HEAD" | "OPTIONS";
   headers?: Record<string, string>;
   maxBytes?: number;
   timeoutMs?: number;

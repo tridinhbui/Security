@@ -5,6 +5,13 @@
 export const PLAIN_TITLES: Record<string, string> = {
   "exposure.internal-references": "Website có vô tình để lộ địa chỉ mạng nội bộ không?",
   "exposure.html-comments": "Ghi chú của lập trình viên có bị lộ trong trang không?",
+  "tls.hsts-preload": "Trình duyệt có bảo vệ ngay lần truy cập đầu tiên không?",
+  "tls.cipher-suite": "Kiểu mã hoá của kết nối HTTPS có hiện đại không?",
+  "headers.cache-policy": "Trang có bị lưu đệm nhầm cho người khác xem không?",
+  "config.debug-headers": "Website có vô tình lộ thông tin gỡ lỗi nội bộ không?",
+  "config.http-methods": "Máy chủ có mở những thao tác không cần thiết không?",
+  "browser.form-targets": "Mật khẩu nhập vào có chỉ gửi về chính website không?",
+  "cookies.prefix": "Cookie đăng nhập có được bảo vệ chống ghi đè không?",
   "headers.deprecated": "Website có còn dùng cấu hình bảo mật đã lỗi thời không?",
   "tls.https-available": "Website có “ổ khoá” HTTPS hoạt động không?",
   "tls.certificate-expiry": "Chứng chỉ ổ khoá có sắp hết hạn không?",

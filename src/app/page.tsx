@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroVisual } from "@/components/HeroVisual";
 import { ScanForm } from "@/components/ScanForm";
 import { ScoreRing } from "@/components/motion/ScoreRing";
 import { getUser } from "@/lib/auth/next";
@@ -18,6 +19,16 @@ const CHECKS: Record<(typeof CATEGORIES)[number], string> = {
   Privacy: "Referrer-Policy, Permissions-Policy, tài nguyên và trình theo dõi của bên thứ ba.",
 };
 
+const ICONS: Record<(typeof CATEGORIES)[number], React.ReactNode> = {
+  "Transport Security": <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
+  Headers: <><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M4 9h16M7 7h.01" /></>,
+  "Browser Security": <><path d="m12 3 8 4-8 4-8-4 8-4Z" /><path d="m4 12 8 4 8-4M4 16.5l8 4 8-4" /></>,
+  "Cookies & Sessions": <><circle cx="12" cy="12" r="8" /><path d="M9 10h.01M14 9h.01M10 15h.01M15 14h.01" /></>,
+  Exposure: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" /><path d="M9 13h6M9 17h4" /></>,
+  Configuration: <><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" /></>,
+  Privacy: <><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="2.5" /></>,
+};
+
 const STEPS = [
   { n: "01", t: "Dán một URL", d: "Chỉ cần tên miền. Chúng tôi chuẩn hoá và chặn mọi địa chỉ nội bộ ngay từ đầu." },
   { n: "02", t: "Quét thụ động", d: "Chín giai đoạn: phân giải, TLS, header, endpoint công khai, rủi ro phía trình duyệt, cấu hình, chấm điểm." },
@@ -32,23 +43,25 @@ export default async function Home() {
   return (
     <>
       {/* ---- hero */}
-      <section className="relative overflow-hidden">
-        <div aria-hidden className="bg-grid pointer-events-none absolute inset-0 -z-10" />
-        <div className="container-x pb-20 pt-16 sm:pb-28 sm:pt-24">
-          <p className="reveal eyebrow flex items-center gap-2"><span className="live-dot" aria-hidden />kiểm tra bảo mật từ bên ngoài · thụ động · không phá hoại</p>
-          <h1 className="reveal mt-5 max-w-4xl text-[2.6rem] font-semibold leading-[1.04] tracking-tight sm:text-6xl lg:text-7xl" style={{ ["--i" as string]: 1 }}>
-            Biết trước <span className="text-accent">kẻ tấn công thấy gì</span> ở website của bạn.
-          </h1>
-          <p className="reveal mt-6 max-w-2xl text-lg leading-relaxed text-muted" style={{ ["--i" as string]: 2 }}>
-            Dán một URL. VibeSec chạy {ALL_RULES.length} kiểm tra thụ động, chấm điểm cấu hình trên thang 100 và chỉ ra cách khắc phục cụ thể cho từng vấn đề — bằng tiếng Việt dễ hiểu, không cần kiến thức bảo mật.
-          </p>
-          <div className="reveal mt-10 max-w-3xl" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} /></div>
-          <p className="reveal mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted" style={{ ["--i" as string]: 4 }}>
-            <span className="flex items-center gap-1.5"><Tick />Không khai thác lỗ hổng</span>
-            <span className="flex items-center gap-1.5"><Tick />Không dò mật khẩu</span>
-            <span className="flex items-center gap-1.5"><Tick />Không thu thập toàn bộ website</span>
-            {!user && <span className="text-faint">· Cần tài khoản miễn phí để chống lạm dụng</span>}
-          </p>
+      <section className="hero-glow relative overflow-hidden">
+        <div className="container-x grid items-center gap-8 pb-16 pt-14 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:pb-24">
+          <div>
+            <p className="reveal eyebrow">external attack surface scanner</p>
+            <h1 className="reveal mt-7 text-[2.8rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-[4.2rem]" style={{ ["--i" as string]: 1 }}>
+              Nhìn website<br /><span className="headline-grad">như một attacker.</span>
+            </h1>
+            <p className="reveal mt-7 max-w-xl text-[17px] leading-[1.8] text-muted" style={{ ["--i" as string]: 2 }}>
+              VibeSec tự động chạy {ALL_RULES.length} kiểm tra bảo mật, phân tích bề mặt tấn công công khai của bất kỳ website nào, và hướng dẫn cách khắc phục — đơn giản, rõ ràng, không cần kiến thức chuyên sâu.
+            </p>
+            <div className="reveal mt-9 max-w-[640px]" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} /></div>
+            <ul className="reveal mt-6 flex flex-wrap gap-3" style={{ ["--i" as string]: 4 }}>
+              <li className="pill"><span className="size-2 rounded-full bg-ok" />{ALL_RULES.length} kiểm tra bảo mật</li>
+              <li className="pill"><span className="size-2 rounded-full bg-accent" />Chỉ thu thập thông tin công khai</li>
+              <li className="pill"><span className="size-2 rounded-full bg-faint" />Không khai thác lỗ hổng</li>
+            </ul>
+            {!user && <p className="mt-4 text-sm text-faint">Cần tài khoản miễn phí để chống lạm dụng.</p>}
+          </div>
+          <HeroVisual />
         </div>
       </section>
 
@@ -94,17 +107,19 @@ export default async function Home() {
       <section id="checks" className="hairline" aria-labelledby="checks-h">
         <div className="container-x py-20">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <h2 id="checks-h" className="text-3xl font-semibold tracking-tight sm:text-4xl">Những gì chúng tôi kiểm tra</h2>
-            <Link href="/phuong-phap" className="text-sm font-medium text-accent hover:underline">Phương pháp chấm điểm &amp; danh sách {ALL_RULES.length} kiểm tra →</Link>
+            <div><p className="eyebrow mb-3">{ALL_RULES.length} kiểm tra bảo mật</p><h2 id="checks-h" className="text-3xl font-semibold tracking-tight sm:text-4xl">Kiểm tra toàn diện từ hạ tầng đến mã nguồn.</h2></div>
+            <Link href="/phuong-phap" className="text-sm font-medium text-accent hover:underline">Xem chi tiết phương pháp →</Link>
           </div>
-          <dl className="mt-10 divide-y divide-line border-y border-line">
+          <div className="mt-12 grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
             {CATEGORIES.map((c, i) => (
-              <div key={c} className="reveal grid gap-1 py-5 md:grid-cols-[16rem_1fr] md:gap-8" style={{ ["--i" as string]: i }}>
-                <dt className="flex items-baseline gap-3 font-medium"><span className="mono text-xs text-faint">{String(i + 1).padStart(2, "0")}</span>{CATEGORY_LABEL[c]}</dt>
-                <dd className="text-[15px] leading-relaxed text-muted">{CHECKS[c]}</dd>
+              <div key={c} className="reveal border-l border-line pl-6 first:border-l-0 first:pl-0 sm:[&:nth-child(2n+1)]:border-l-0 sm:[&:nth-child(2n+1)]:pl-0 lg:[&:nth-child(2n+1)]:border-l lg:[&:nth-child(2n+1)]:pl-6 lg:[&:nth-child(4n+1)]:border-l-0 lg:[&:nth-child(4n+1)]:pl-0" style={{ ["--i" as string]: i }}>
+                <svg viewBox="0 0 24 24" className="size-6 text-fg" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{ICONS[c]}</svg>
+                <h3 className="mt-5 text-[15px] font-semibold">{CATEGORY_LABEL[c]}</h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-muted">{CHECKS[c]}</p>
+                <div className="bars mt-5" aria-hidden>{Array.from({ length: 16 }, (_, k) => <i key={k} className={k < 3 + ((i * 5 + 4) % 7) ? "on" : ""} style={{ height: `${8 + ((k * 7 + i * 3) % 14)}px` }} />)}</div>
               </div>
             ))}
-          </dl>
+          </div>
         </div>
       </section>
 

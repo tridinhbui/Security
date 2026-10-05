@@ -329,9 +329,9 @@ describe("browser.cors", () => {
     const o = baseline(); o.cors = { testedOrigin: origin, status: 200, acao: "null", acac: null, vary: null };
     expect(failing(o, id)[0]).toMatchObject({ severity: "medium" });
   });
-  it("wildcard: info alone, Low with credentials", () => {
+  it("wildcard: Low (tin cậy thấp), Low (tin cậy cao) khi kèm credentials", () => {
     const o = baseline(); o.cors = { testedOrigin: origin, status: 200, acao: "*", acac: null, vary: null };
-    expect(run(o, id)[0]).toMatchObject({ status: "info", severity: "info" });
+    expect(run(o, id)[0]).toMatchObject({ status: "fail", severity: "low", confidence: "low" });
     o.cors = { testedOrigin: origin, status: 200, acao: "*", acac: "true", vary: null };
     expect(failing(o, id)[0]).toMatchObject({ severity: "low" });
   });
@@ -390,7 +390,8 @@ describe("cookies.cache-control-sensitive", () => {
   const id = "cookies.cache-control-sensitive";
   const loginPage = (cc?: string) => {
     const o = baseline();
-    const headers = { ...GOOD_HEADERS, ...(cc ? { "cache-control": cc } : {}), "set-cookie": "sid=1; Secure; HttpOnly; SameSite=Lax" };
+    const { "cache-control": _drop, ...noCache } = GOOD_HEADERS; void _drop;
+    const headers = { ...noCache, ...(cc ? { "cache-control": cc } : {}), "set-cookie": "sid=1; Secure; HttpOnly; SameSite=Lax" };
     o.sensitivePage = rec({ requestedUrl: "https://example.com/login", finalUrl: "https://example.com/login", headers, body: `<input type="password">` });
     return o;
   };
@@ -500,10 +501,10 @@ describe("exposure files", () => {
     expect(run(o, "exposure.sitemap-xml")[0]).toMatchObject({ status: "info" });
     expect(run(baseline(), "exposure.sitemap-xml")[0]!.status).toBe("pass");
   });
-  it("security.txt: missing → info with a template; expired/contactless → Low; valid → pass", () => {
+  it("security.txt: missing → Low with a template; expired/contactless → Low; valid → pass", () => {
     const o = baseline(); o.files.securityTxt = { url: "u", present: false, status: 404, contentType: "", body: "" };
     const miss = run(o, "exposure.security-txt")[0]!;
-    expect(miss).toMatchObject({ status: "info", severity: "info" });
+    expect(miss).toMatchObject({ status: "fail", severity: "low", confidence: "medium" });
     expect(miss.remediation!.snippets[0]!.code).toContain("Contact:");
     o.files.securityTxt = { url: "u", present: true, status: 200, contentType: "text/plain", body: "Contact: mailto:a@b.c\nExpires: 2020-01-01T00:00:00Z" };
     expect(failing(o, "exposure.security-txt")[0]!.summary).toContain("hết hạn");
@@ -566,9 +567,9 @@ describe("config.dns-email-security", () => {
   it("missing DMARC/SPF → Low with LOW confidence (domain may not send mail)", () => {
     const o = baseline(); o.dns = { domain: "example.com", caa: [], spf: null, dmarc: null };
     const f = failing(o, id);
-    expect(f.map((x) => x.severity)).toEqual(["low", "low"]);
+    expect(f.map((x) => x.severity)).toEqual(["low", "low", "low"]); // DMARC, SPF, CAA
     expect(f.every((x) => x.confidence === "low")).toBe(true);
-    expect(run(o, id).some((x) => x.fingerprint.endsWith("|caa") && x.status === "info")).toBe(true);
+    expect(f.some((x) => x.fingerprint.endsWith("|caa"))).toBe(true);
   });
   it("lookup failures (undefined) produce nothing", () => {
     const o = baseline(); o.dns = { domain: "example.com", caa: null, spf: undefined, dmarc: undefined };

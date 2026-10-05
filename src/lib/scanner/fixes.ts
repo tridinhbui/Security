@@ -69,6 +69,40 @@ export const FIXES: Record<string, FixFn> = {
     S("Tìm mọi form còn trỏ tới http:// trong mã nguồn của bạn", "bash", `grep -rnE "action=[\\"']http://" --include="*.html" --include="*.js" --include="*.jsx" --include="*.tsx" --include="*.php" . 2>/dev/null | head -30`),
   ],
 
+  "tls.hsts-preload": (c) => [
+    ...hdr("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload", c),
+    S("Chỉ thêm preload khi MỌI tên miền con đều chạy HTTPS. Sau khi triển khai header, đăng ký tại https://hstspreload.org/", "bash", `curl -s "https://hstspreload.org/api/v2/status?domain=${c.host.replace(/^www\./, "")}"   # xem tình trạng preload hiện tại`),
+    S("Kiểm tra", "bash", curlHeader(c.host, "strict-transport-security")),
+  ],
+  "tls.cipher-suite": (c) => [
+    S("Nginx — bộ mã hoá “Intermediate” của Mozilla", "nginx", "ssl_protocols TLSv1.2 TLSv1.3;\nssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;\nssl_prefer_server_ciphers off;", "nginx"),
+    S("Apache", "apache", "SSLProtocol -all +TLSv1.2 +TLSv1.3\nSSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305\nSSLHonorCipherOrder off", "apache"),
+    S("Cloudflare", "text", "SSL/TLS → Edge Certificates → bật TLS 1.3; Minimum TLS Version = 1.2.", "cloudflare"),
+    S("Kiểm tra giao thức và bộ mã hoá thương lượng", "bash", `openssl s_client -connect ${c.host}:443 -servername ${c.host} </dev/null 2>/dev/null | grep -E "Protocol|Cipher"`),
+  ],
+  "headers.cache-policy": (c) => [...hdr("Cache-Control", "private, no-cache", c), S("Nội dung công khai, ít đổi (ví dụ tài nguyên tĩnh)", "http", "Cache-Control: public, max-age=3600"), S("Kiểm tra", "bash", curlHeader(c.host, "cache-control"))],
+  "config.debug-headers": (c) => [
+    S("Nginx — ẩn header gỡ lỗi do ứng dụng phía sau gửi", "nginx", "proxy_hide_header X-Debug-Token;\nproxy_hide_header X-Debug-Token-Link;\nproxy_hide_header X-Runtime;\nproxy_hide_header X-Backend-Server;\nproxy_hide_header X-Generator;", "nginx"),
+    S("Apache", "apache", "Header always unset X-Debug-Token\nHeader always unset X-Debug-Token-Link\nHeader always unset X-Runtime\nHeader always unset X-Backend-Server", "apache"),
+    S("Symfony — tắt profiler ở production", "bash", "# .env.local trên máy chủ production\nAPP_ENV=prod\nAPP_DEBUG=0"),
+    S("Kiểm tra: không còn dòng nào", "bash", curlHeader(c.host, "x-debug-token|x-debug-token-link|x-runtime|x-backend-server|x-server|x-host|x-generator")),
+  ],
+  "config.http-methods": (c) => [
+    S("Nginx — chặn TRACE/TRACK", "nginx", "if ($request_method ~ ^(TRACE|TRACK)$) { return 405; }", "nginx"),
+    S("Apache", "apache", "TraceEnable off", "apache"),
+    S("Express — chỉ cho phép phương thức cần thiết", "js", 'app.use((req, res, next) => (["GET", "HEAD", "OPTIONS", "POST"].includes(req.method) ? next() : res.sendStatus(405)));', "express"),
+    S("Kiểm tra phương thức được công bố", "bash", `curl -si -X OPTIONS https://${c.host}/ | grep -iE "^(HTTP|allow):"`),
+  ],
+  "browser.form-targets": (c) => [
+    S("Giới hạn nơi form được gửi tới bằng CSP", "http", "Content-Security-Policy: form-action 'self'"),
+    S("Tìm các form mật khẩu đang trỏ ra ngoài (không sửa gì)", "bash", `curl -s https://${c.host}/ | grep -oiE "<form[^>]*action=[\"'][^\"']+[\"']" | head`),
+  ],
+  "cookies.prefix": (c) => [
+    S("Dạng cookie phiên khuyến nghị", "http", "Set-Cookie: __Host-session=VALUE; Path=/; Secure; HttpOnly; SameSite=Lax"),
+    S("Node.js / Express", "js", 'res.cookie("__Host-session", token, { httpOnly: true, secure: true, sameSite: "lax", path: "/" }); // không đặt domain', "express"),
+    S("Kiểm tra", "bash", `curl -sI https://${c.host}/ | grep -i "^set-cookie:"`),
+  ],
+
   // ---- header
   "headers.csp": (c) => [
     S("Triển khai thử ở chế độ chỉ báo cáo trước (không chặn gì, chỉ ghi nhận vi phạm)", "http", `Content-Security-Policy-Report-Only: ${RECOMMENDED.csp}`),

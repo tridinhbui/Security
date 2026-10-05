@@ -76,7 +76,7 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
     target: { input, url: target.url, origin: target.origin, host: target.host, scheme: target.scheme },
     https: null, http: null, page: null, pageIsHttps: false, html: null, scripts: [], sourceMaps: [],
     files: { robots: null, sitemap: null, securityTxt: null }, cors: null, notFound: null, altHost: null, sensitivePage: null, dns: null, legacyTls: null,
-    platforms: [], technologies: [], limits: { requestsUsed: 0, hitLimit: null },
+    methods: null, platforms: [], technologies: [], limits: { requestsUsed: 0, hitLimit: null },
     scannedAt: new Date().toISOString(),
   };
   const noteLimit = (r: FetchRecord | null) => {
@@ -127,7 +127,7 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
   const pageOrigin = new URL(page.finalUrl).origin;
   const alt = alternateHost(target.host);
   // Các request này độc lập nhau → chạy song song thay vì nối tiếp (rút ngắn thời gian quét, nên rẻ hơn).
-  const [fileJobs, corsRec, missing, altRec] = await Promise.all([
+  const [fileJobs, corsRec, missing, altRec, methodsRec] = await Promise.all([
     Promise.all([
       get(`${pageOrigin}/robots.txt`, { maxBytes: 64 * 1024, timeoutMs: 6000 }),
       get(`${pageOrigin}/sitemap.xml`, { maxBytes: 64 * 1024, timeoutMs: 6000 }),
@@ -139,8 +139,11 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
     get(`${pageOrigin}/vibesec-khong-ton-tai-${crypto.randomUUID().slice(0, 8)}`, { maxBytes: 64 * 1024, timeoutMs: 6000, followRedirects: false }),
     // www <-> không-www: người dùng gõ thiếu/thừa "www" vẫn phải vào được trang an toàn.
     alt ? get(`https://${alt}/`, { tolerateBadCert: true, maxBytes: 16 * 1024, timeoutMs: 6000, followRedirects: false }) : Promise.resolve(null),
+    // OPTIONS tới trang chủ: chỉ đọc header Allow (không thử gọi bất kỳ phương thức nguy hiểm nào). Bỏ qua ở chế độ quét nhanh.
+    deps.quick ? Promise.resolve(null) : get(page.finalUrl, { method: "OPTIONS", maxBytes: 1024, timeoutMs: 6000, followRedirects: false }),
   ]);
-  fileJobs.forEach(noteLimit); noteLimit(corsRec); noteLimit(missing); noteLimit(altRec);
+  fileJobs.forEach(noteLimit); noteLimit(corsRec); noteLimit(missing); noteLimit(altRec); noteLimit(methodsRec);
+  if (methodsRec && !methodsRec.error) obs.methods = { status: methodsRec.status, allow: header(methodsRec.headers, "allow") ?? null };
   obs.files.robots = toFileProbe(`${pageOrigin}/robots.txt`, fileJobs[0], "robots");
   obs.files.sitemap = toFileProbe(`${pageOrigin}/sitemap.xml`, fileJobs[1], "sitemap");
   obs.files.securityTxt = toFileProbe(`${pageOrigin}/.well-known/security.txt`, fileJobs[2], "security");

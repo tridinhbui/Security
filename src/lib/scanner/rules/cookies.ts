@@ -3,7 +3,7 @@ import type { Finding, Observations, Rule, Severity } from "../types";
 import { header, isHtml, livePage, makeFinding, MDN, pass, setCookies } from "../util";
 
 const CAT = "Cookies & Sessions" as const;
-const SESSION_NAME = /(sess|sid\b|^sid|auth|token|jwt|login|remember|identity|connect\.sid|next-auth|__session|sb-.*-auth)/i;
+export const SESSION_NAME = /(sess|sid\b|^sid|auth|token|jwt|login|remember|identity|connect\.sid|next-auth|__session|sb-.*-auth)/i;
 const CSRF_NAME = /csrf|xsrf/i;
 
 export interface ParsedCookie {
@@ -39,7 +39,7 @@ export function parseSetCookie(raw: string, source: string): ParsedCookie | null
   return c;
 }
 
-function collectCookies(obs: Observations): ParsedCookie[] {
+export function collectCookies(obs: Observations): ParsedCookie[] {
   const seen = new Map<string, ParsedCookie>();
   const records = [obs.https, obs.sensitivePage, obs.page].filter((r): r is NonNullable<typeof r> => !!r);
   for (const r of records) {

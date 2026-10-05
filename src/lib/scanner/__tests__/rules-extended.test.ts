@@ -93,12 +93,13 @@ describe("tls.www-consistency", () => {
 // ---------------------------------------------------------------- Header mới
 describe("headers.cross-origin-isolation", () => {
   const id = "headers.cross-origin-isolation";
-  it("thiếu → ghi chú; đủ ba header → đạt; không bao giờ là lỗi", () => {
+  it("thiếu COOP/CORP → Low (tin cậy thấp); chỉ thiếu COEP → ghi chú; đủ ba header → đạt", () => {
     const o = baseline();
+    delete hdr(o)["cross-origin-embedder-policy"];
     expect(run(o, id)[0]).toMatchObject({ status: "info", severity: "info" });
-    Object.assign(hdr(o), { "cross-origin-opener-policy": "same-origin", "cross-origin-resource-policy": "same-origin", "cross-origin-embedder-policy": "require-corp" });
-    expect(run(o, id)[0]!.status).toBe("pass");
-    expect(failing(baseline(), id)).toHaveLength(0);
+    delete hdr(o)["cross-origin-opener-policy"]; delete hdr(o)["cross-origin-resource-policy"];
+    expect(run(o, id)[0]).toMatchObject({ status: "fail", severity: "low", confidence: "low" });
+    expect(run(baseline(), id)[0]!.status).toBe("pass");
   });
 });
 
@@ -300,13 +301,17 @@ describe("config.dns-email-security — kiểm tra sâu", () => {
     expect(spfLookupCount("v=spf1 ip4:1.2.3.4 -all")).toBe(0);
     expect(spfLookupCount("v=spf1 exists:%{i}.x.com redirect=_spf.y.com")).toBe(2);
   });
-  it("DMARC p=none và pct<100 chỉ là ghi chú; p=reject đạt", () => {
-    expect(run(dns({ dmarc: "v=DMARC1; p=none; rua=mailto:a@b.c" }), id).find((f) => f.fingerprint.endsWith("dmarc-policy"))).toMatchObject({ status: "info" });
+  it("DMARC p=none → Low (tin cậy vừa); pct<100 chỉ là ghi chú; p=reject đạt", () => {
+    expect(run(dns({ dmarc: "v=DMARC1; p=none; rua=mailto:a@b.c" }), id).find((f) => f.fingerprint.endsWith("dmarc-policy"))).toMatchObject({ status: "fail", severity: "low", confidence: "medium" });
     expect(run(dns({ dmarc: "v=DMARC1; p=quarantine; pct=25" }), id).find((f) => f.fingerprint.endsWith("dmarc-pct"))).toMatchObject({ status: "info" });
-    expect(failing(dns({ dmarc: "v=DMARC1; p=none" }), id)).toHaveLength(0);
+    expect(failing(dns({ dmarc: "v=DMARC1; p=reject" }), id)).toHaveLength(0);
   });
-  it("DNSSEC: tắt → ghi chú (độ tin cậy vừa); bật → đạt; không tra được → im lặng", () => {
-    expect(run(dns({ dnssec: false }), id).find((f) => f.fingerprint.endsWith("|dnssec"))).toMatchObject({ status: "info", severity: "info", confidence: "medium" });
+  it("chỉ một máy chủ tên (NS) → Low; từ hai trở lên thì không", () => {
+    expect(run(dns({ ns: ["ns1.a.com"] }), id).find((f) => f.fingerprint.endsWith("ns-single"))).toMatchObject({ status: "fail", severity: "low" });
+    expect(run(dns({ ns: ["ns1.a.com", "ns2.b.net"] }), id).some((f) => f.fingerprint.endsWith("ns-single"))).toBe(false);
+  });
+  it("DNSSEC: tắt → Low (tin cậy thấp); bật → đạt; không tra được → im lặng", () => {
+    expect(run(dns({ dnssec: false }), id).find((f) => f.fingerprint.endsWith("|dnssec"))).toMatchObject({ status: "fail", severity: "low", confidence: "low" });
     expect(run(dns({ dnssec: true }), id).some((f) => f.title.includes("DNSSEC") && f.status === "pass")).toBe(true);
     expect(run(dns({ dnssec: undefined }), id).some((f) => f.fingerprint.endsWith("|dnssec"))).toBe(false);
   });

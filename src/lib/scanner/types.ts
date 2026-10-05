@@ -136,6 +136,9 @@ export interface CorsProbe {
   vary: string | null;
 }
 
+/** Kết quả OPTIONS tới trang chủ: chỉ đọc header Allow, không thực thi phương thức nào. */
+export interface MethodsProbe { status: number | null; allow: string | null }
+
 export interface DnsInfo {
   caa: string[] | null;
   spf: string | null | undefined; // undefined = lookup failed
@@ -172,6 +175,7 @@ export interface Observations {
   altHost: { host: string; record: FetchRecord | null } | null;
   /** A login/account/admin-looking same-origin page, if one was discovered. */
   sensitivePage: FetchRecord | null;
+  methods: MethodsProbe | null;
   dns: DnsInfo | null;
   legacyTls: { tls10: boolean | null; tls11: boolean | null; h2?: boolean | null } | null;
   platforms: Platform[];

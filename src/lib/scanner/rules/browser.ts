@@ -106,7 +106,7 @@ const cors: Rule = {
           summary: "Access-Control-Allow-Origin: * cùng Allow-Credentials: true là tổ hợp không hợp lệ.", explanation: "Trình duyệt từ chối tổ hợp này, nên request cross-origin cần cookie sẽ âm thầm thất bại — thường là dấu hiệu cấu hình sai.", evidence: ev,
           remediation: { summary: "Bỏ credentials, hoặc thay * bằng một origin tin cậy cụ thể.", snippets: [] } })];
       }
-      return [makeFinding({ ruleId: this.id, title: "CORS cho phép mọi origin (công khai)", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: url, references: refs,
+      return [makeFinding({ ruleId: this.id, title: "CORS cho phép mọi origin (công khai)", category: CAT, severity: "low", confidence: "low", status: "fail", affectedUrl: url, references: refs,
         summary: "Website bất kỳ có thể đọc phản hồi này (Access-Control-Allow-Origin: *).", explanation: "Bình thường với tài nguyên công khai và API mở, nhưng hãy chắc chắn không có dữ liệu riêng tư nào được phục vụ kèm header này.", evidence: ev,
         remediation: { summary: "Chỉ giữ * cho tài nguyên thật sự công khai.", snippets: [] } })];
     }

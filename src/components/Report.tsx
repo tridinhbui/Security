@@ -132,6 +132,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
         <section className="reveal mt-10 grid items-center gap-10 lg:grid-cols-[auto_1fr] lg:gap-16" style={stagger(2)} aria-label="Điểm tổng thể">
           <ScoreRing score={data.score} grade={data.grade} />
           <div>
+            <p className="mono mb-4 text-xs text-faint">Không website nào đạt 100: quét thụ động có điểm tối đa là 96 (90 nếu phạm vi quét bị hạn chế).</p>
             <h2 className="eyebrow">phân bố mức độ</h2>
             <div className="mt-3 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`${totalIssues} vấn đề: ${counts.map((c) => `${c.n} ${SEV_LABEL[c.s]}`).join(", ")}`}>
               {totalIssues === 0 ? <div className="h-full w-full bg-ok" /> : counts.filter((c) => c.n).map((c) => <div key={c.s} className={`h-full ${SEV_BAR[c.s]} transition-[flex-grow] duration-700`} style={{ flexGrow: c.n }} />)}

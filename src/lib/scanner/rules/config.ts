@@ -149,7 +149,7 @@ const dnsRule: Rule = {
     } else if (typeof d.dmarc === "string") {
       const pol = dmarcPolicy(d.dmarc);
       if (pol.p === "none") {
-        out.push(makeFinding({ ruleId: this.id, key: "dmarc-policy", title: "DMARC chỉ ở chế độ giám sát (p=none)", category: CAT, severity: "info", confidence: "medium", status: "info", affectedUrl: null, references: refs,
+        out.push(makeFinding({ ruleId: this.id, key: "dmarc-policy", title: "DMARC chỉ ở chế độ giám sát (p=none)", category: CAT, severity: "low", confidence: "medium", status: "fail", affectedUrl: null, references: refs,
           summary: "Chính sách DMARC p=none chỉ ghi nhận mà chưa chặn email giả mạo.", explanation: "p=none là điểm xuất phát hợp lý, nhưng để thực sự ngăn giả mạo cần nâng lên quarantine rồi reject sau khi đã xem báo cáo.",
           evidence: [truncate(d.dmarc, 200)], remediation: { summary: "Theo dõi báo cáo DMARC vài tuần rồi nâng chính sách lên p=quarantine, sau đó p=reject.", snippets: [] } }));
       } else if (pol.pct < 100) {
@@ -197,12 +197,12 @@ const dnsRule: Rule = {
 
     // ---- CAA, DNSSEC, MTA-STS
     if (d.caa !== null && d.caa.length === 0) {
-      out.push(makeFinding({ ruleId: this.id, key: "caa", title: "Chưa có bản ghi CAA", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: null,
+      out.push(makeFinding({ ruleId: this.id, key: "caa", title: "Chưa có bản ghi CAA", category: CAT, severity: "low", confidence: "low", status: "fail", affectedUrl: null,
         summary: "Không có bản ghi CAA giới hạn đơn vị nào được cấp chứng chỉ cho tên miền này.", explanation: "CAA là lớp bảo vệ tuỳ chọn chống việc cấp chứng chỉ nhầm.", evidence: [`CAA ${dm}: (không có)`],
         remediation: { summary: "Có thể thêm bản ghi CAA cho nhà cấp chứng chỉ bạn dùng.", snippets: [{ platform: "generic", label: `CAA ${dm}`, language: "text", code: '0 issue "letsencrypt.org"' }] } }));
     }
     if (d.dnssec === false) {
-      out.push(makeFinding({ ruleId: this.id, key: "dnssec", title: "Chưa bật DNSSEC", category: CAT, severity: "info", confidence: "medium", status: "info", affectedUrl: null,
+      out.push(makeFinding({ ruleId: this.id, key: "dnssec", title: "Chưa bật DNSSEC", category: CAT, severity: "low", confidence: "low", status: "fail", affectedUrl: null,
         references: [{ title: "Cloudflare: What is DNSSEC?", url: "https://www.cloudflare.com/learning/dns/dnssec/how-dnssec-works/" }],
         summary: `Bộ phân giải không xác thực được chữ ký DNSSEC cho ${dm}.`, explanation: "DNSSEC chống việc giả mạo kết quả DNS (DNS spoofing/cache poisoning), tức là dẫn khách tới máy chủ giả. Là lớp tăng cường tuỳ chọn, không phải ai cũng cần.",
         technical: "Cờ AD (Authenticated Data) = false từ bộ phân giải công cộng của Cloudflare.", evidence: [`${dm}: AD=false`],
@@ -211,11 +211,17 @@ const dnsRule: Rule = {
       out.push(pass({ ruleId: this.id, title: "DNSSEC được bật", category: CAT, summary: "Kết quả DNS của tên miền được xác thực bằng DNSSEC.", explanation: "Khó giả mạo kết quả DNS để chuyển hướng khách tới máy chủ giả.", evidence: [`${dm}: AD=true`] }));
     }
     if (d.mtaSts === false && d.mx && d.mx.length > 0) {
-      out.push(makeFinding({ ruleId: this.id, key: "mta-sts", title: "Chưa bật MTA-STS", category: CAT, severity: "info", confidence: "medium", status: "info", affectedUrl: null,
+      out.push(makeFinding({ ruleId: this.id, key: "mta-sts", title: "Chưa bật MTA-STS", category: CAT, severity: "low", confidence: "low", status: "fail", affectedUrl: null,
         references: [{ title: "RFC 8461: MTA-STS", url: "https://www.rfc-editor.org/rfc/rfc8461" }],
         summary: "Tên miền có nhận email (có bản ghi MX) nhưng chưa có chính sách MTA-STS.", explanation: "MTA-STS buộc các máy chủ email gửi tới bạn phải dùng TLS, tránh việc thư bị hạ cấp xuống dạng không mã hoá.",
         evidence: [`MX: ${d.mx.slice(0, 3).join(", ")}`, `TXT _mta-sts.${dm}: (không có)`],
         remediation: { summary: "Công bố bản ghi TXT _mta-sts và file chính sách tại https://mta-sts.<tên-miền>/.well-known/mta-sts.txt.", snippets: [] } }));
+    }
+    // ---- dự phòng máy chủ tên
+    if (d.ns && d.ns.length === 1) {
+      out.push(makeFinding({ ruleId: this.id, key: "ns-single", title: "Chỉ có một máy chủ tên (NS)", category: CAT, severity: "low", confidence: "medium", status: "fail", affectedUrl: null,
+        summary: `${dm} chỉ khai báo một máy chủ tên: ${d.ns[0]}.`, explanation: "Nếu máy chủ tên duy nhất ngừng hoạt động, toàn bộ website và email của tên miền sẽ không phân giải được. RFC 1034 khuyến nghị ít nhất hai máy chủ tên độc lập.",
+        evidence: [`NS ${dm}: ${d.ns[0]}`], remediation: { summary: "Thêm ít nhất một máy chủ tên thứ hai (tốt nhất ở nhà cung cấp/mạng khác).", snippets: [] } }));
     }
     return out;
   },

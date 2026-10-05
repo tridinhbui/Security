@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateScore, gradeFor, penalty, prioritize, topRisks } from "../score";
+import { calculateScore, gradeFor, PASSIVE_SCORE_CEILING, penalty, prioritize, topRisks } from "../score";
 import { makeFinding } from "../util";
 import type { Finding, Severity, Confidence, FindingStatus } from "../types";
 
@@ -7,9 +7,16 @@ const f = (severity: Severity, confidence: Confidence = "high", status: FindingS
   makeFinding({ ruleId: id, title: `${severity} ${id}`, category, severity, confidence, status, summary: "s", explanation: "e" });
 
 describe("scoring", () => {
-  it("perfect when nothing fails", () => {
+  it("không bao giờ đạt 100: trần 96 cho quét thụ động, 90 khi phạm vi bị hạn chế", () => {
     const r = calculateScore([f("info", "high", "pass"), f("info", "high", "info")]);
-    expect(r).toMatchObject({ score: 100, grade: "A", failed: 0, passed: 1 });
+    expect(r).toMatchObject({ score: 96, ceiling: 96, grade: "A", failed: 0, passed: 1 });
+    expect(calculateScore([f("info", "high", "pass")], { limitedCoverage: true })).toMatchObject({ score: 90, ceiling: 90, grade: "A" });
+    expect(PASSIVE_SCORE_CEILING).toBeLessThan(100);
+  });
+  it("trần áp dụng cho cả điểm theo nhóm", () => {
+    const r = calculateScore([f("info", "high", "pass", "Headers")]);
+    expect(r.categoryScores.Headers).toBe(96);
+    expect(calculateScore([f("info", "high", "pass", "Headers")], { limitedCoverage: true }).categoryScores.Headers).toBe(90);
   });
   it("applies severity weights × confidence", () => {
     expect(penalty({ status: "fail", severity: "medium", confidence: "high" })).toBe(7);
@@ -36,7 +43,7 @@ describe("scoring", () => {
   it("category scores are per-category and null when empty", () => {
     const r = calculateScore([f("medium", "high", "fail", "Headers"), f("info", "high", "pass", "Transport Security")]);
     expect(r.categoryScores.Headers).toBe(Math.round(100 - 7 * 1.5));
-    expect(r.categoryScores["Transport Security"]).toBe(100);
+    expect(r.categoryScores["Transport Security"]).toBe(96);
     expect(r.categoryScores.Privacy).toBeNull();
   });
   it("unknown results do not count towards category coverage", () => {

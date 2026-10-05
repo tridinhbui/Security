@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { getAdmin } from "@/lib/auth/admin";
 import { getUser } from "@/lib/auth/next";
+import { NavLinks, type NavItem } from "./NavLinks";
 import { UserMenu } from "./UserMenu";
 
 export function Logo({ className = "" }: { className?: string }) {
   return (
-    <Link href="/" className={`group flex items-center gap-2.5 ${className}`} aria-label="VibeSec — trang chủ">
-      <span aria-hidden className="grid size-7 place-items-center rounded-lg bg-fg text-white shadow-crisp transition-transform duration-200 group-hover:-rotate-6">
+    <Link href="/" className={`group flex items-center gap-3 ${className}`} aria-label="VibeSec — trang chủ">
+      <span aria-hidden className="grid size-[26px] place-items-center rounded-lg bg-fg text-white shadow-crisp transition-transform duration-200 group-hover:-rotate-6">
         <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 4.5 6v5.5c0 4.4 3 7.9 7.5 9.5 4.5-1.6 7.5-5.1 7.5-9.5V6L12 3Z" /><path d="m9 12 2.2 2.2L15.5 10" /></svg>
       </span>
-      <span className="mono text-[15px] font-semibold tracking-tight">vibesec</span>
+      <span className="mono text-[13px] font-medium uppercase tracking-[0.28em]">vibesec</span>
     </Link>
   );
 }
@@ -18,25 +19,21 @@ export async function SiteHeader() {
   const user = await getUser();
   const isAdmin = user ? !!(await getAdmin()) : false;
   const links = [{ href: "/demo", label: "Bản demo" }, { href: "/phuong-phap", label: "Phương pháp" }];
+  const nav: NavItem[] = [{ href: "/", label: "Scan" }, ...links, ...(user ? [{ href: "/dashboard", label: "Bảng điều khiển" }, { href: "/ho-tro", label: "Hỗ trợ" }] : []), ...(isAdmin ? [{ href: "/admin", label: "Quản trị", accent: true }] : [])];
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-white/80 backdrop-blur-md supports-[backdrop-filter]:bg-white/70">
-      <div className="container-x flex h-14 items-center justify-between gap-4">
-        <div className="flex items-center gap-8">
+    <header className="sticky top-0 z-40 border-b border-line bg-white/85 backdrop-blur-md">
+      <div className="container-x flex h-[62px] items-center justify-between gap-4">
+        <div className="flex items-center">
           <Logo />
-          <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 text-sm sm:flex">
-            {links.map((l) => <Link key={l.href} href={l.href} className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">{l.label}</Link>)}
-            {user && <Link href="/dashboard" className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">Bảng điều khiển</Link>}
-            {user && <Link href="/ho-tro" className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">Hỗ trợ</Link>}
-            {isAdmin && <Link href="/admin" className="rounded-md px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent-soft">Quản trị</Link>}
-          </nav>
+          <nav aria-label="Điều hướng chính" className="ml-6 hidden items-center sm:flex"><NavLinks items={nav} /></nav>
         </div>
         <div className="flex items-center gap-2">
           {user ? (
             <UserMenu name={user.name} email={user.email} avatarUrl={user.avatar_url} />
           ) : (
             <>
-              <Link href="/login" className="btn-ghost btn-sm hidden sm:inline-flex">Đăng nhập</Link>
-              <Link href="/signup" className="btn-dark btn-sm">Bắt đầu miễn phí</Link>
+              <Link href="/login" className="btn-ghost hidden !h-10 sm:inline-flex">Đăng nhập</Link>
+              <Link href="/signup" className="btn-dark !h-10">Bắt đầu miễn phí<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
             </>
           )}
           {/* Menu thu gọn cho điện thoại: <details> thuần HTML nên không phụ thuộc JS */}

@@ -93,7 +93,7 @@ describe("runScan (end-to-end against a local site)", () => {
   });
 
   it("only requests a small, fixed set of same-origin URLs (no crawling)", async () => {
-    const allowed = new Set(["GET /", "GET /app.js", "GET /app.js.map", "GET /robots.txt", "GET /sitemap.xml", "GET /.well-known/security.txt", "GET /security.txt", "GET /login"]);
+    const allowed = new Set(["GET /", "GET /app.js", "GET /app.js.map", "GET /robots.txt", "GET /sitemap.xml", "GET /.well-known/security.txt", "GET /security.txt", "GET /login", "OPTIONS /"]);
     for (const h of hits) expect(allowed.has(h) || /^GET \/vibesec-khong-ton-tai-[0-9a-f]{8}$/.test(h), h).toBe(true);
   });
 

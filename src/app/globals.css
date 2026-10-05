@@ -21,6 +21,7 @@
 
   /* Nhấn: xanh điện + cyan */
   --color-accent: #0b57ff;
+  --color-accent-2: #5b3df5;
   --color-accent-strong: #0847d1;
   --color-accent-soft: #eaf1ff;
   --color-cyan: #0891b2;
@@ -35,6 +36,8 @@
 
   --shadow-crisp: 0 1px 0 rgb(11 18 32 / 0.04), 0 1px 2px rgb(11 18 32 / 0.06);
   --shadow-pop: 0 12px 32px -12px rgb(11 18 32 / 0.22), 0 2px 6px rgb(11 18 32 / 0.06);
+  --shadow-glow: 0 0 0 1px rgb(11 87 255 / 0.12), 0 8px 40px -8px rgb(11 87 255 / 0.28);
+  --shadow-card: 0 1px 2px rgb(11 18 32 / 0.04), 0 24px 60px -24px rgb(11 18 32 / 0.18);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -73,8 +76,9 @@ details > summary::-webkit-details-marker { display: none; }
   .mono { @apply font-mono; }
 
   /* Nút (nền .btn khai báo bằng @utility phía trên) */
-  .btn-primary { @apply btn bg-accent text-white shadow-crisp hover:bg-accent-strong; }
+  .btn-primary { @apply btn bg-accent text-white shadow-[0_6px_16px_-6px_rgb(11_87_255/0.6)] hover:bg-accent-strong; }
   .btn-dark { @apply btn bg-fg text-white shadow-crisp hover:bg-[#1a2540]; }
+  .btn { @apply rounded-xl; }
   .btn-ghost { @apply btn border border-line-strong bg-white text-fg hover:border-fg/40 hover:bg-surface; }
   .btn-danger { @apply btn border border-line-strong bg-white text-crit hover:border-crit/50 hover:bg-crit/5; }
   .btn-sm { @apply h-8 rounded-md px-3 text-[13px]; }
@@ -96,12 +100,12 @@ details > summary::-webkit-details-marker { display: none; }
   .chip-accent { @apply chip border-accent/25 bg-accent-soft text-accent; }
 
   /* Khối nội dung */
-  .panel { @apply rounded-xl border border-line bg-white shadow-crisp; }
-  .panel-soft { @apply rounded-xl border border-line bg-surface; }
+  .panel { @apply rounded-2xl border border-line bg-white shadow-crisp; }
+  .panel-soft { @apply rounded-2xl border border-line bg-surface; }
   .hairline { @apply border-t border-line; }
 
   /* Terminal sáng */
-  .term { @apply overflow-hidden rounded-xl border border-line-strong bg-surface font-mono text-[13px] leading-6 text-fg shadow-crisp; }
+  .term { @apply overflow-hidden rounded-2xl border border-line-strong bg-surface font-mono text-[13px] leading-6 text-fg shadow-crisp; }
   .term-bar { @apply flex items-center gap-2 border-b border-line bg-white/70 px-3.5 py-2 text-[11px] text-faint; }
   .term-dot { @apply size-2.5 rounded-full border border-line-strong bg-white; }
   .term-body { @apply px-4 py-3.5; }
@@ -169,3 +173,28 @@ details > summary::-webkit-details-marker { display: none; }
 dialog.confirm { border: 0; padding: 0; background: transparent; max-width: calc(100vw - 2rem); }
 dialog.confirm::backdrop { background: rgb(11 18 32 / 0.35); backdrop-filter: blur(2px); animation: fade-in 0.2s ease both; }
 dialog.confirm[open] { animation: pop 0.25s var(--ease-out-expo) both; }
+
+/* ------------------------------------------------------------------ phong cách mới: hero + thẻ quét */
+@layer components {
+  .headline-grad { background: linear-gradient(90deg, var(--color-accent) 20%, var(--color-accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .pill { @apply inline-flex items-center gap-2.5 rounded-full border border-line bg-white px-4 py-2 text-[13px] text-muted shadow-crisp; }
+  .hero-glow {
+    background:
+      radial-gradient(ellipse 50% 60% at 78% 40%, rgb(11 87 255 / 0.09), transparent 70%),
+      radial-gradient(ellipse 40% 40% at 90% 80%, rgb(91 61 245 / 0.06), transparent 70%);
+  }
+  .bg-dots {
+    background-image: radial-gradient(rgb(11 18 32 / 0.16) 1px, transparent 1.2px);
+    background-size: 9px 9px;
+    mask-image: radial-gradient(circle at 50% 50%, #000 35%, transparent 70%);
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 35%, transparent 70%);
+  }
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
+  .bars i { display: block; width: 3px; border-radius: 1px; background: var(--color-line-strong); }
+  .bars i.on { background: var(--color-accent); }
+}
+@keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes orbit-ping { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(2.6); opacity: 0; } }
+.float-y { animation: float-y 6s ease-in-out infinite; }
+.orbit-ping { animation: orbit-ping 2.4s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .float-y, .orbit-ping { animation: none !important; } }

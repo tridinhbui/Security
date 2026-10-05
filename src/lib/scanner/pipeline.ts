@@ -25,7 +25,7 @@ export function targetsFrom(obs: Observations): RedactedTarget[] {
 export function buildReport(input: string, target: NormalizedTarget, obs: Observations, budget: ScanBudget, started: number, quick = false): ScanReport {
   const { findings: raw, errors } = evaluate(obs);
   const findings = attachFixCommands(raw, { host: target.host, platforms: obs.platforms });
-  const score = calculateScore(findings);
+  const score = calculateScore(findings, { limitedCoverage: quick || obs.limits.hitLimit !== null });
   return {
     version: 1,
     target: { input, url: target.url, host: target.host },

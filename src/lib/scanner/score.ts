@@ -5,7 +5,12 @@ import { CATEGORIES, type Category, type Confidence, type Finding, type Severity
  * Passing, informational and "unknown" results never reduce the score.
  * Caps stop a pile of small passes from hiding a serious problem: any Critical finding caps
  * the score at 59 (F/D boundary), any High at 79 (no better than C).
+ *
+ * Trần điểm: một lượt quét THỤ ĐỘNG không thể chứng minh website an toàn tuyệt đối (không thấy logic nghiệp vụ, phân quyền, lỗi ứng dụng),
+ * nên điểm tối đa là PASSIVE_SCORE_CEILING. Khi phạm vi quét bị hạn chế (quét nhanh, chạm giới hạn request/thời gian) trần thấp hơn nữa.
  */
+export const PASSIVE_SCORE_CEILING = 96;
+export const LIMITED_COVERAGE_CEILING = 90;
 export const SEVERITY_WEIGHT: Record<Severity, number> = { critical: 30, high: 15, medium: 7, low: 3, info: 0 };
 export const CONFIDENCE_FACTOR: Record<Confidence, number> = { high: 1, medium: 0.7, low: 0.4 };
 
@@ -22,6 +27,8 @@ export function gradeFor(score: number): Grade {
 export interface ScoreResult {
   score: number;
   grade: Grade;
+  /** Điểm tối đa có thể đạt được trong lượt quét này. */
+  ceiling: number;
   /** null when no check in the category produced a result. */
   categoryScores: Record<Category, number | null>;
   severityCounts: Record<Severity, number>;
@@ -29,14 +36,15 @@ export interface ScoreResult {
   failed: number;
 }
 
-export function calculateScore(findings: Finding[]): ScoreResult {
+export function calculateScore(findings: Finding[], opts: { limitedCoverage?: boolean } = {}): ScoreResult {
+  const ceiling = opts.limitedCoverage ? LIMITED_COVERAGE_CEILING : PASSIVE_SCORE_CEILING;
   const fails = findings.filter((f) => f.status === "fail");
   let total = 0;
   for (const f of findings) total += penalty(f);
   let score = Math.max(0, 100 - total);
   if (fails.some((f) => f.severity === "critical")) score = Math.min(score, 59);
   else if (fails.some((f) => f.severity === "high")) score = Math.min(score, 79);
-  score = Math.round(score);
+  score = Math.round(Math.min(score, ceiling));
 
   const categoryScores = {} as Record<Category, number | null>;
   for (const c of CATEGORIES) {
@@ -47,7 +55,7 @@ export function calculateScore(findings: Finding[]): ScoreResult {
     }
     // Category scores are intentionally harsher (×1.5): fewer checks per category.
     const p = inCat.reduce((a, f) => a + penalty(f), 0) * 1.5;
-    categoryScores[c] = Math.round(Math.max(0, 100 - p));
+    categoryScores[c] = Math.round(Math.min(ceiling, Math.max(0, 100 - p)));
   }
 
   const severityCounts: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
@@ -55,7 +63,7 @@ export function calculateScore(findings: Finding[]): ScoreResult {
   // Informational notes are counted under "info" so the UI can show them.
   severityCounts.info += findings.filter((f) => f.status === "info").length;
 
-  return { score, grade: gradeFor(score), categoryScores, severityCounts, passed: findings.filter((f) => f.status === "pass").length, failed: fails.length };
+  return { score, grade: gradeFor(score), ceiling, categoryScores, severityCounts, passed: findings.filter((f) => f.status === "pass").length, failed: fails.length };
 }
 
 const SEV_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
@@ -78,4 +86,4 @@ export function topRisks(findings: Finding[], n = 3): Finding[] {
 }
 
 export const SCORE_DISCLAIMER =
-  "Điểm số này là đánh giá cấu hình từ bên ngoài, dựa trên những gì trình duyệt của một khách truy cập có thể quan sát. Điểm cao không chứng minh website an toàn, và điểm thấp cũng không chứng minh website đã bị xâm nhập.";
+  "Điểm số này là đánh giá cấu hình từ bên ngoài, dựa trên những gì trình duyệt của một khách truy cập có thể quan sát. Không website nào đạt 100: quét thụ động không thấy được logic nghiệp vụ, phân quyền hay lỗi trong ứng dụng, nên điểm tối đa là 96 (90 khi phạm vi quét bị hạn chế). Điểm cao không chứng minh website an toàn, và điểm thấp cũng không chứng minh website đã bị xâm nhập.";

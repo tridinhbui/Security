@@ -5,6 +5,7 @@ import { CATEGORY_LABEL, CONFIDENCE_LABEL } from "@/lib/i18n";
 import { SEV_COLOR } from "@/lib/format";
 import { PLAIN_TITLES } from "@/lib/beginner";
 import { ALL_RULES } from "@/lib/scanner/rules";
+import { LIMITED_COVERAGE_CEILING, PASSIVE_SCORE_CEILING } from "@/lib/scanner/score";
 import { CATEGORIES } from "@/lib/scanner/types";
 
 export const metadata: Metadata = {
@@ -21,13 +22,14 @@ export default function MethodPage() {
       <section className="mt-12" aria-labelledby="diem">
         <h2 id="diem" className="text-xl font-semibold tracking-tight">Cách tính điểm</h2>
         <div className="mt-3 space-y-3 text-[15px] text-muted leading-relaxed">
-          <p>Website bắt đầu với 100 điểm. Mỗi phát hiện ở trạng thái <strong className="text-fg font-medium">“Có vấn đề”</strong> bị trừ <strong className="text-fg font-medium">trọng số mức độ × hệ số độ tin cậy</strong>. Kết quả “Đạt”, “Ghi chú” và “Chưa kiểm tra được” không bao giờ làm giảm điểm.</p>
+          <p>Website bắt đầu ở mức điểm tối đa. Mỗi phát hiện ở trạng thái <strong className="text-fg font-medium">“Có vấn đề”</strong> bị trừ <strong className="text-fg font-medium">trọng số mức độ × hệ số độ tin cậy</strong>. Kết quả “Đạt”, “Ghi chú” và “Chưa kiểm tra được” không bao giờ làm giảm điểm.</p>
           <ul className="flex flex-wrap gap-x-6 gap-y-1">
             {scoringTable().map((r) => <li key={r.severity}><span className={SEV_COLOR[r.severity]}>{r.label}</span>: <span className="num text-fg">−{r.weight}</span></li>)}
           </ul>
           <p>Hệ số độ tin cậy: cao <span className="num text-fg">×{CONFIDENCE_FACTOR.high}</span>, {CONFIDENCE_LABEL.medium} <span className="num text-fg">×{CONFIDENCE_FACTOR.medium}</span>, thấp <span className="num text-fg">×{CONFIDENCE_FACTOR.low}</span>. Những phát hiện dựa trên suy đoán (heuristic) luôn có độ tin cậy thấp hơn và bị trừ ít hơn.</p>
           <p><strong className="text-fg font-medium">Chỉ gán “Nghiêm trọng” hoặc “Cao” khi bằng chứng chứng minh điều đó</strong> — ví dụ một khoá bí mật còn nguyên định dạng nhà cung cấp, hoặc form mật khẩu gửi qua HTTP thuần. Phát hiện dựa trên suy luận không bao giờ vượt mức Trung bình.</p>
           <p>Để một lỗi nặng không bị che bởi nhiều mục nhỏ đạt, có trần điểm: có vấn đề <em>Nghiêm trọng</em> thì tối đa 59 điểm, có vấn đề <em>Cao</em> thì tối đa 79 điểm. Hạng: A ≥ 90 · B ≥ 80 · C ≥ 70 · D ≥ 60 · F dưới 60.</p>
+          <p><strong className="text-fg font-medium">Không website nào đạt 100.</strong> Quét thụ động không thấy được logic nghiệp vụ, phân quyền hay lỗi trong ứng dụng, nên điểm tối đa là <span className="num text-fg">{PASSIVE_SCORE_CEILING}</span>. Khi phạm vi quét bị hạn chế (chế độ quét nhanh hoặc chạm giới hạn request/thời gian), điểm tối đa chỉ còn <span className="num text-fg">{LIMITED_COVERAGE_CEILING}</span>. Các khuyến nghị tăng cường (security.txt, CAA, DNSSEC, HSTS preload…) trừ điểm rất nhẹ, nhưng cộng dồn.</p>
           <p className="border-l-2 border-line-strong pl-3">Điểm số là đánh giá cấu hình <em>từ bên ngoài</em>. Điểm cao không chứng minh website an toàn, và điểm thấp không chứng minh website đã bị xâm nhập.</p>
         </div>
       </section>
@@ -38,7 +40,7 @@ export default function MethodPage() {
           {["Không đoán mật khẩu, không vượt qua xác thực, không thử SQL injection, XSS, command injection hay bất kỳ payload khai thác nào.",
             "Không fuzzing, không quét cổng, không dò các đường dẫn nhạy cảm như /.env hay /.git.",
             "Không truy cập mạng nội bộ, localhost hay metadata đám mây: các địa chỉ này bị chặn ở nhiều lớp (kiểm tra URL, kiểm tra DNS, ghim địa chỉ IP khi kết nối, kiểm tra lại mỗi lần chuyển hướng).",
-            "Không crawl cả website: chỉ trang bạn nhập, một số ít script cùng origin và vài tệp công khai cố định (tối đa 34 request mỗi lần quét).",
+            "Không crawl cả website: chỉ trang bạn nhập, một số ít script cùng origin và vài tệp công khai cố định, cộng một request OPTIONS tới trang chủ chỉ để đọc header Allow, không gọi thử phương thức nào (tối đa 34 request mỗi lần quét).",
             "Không lưu nội dung phản hồi. Khoá bí mật nếu phát hiện được che ngay lúc nhận diện, giá trị cookie bị loại bỏ, header gốc được mã hoá khi lưu."].map((t) => <li key={t} className="flex gap-3"><span className="text-ok" aria-hidden>✓</span>{t}</li>)}
         </ul>
       </section>

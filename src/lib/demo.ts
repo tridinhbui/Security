@@ -59,6 +59,7 @@ function build(variant: "before" | "after"): Observations {
     altHost: { host: `www.${HOST}`, record: { ...rec, requestedUrl: `https://www.${HOST}/`, finalUrl: `https://www.${HOST}/`, status: 301, chain: [{ url: `https://www.${HOST}/`, status: 301, headers: { location: HOME } }] } },
     cors: { testedOrigin: "https://vibesec-cors-probe.invalid", status: 200, acao: fixed ? null : "https://vibesec-cors-probe.invalid", acac: null, vary: null },
     sensitivePage: null,
+    methods: { status: 204, allow: "GET, HEAD, OPTIONS" },
     dns: { domain: "example.com", caa: [], spf: fixed ? "v=spf1 include:_spf.example.net -all" : "v=spf1 include:_spf.example.net +all", spfRecords: 1, dmarc: fixed ? "v=DMARC1; p=quarantine; rua=mailto:d@example.com" : null, cname: null, mx: ["mx.example.net"], dnssec: false, mtaSts: false },
     legacyTls: { tls10: false, tls11: fixed ? false : true, h2: true },
     platforms: fp.platforms, technologies: fp.technologies,

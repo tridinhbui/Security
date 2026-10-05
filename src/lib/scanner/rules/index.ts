@@ -3,6 +3,7 @@ import { browserRules } from "./browser";
 import { configRules } from "./config";
 import { cookieRules } from "./cookies";
 import { exposureRules } from "./exposure";
+import { hardeningRules } from "./hardening";
 import { headerRules } from "./headers";
 import { privacyRules } from "./privacy";
 import { transportRules } from "./transport";
@@ -20,6 +21,7 @@ export const ALL_RULES: Rule[] = [
   ...exposureRules,
   ...configRules,
   ...privacyRules,
+  ...hardeningRules,
 ];
 
 const ids = new Set<string>();

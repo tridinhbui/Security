@@ -148,7 +148,7 @@ const securityTxt: Rule = {
     if (!f) return [];
     const refs = [{ title: "RFC 9116: security.txt", url: "https://www.rfc-editor.org/rfc/rfc9116" }, { title: "securitytxt.org", url: "https://securitytxt.org/" }];
     if (!f.present) {
-      return [makeFinding({ ruleId: this.id, title: "Chưa công bố security.txt", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: f.url, references: refs,
+      return [makeFinding({ ruleId: this.id, title: "Chưa công bố security.txt", category: CAT, severity: "low", confidence: "medium", status: "fail", affectedUrl: f.url, references: refs,
         summary: "Không có /.well-known/security.txt hướng dẫn nhà nghiên cứu cách báo cáo lỗ hổng.", explanation: "Không có đầu mối liên hệ, những nhà nghiên cứu thiện chí phát hiện lỗi có thể không biết liên lạc với bạn bằng cách nào.",
         evidence: [`GET ${f.url} → ${f.status ?? f.error ?? "n/a"}`],
         remediation: { summary: "Công bố /.well-known/security.txt với trường Contact và Expires.", snippets: [{ platform: "generic", label: "/.well-known/security.txt", language: "text", code: "Contact: mailto:security@tenmiencuaban.vn\nExpires: 2027-12-31T23:59:59.000Z\nPreferred-Languages: vi, en\nCanonical: https://tenmiencuaban.vn/.well-known/security.txt" }] } })];

@@ -148,7 +148,7 @@ const crossOrigin: Rule = {
     const refs = [MDN("Web/HTTP/Guides/Cross-Origin_Opener_Policy", "MDN: Cross-Origin-Opener-Policy"), { title: "web.dev: Cross-origin isolation", url: "https://web.dev/articles/cross-origin-isolation-guide" }];
     if (missing.length === 0) return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: p.finalUrl, summary: "Trang đã bật đầy đủ COOP, CORP và COEP.", explanation: "Trang được tách riêng khỏi các website khác trong trình duyệt, giảm nguy cơ rò rỉ dữ liệu kiểu Spectre.", evidence: wanted.map(([n]) => headerEvidence(p.headers, n)), references: refs })];
     return [makeFinding({
-      ruleId: this.id, title: "Chưa bật các header cô lập cross-origin", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: p.finalUrl, references: refs,
+      ruleId: this.id, title: "Chưa bật các header cô lập cross-origin", category: CAT, severity: missing.some(([n]) => n !== "cross-origin-embedder-policy") ? "low" : "info", confidence: missing.some(([n]) => n !== "cross-origin-embedder-policy") ? "low" : "high", status: missing.some(([n]) => n !== "cross-origin-embedder-policy") ? "fail" : "info", affectedUrl: p.finalUrl, references: refs,
       summary: `Thiếu: ${missing.map(([n]) => n).join(", ")}.`,
       explanation: "Đây là lớp tăng cường tuỳ chọn: chúng giúp tách riêng trang khỏi các website khác để hạn chế rò rỉ dữ liệu qua cửa sổ mở ra (popup) hoặc tài nguyên nhúng. Chỉ nên bật khi đã thử nghiệm vì có thể làm hỏng nội dung nhúng bên thứ ba.",
       evidence: wanted.map(([n]) => headerEvidence(p.headers, n)),

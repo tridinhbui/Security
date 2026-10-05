@@ -8,7 +8,11 @@ export const HOME = "https://example.com/";
 
 export const GOOD_HEADERS: Headers = {
   "content-type": "text/html; charset=utf-8",
-  "strict-transport-security": "max-age=63072000; includeSubDomains",
+  "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+  "cache-control": "private, no-cache",
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-resource-policy": "same-origin",
+  "cross-origin-embedder-policy": "require-corp",
   "content-security-policy": "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
@@ -54,7 +58,8 @@ export function baseline(): Observations {
     notFound: rec({ requestedUrl: "https://example.com/vibesec-khong-ton-tai-x", finalUrl: "https://example.com/vibesec-khong-ton-tai-x", status: 404, body: "<html><h1>404</h1></html>" }),
     altHost: { host: "www.example.com", record: rec({ requestedUrl: "https://www.example.com/", finalUrl: "https://www.example.com/", status: 301 }) },
     sensitivePage: null,
-    dns: { domain: "example.com", caa: ['0 issue "letsencrypt.org"'], spf: "v=spf1 include:_spf.example.net -all", spfRecords: 1, dmarc: "v=DMARC1; p=reject; rua=mailto:d@example.com", cname: null, mx: ["mx.example.com"], ns: ["ns1.example.com"], dnssec: true, mtaSts: true },
+    methods: { status: 204, allow: "GET, HEAD, OPTIONS" },
+    dns: { domain: "example.com", caa: ['0 issue "letsencrypt.org"'], spf: "v=spf1 include:_spf.example.net -all", spfRecords: 1, dmarc: "v=DMARC1; p=reject; rua=mailto:d@example.com", cname: null, mx: ["mx.example.com"], ns: ["ns1.example.com", "ns2.example.net"], dnssec: true, mtaSts: true },
     legacyTls: { tls10: false, tls11: false, h2: true },
     platforms: fp.platforms, technologies: fp.technologies,
     limits: { requestsUsed: 6, hitLimit: null }, scannedAt: new Date().toISOString(),
