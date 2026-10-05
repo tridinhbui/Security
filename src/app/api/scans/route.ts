@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
   const result = await createScan(DB, user.id, parsed.data.url, ip ? await hashIp(ip) : null, createDohResolver());
   if (!result.ok) return json({ error: result.code, message: result.message }, result.status, result.retryAfter ? { "Retry-After": "3600" } : undefined);
 
+  if (result.cached) return NextResponse.json({ id: result.id, cached: true }, { status: 201, headers: { "Cache-Control": "no-store" } });
   try {
     await SCAN_QUEUE.send({ scanId: result.id });
   } catch {

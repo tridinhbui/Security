@@ -6,7 +6,7 @@ import { normalizeTargetUrl, SsrfError } from "../ssrf/url";
 import { recordSsrfStrike } from "./abuse";
 
 export type CreateScanResult =
-  | { ok: true; id: string }
+  | { ok: true; id: string; cached?: boolean }
   | { ok: false; status: number; code: string; message: string; retryAfter?: string };
 
 /** Audit logs keep the target but never the query string or fragment, which can carry tokens. */
@@ -43,6 +43,15 @@ export async function createScan(db: D1Like, userId: string, rawUrl: string, ipH
       }
     } else throw e;
     target ??= normalizeTargetUrl(rawUrl);
+  }
+
+  if (await repo.userBlocked(db, userId)) { /* để createScanChecked trả account_blocked */ }
+  else {
+    const cachedId = await repo.cloneRecentScan(db, { userId, url: target.url, host: target.host, ipHash });
+    if (cachedId) {
+      await repo.recordEvent(db, { type: "scan_cached", userId, scanId: cachedId, meta: { host: target.host } });
+      return { ok: true, id: cachedId, cached: true };
+    }
   }
 
   const out = await repo.createScanChecked(db, {

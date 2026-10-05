@@ -61,3 +61,32 @@ describe("admin", () => {
     expect(await repo.hasGoogleLink(db, u1)).toBe(true);
   });
 });
+
+describe("cloneRecentScan — dùng lại kết quả", () => {
+  const L = { maxConcurrent: 9, hourly: 9, daily: 9, monthly: 9, globalDaily: 99, ipHourly: 9, hostHourly: 9 };
+  async function completed(user: string, url = "https://site.com/") {
+    const r = await repo.createScanChecked(db, { userId: user, url, host: "site.com", ipHash: null, limits: L });
+    if (!r.ok) throw new Error("x");
+    db.sqlite.prepare("UPDATE scans SET status='completed', score=80, grade='B', completed_at=? WHERE id=?").run(new Date().toISOString(), r.id);
+    db.sqlite.prepare("INSERT INTO findings (id,scan_id,rule_id,fingerprint,title,category,severity,confidence,status,explanation,summary) VALUES ('f1',?,'r','fp','t','Headers','low','high','fail','e','s')").run(r.id);
+    return r.id;
+  }
+  it("sao chép kết quả của người khác, không tính hạn mức", async () => {
+    await completed(u1);
+    const id = await repo.cloneRecentScan(db, { userId: u2, url: "https://site.com/", host: "site.com", ipHash: null });
+    expect(id).toBeTruthy();
+    expect(db.sqlite.prepare("SELECT cached, score, user_id FROM scans WHERE id=?").get(id!)).toMatchObject({ cached: 1, score: 80, user_id: u2 });
+    expect(db.sqlite.prepare("SELECT COUNT(*) c FROM findings WHERE scan_id=?").get(id!)).toMatchObject({ c: 1 });
+    // chỉ 1 lượt quét thật được tính
+    expect(await repo.createScanChecked(db, { userId: u2, url: "https://other.com/", host: "other.com", ipHash: null, limits: { ...L, hourly: 1, globalDaily: 2 } })).toMatchObject({ ok: true });
+  });
+  it("chính chủ quét lại ngay sau khi quét: dùng lại ≤ 15 phút, sau đó quét thật", async () => {
+    await completed(u1);
+    expect(await repo.cloneRecentScan(db, { userId: u1, url: "https://site.com/", host: "site.com", ipHash: null })).toBeTruthy();
+    db.sqlite.prepare("UPDATE scans SET completed_at=?").run(new Date(Date.now() - 3_600_000).toISOString());
+    expect(await repo.cloneRecentScan(db, { userId: u1, url: "https://site.com/", host: "site.com", ipHash: null })).toBeNull();
+  });
+  it("không có kết quả gần đây → null", async () => {
+    expect(await repo.cloneRecentScan(db, { userId: u2, url: "https://none.com/", host: "none.com", ipHash: null })).toBeNull();
+  });
+});

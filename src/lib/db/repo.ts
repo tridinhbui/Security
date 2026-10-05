@@ -120,13 +120,13 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
     INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,created_at)
     SELECT ?,?,?,?,?,?, 'queued', ?
     WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = ? AND blocked_until IS NOT NULL AND blocked_until > ?)
-      AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND status NOT IN ('completed','failed')) < ?
-      AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
-      AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
-      AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
-      AND (SELECT COUNT(*) FROM scans WHERE created_at > ?) < ?
-      AND (? IS NULL OR (SELECT COUNT(*) FROM scans WHERE ip_hash = ? AND created_at > ?) < ?)
-      AND (SELECT COUNT(*) FROM scans WHERE host = ? AND created_at > ?) < ?`)
+      AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND user_id = ? AND status NOT IN ('completed','failed')) < ?
+      AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND user_id = ? AND created_at > ?) < ?
+      AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND user_id = ? AND created_at > ?) < ?
+      AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND user_id = ? AND created_at > ?) < ?
+      AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND created_at > ?) < ?
+      AND (? IS NULL OR (SELECT COUNT(*) FROM scans WHERE cached = 0 AND ip_hash = ? AND created_at > ?) < ?)
+      AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND host = ? AND created_at > ?) < ?`)
     .bind(id, a.userId, a.url, a.url, a.host, a.ipHash, now,
       a.userId, now,
       a.userId, L.maxConcurrent,
@@ -141,12 +141,12 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
   const count = async (sql: string, ...p: (string | number | null)[]) => (await db.prepare(sql).bind(...p).first<{ c: number }>())?.c ?? 0;
   const u = await getUserById(db, a.userId);
   if (u?.blocked_until && u.blocked_until > now) return { ok: false, code: "account_blocked", retryAfter: u.blocked_until };
-  if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND status NOT IN ('completed','failed')", a.userId)) >= L.maxConcurrent) return { ok: false, code: "too_many_concurrent" };
-  if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, hourAgo)) >= L.hourly) return { ok: false, code: "hourly_limit" };
-  if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, dayAgo)) >= L.daily) return { ok: false, code: "daily_quota" };
-  if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, monthAgo)) >= L.monthly) return { ok: false, code: "monthly_quota" };
-  if ((await count("SELECT COUNT(*) c FROM scans WHERE created_at>?", dayAgo)) >= L.globalDaily) return { ok: false, code: "global_cap" };
-  if (a.ipHash && (await count("SELECT COUNT(*) c FROM scans WHERE ip_hash=? AND created_at>?", a.ipHash, hourAgo)) >= L.ipHourly) return { ok: false, code: "ip_limit" };
+  if ((await count("SELECT COUNT(*) c FROM scans WHERE cached = 0 AND user_id=? AND status NOT IN ('completed','failed')", a.userId)) >= L.maxConcurrent) return { ok: false, code: "too_many_concurrent" };
+  if ((await count("SELECT COUNT(*) c FROM scans WHERE cached = 0 AND user_id=? AND created_at>?", a.userId, hourAgo)) >= L.hourly) return { ok: false, code: "hourly_limit" };
+  if ((await count("SELECT COUNT(*) c FROM scans WHERE cached = 0 AND user_id=? AND created_at>?", a.userId, dayAgo)) >= L.daily) return { ok: false, code: "daily_quota" };
+  if ((await count("SELECT COUNT(*) c FROM scans WHERE cached = 0 AND user_id=? AND created_at>?", a.userId, monthAgo)) >= L.monthly) return { ok: false, code: "monthly_quota" };
+  if ((await count("SELECT COUNT(*) c FROM scans WHERE cached = 0 AND created_at>?", dayAgo)) >= L.globalDaily) return { ok: false, code: "global_cap" };
+  if (a.ipHash && (await count("SELECT COUNT(*) c FROM scans WHERE cached = 0 AND ip_hash=? AND created_at>?", a.ipHash, hourAgo)) >= L.ipHourly) return { ok: false, code: "ip_limit" };
   return { ok: false, code: "host_limit" };
 }
 
@@ -282,7 +282,7 @@ export async function revokeShares(db: D1Like, userId: string, scanId: string): 
 // ------------------------------------------------------------------ events & metrics
 
 export type EventType =
-  | "scan_created" | "stage" | "scan_completed" | "scan_failed" | "scan_refused" | "ssrf_blocked" | "rate_limited" | "user_blocked"
+  | "scan_created" | "scan_cached" | "stage" | "scan_completed" | "scan_failed" | "scan_refused" | "ssrf_blocked" | "rate_limited" | "user_blocked"
   | "metric" | "share_created" | "share_revoked" | "scan_deleted" | "auth_login" | "auth_login_failed" | "auth_signup" | "auth_throttled";
 
 /** Audit/observability event. `meta` must hold only small scalars — never response content. */
@@ -404,3 +404,37 @@ export async function adminUserScans(db: D1Like, userId: string, limit = 100) {
     .all<{ id: string; normalized_url: string; status: string; score: number | null; grade: string | null; created_at: string }>();
   return results;
 }
+
+export const CACHE_TTL_OTHERS_MS = 6 * HOUR, CACHE_TTL_OWN_MS = 15 * 60_000, CACHE_CLONES_PER_HOUR = 20;
+
+/**
+ * Dùng lại kết quả quét hoàn tất gần đây của CÙNG URL thay vì chạy lại container.
+ * Của người khác: ≤ 6 giờ. Của chính mình: chỉ ≤ 15 phút (để quét lại sau khi sửa lỗi luôn là quét thật).
+ * Bản sao thuộc về người gọi, tuân thủ thời hạn lưu trữ của họ và KHÔNG tính vào hạn mức.
+ */
+export async function cloneRecentScan(db: D1Like, a: { userId: string; url: string; host: string; ipHash: string | null }): Promise<string | null> {
+  const src = await db.prepare(`SELECT id FROM scans WHERE normalized_url = ? AND status = 'completed' AND cached = 0 AND (
+      (user_id <> ? AND completed_at > ?) OR (user_id = ? AND completed_at > ?)) ORDER BY completed_at DESC LIMIT 1`)
+    .bind(a.url, a.userId, isoAgo(CACHE_TTL_OTHERS_MS), a.userId, isoAgo(CACHE_TTL_OWN_MS)).first<{ id: string }>();
+  if (!src) return null;
+  const recent = (await db.prepare("SELECT COUNT(*) c FROM scans WHERE user_id = ? AND cached = 1 AND created_at > ?").bind(a.userId, isoAgo(HOUR)).first<{ c: number }>())?.c ?? 0;
+  if (recent >= CACHE_CLONES_PER_HOUR) return null; // quá nhiều → rơi về luồng quét thật (có hạn mức)
+  const u = await getUserById(db, a.userId);
+  const id = newId(), now = nowIso();
+  const expires = new Date(Date.now() + (u?.retention_days ?? 30) * DAY).toISOString();
+  const rid = "lower(hex(randomblob(16)))";
+  await db.batch([
+    db.prepare(`INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,score,grade,category_scores,severity_counts,platforms,request_count,cached,created_at,started_at,completed_at,expires_at)
+      SELECT ?,?,normalized_url,normalized_url,host,?,'completed',score,grade,category_scores,severity_counts,platforms,0,1,?,?,?,? FROM scans WHERE id = ?`)
+      .bind(id, a.userId, a.ipHash, now, now, now, expires, src.id),
+    db.prepare(`INSERT INTO findings (id,scan_id,rule_id,fingerprint,title,category,severity,confidence,status,evidence,explanation,summary,technical,remediation,affected_url,refs)
+      SELECT ${rid},?,rule_id,fingerprint,title,category,severity,confidence,status,evidence,explanation,summary,technical,remediation,affected_url,refs FROM findings WHERE scan_id = ?`).bind(id, src.id),
+    db.prepare(`INSERT INTO scan_targets (id,scan_id,role,url,final_url,status_code,tls,headers_enc,resolved_ips,error_code,duration_ms,created_at)
+      SELECT ${rid},?,role,url,final_url,status_code,tls,headers_enc,resolved_ips,error_code,duration_ms,? FROM scan_targets WHERE scan_id = ?`).bind(id, now, src.id),
+  ]);
+  return id;
+}
+export const userBlocked = async (db: D1Like, userId: string) => {
+  const u = await getUserById(db, userId);
+  return !!(u?.blocked_until && u.blocked_until > nowIso());
+};
