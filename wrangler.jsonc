@@ -22,7 +22,9 @@
 		"binding": "ASSETS"
 	},
 	"vars": {
-		"NEXT_PUBLIC_SITE_URL": "https://vibesec.example.com"
+		"NEXT_PUBLIC_SITE_URL": "https://vibesec.example.com",
+		// Client ID của Google là công khai (hiện trong URL đăng nhập). Client SECRET KHÔNG đặt ở đây: dùng `wrangler secret put GOOGLE_CLIENT_SECRET`.
+		"GOOGLE_CLIENT_ID": "379967826823-2s5a3v3tnrea6cdsauvkoa9u7q4703m2.apps.googleusercontent.com"
 	},
 	// Tạo bằng: npx wrangler d1 create vibesec → dán database_id vào đây, rồi chạy `npm run db:migrate`.
 	"d1_databases": [
