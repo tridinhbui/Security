@@ -468,3 +468,34 @@ describe("headers.deprecated", () => {
     expect(run(baseline(), id)[0]!.status).toBe("pass");
   });
 });
+
+describe("exposure.internal-references", () => {
+  const id = "exposure.internal-references";
+  it("IP riêng / *.internal / localhost trong trang → Low", () => {
+    const o = baseline(); setHtml(o, `<html><head><title>t</title></head><body><script>fetch("http://10.0.3.12:8080/api"); const u="https://billing.internal/x";</script></body></html>`);
+    const f = failing(o, id);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "low" });
+    expect(f[0]!.evidence.join(" ")).toContain("10.0.3.12");
+  });
+  it("IP công khai, số phiên bản và w3.org không bị báo nhầm", () => {
+    const o = baseline(); setHtml(o, `<html><head><title>t</title></head><body><svg xmlns="http://www.w3.org/2000/svg"></svg><script>var v="110.0.3.12"; var a="8.8.8.8"; var ver="1.10.0.0";</script></body></html>`);
+    expect(failing(o, id)).toHaveLength(0);
+    expect(run(o, id)[0]!.status).toBe("pass");
+  });
+});
+
+describe("exposure.html-comments", () => {
+  const id = "exposure.html-comments";
+  it("bình luận chứa từ khoá nhạy cảm → Low, không lưu nguyên văn", () => {
+    const o = baseline(); setHtml(o, `<html><head><title>t</title></head><body><!-- TODO: remove admin password hunter2 before launch --></body></html>`);
+    const f = failing(o, id);
+    expect(f).toHaveLength(1);
+    expect(f[0]!.confidence).toBe("low");
+    expect(JSON.stringify(f[0])).not.toContain("hunter2");
+  });
+  it("bình luận thường và điều kiện IE không bị báo", () => {
+    const o = baseline(); setHtml(o, `<html><head><title>t</title></head><body><!-- header start --><!--[if IE]><p>old</p><![endif]--></body></html>`);
+    expect(failing(o, id)).toHaveLength(0);
+  });
+});

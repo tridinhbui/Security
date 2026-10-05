@@ -194,7 +194,7 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
   await stage("scanning_transport");
   [obs.https, obs.http] = await Promise.all([
     get(originHttps + pathPart, { tolerateBadCert: true, maxBytes: 768 * 1024 }),
-    get(originHttp + pathPart, { maxBytes: 128 * 1024 }),
+    get(originHttp + pathPart, { maxBytes: 32 * 1024 }),
   ]);
   noteLimit(obs.https); noteLimit(obs.http);
 
@@ -210,7 +210,7 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
       return { tls10, tls11, h2 };
     })();
   }
-  [obs.dns, obs.legacyTls] = await Promise.all([dnsJob, legacyJob]);
+  // DNS + TLS cũ chạy NỀN song song với phần còn lại; chỉ chờ ở cuối (rút ngắn thời gian container hoạt động).
 
   // ---- choose the page to analyse
   const page = ok(obs.https) ? obs.https : ok(obs.http) ? obs.http : null;
@@ -222,6 +222,7 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
   obs.technologies = fp.technologies;
 
   if (!page) {
+    [obs.dns, obs.legacyTls] = await Promise.all([dnsJob, legacyJob]);
     obs.limits.requestsUsed = budget.used;
     return obs; // nothing more can be observed; rules will report what they can
   }
@@ -229,12 +230,22 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
   // ---- headers & well-known files
   await stage("checking_headers");
   const pageOrigin = new URL(page.finalUrl).origin;
-  const fileJobs = await Promise.all([
-    get(`${pageOrigin}/robots.txt`, { maxBytes: 64 * 1024, timeoutMs: 6000 }),
-    get(`${pageOrigin}/sitemap.xml`, { maxBytes: 64 * 1024, timeoutMs: 6000 }),
-    get(`${pageOrigin}/.well-known/security.txt`, { maxBytes: 32 * 1024, timeoutMs: 6000 }),
+  const alt = alternateHost(target.host);
+  // Các request này độc lập nhau → chạy song song thay vì nối tiếp (rút ngắn thời gian quét, nên rẻ hơn).
+  const [fileJobs, corsRec, missing, altRec] = await Promise.all([
+    Promise.all([
+      get(`${pageOrigin}/robots.txt`, { maxBytes: 64 * 1024, timeoutMs: 6000 }),
+      get(`${pageOrigin}/sitemap.xml`, { maxBytes: 64 * 1024, timeoutMs: 6000 }),
+      get(`${pageOrigin}/.well-known/security.txt`, { maxBytes: 32 * 1024, timeoutMs: 6000 }),
+    ]),
+    // CORS: một request với Origin giả rõ ràng; chỉ đọc header phản hồi.
+    get(page.finalUrl, { headers: { origin: PROBE_ORIGIN }, maxBytes: 1024, timeoutMs: 8000, followRedirects: false }),
+    // Trang không tồn tại: xem trang lỗi có lộ thông tin nội bộ không.
+    get(`${pageOrigin}/vibesec-khong-ton-tai-${crypto.randomUUID().slice(0, 8)}`, { maxBytes: 64 * 1024, timeoutMs: 6000, followRedirects: false }),
+    // www <-> không-www: người dùng gõ thiếu/thừa "www" vẫn phải vào được trang an toàn.
+    alt ? get(`https://${alt}/`, { tolerateBadCert: true, maxBytes: 16 * 1024, timeoutMs: 6000, followRedirects: false }) : Promise.resolve(null),
   ]);
-  fileJobs.forEach(noteLimit);
+  fileJobs.forEach(noteLimit); noteLimit(corsRec); noteLimit(missing); noteLimit(altRec);
   obs.files.robots = toFileProbe(`${pageOrigin}/robots.txt`, fileJobs[0], "robots");
   obs.files.sitemap = toFileProbe(`${pageOrigin}/sitemap.xml`, fileJobs[1], "sitemap");
   obs.files.securityTxt = toFileProbe(`${pageOrigin}/.well-known/security.txt`, fileJobs[2], "security");
@@ -244,35 +255,20 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
     const probeLegacy = toFileProbe(`${pageOrigin}/security.txt`, legacy, "security");
     if (probeLegacy.present) obs.files.securityTxt = probeLegacy;
   }
-
-  // CORS: one request with a clearly synthetic Origin. We only read response headers.
-  const corsRec = await get(page.finalUrl, { headers: { origin: PROBE_ORIGIN }, maxBytes: 1024, timeoutMs: 8000, followRedirects: false });
-  noteLimit(corsRec);
   if (!corsRec.error) {
     obs.cors = { testedOrigin: PROBE_ORIGIN, status: corsRec.status, acao: header(corsRec.headers, "access-control-allow-origin") ?? null, acac: header(corsRec.headers, "access-control-allow-credentials") ?? null, vary: header(corsRec.headers, "vary") ?? null } satisfies CorsProbe;
   }
-
-  // Trang không tồn tại: một request GET bình thường tới đường dẫn ngẫu nhiên để xem trang lỗi có lộ thông tin nội bộ không.
-  const missing = await get(`${pageOrigin}/vibesec-khong-ton-tai-${crypto.randomUUID().slice(0, 8)}`, { maxBytes: 64 * 1024, timeoutMs: 6000, followRedirects: false });
-  noteLimit(missing);
   if (!missing.error) obs.notFound = missing;
-
-  // www <-> không-www: người dùng gõ thiếu/thừa "www" vẫn phải vào được trang an toàn.
-  const alt = alternateHost(target.host);
-  if (alt) {
-    const altRec = await get(`https://${alt}/`, { tolerateBadCert: true, maxBytes: 16 * 1024, timeoutMs: 6000, followRedirects: false });
-    noteLimit(altRec);
-    obs.altHost = { host: alt, record: altRec.error?.code === "dns_failed" ? null : altRec };
-  }
+  if (alt && altRec) obs.altHost = { host: alt, record: altRec.error?.code === "dns_failed" ? null : altRec };
 
   // ---- client resources
   await stage("analyzing_client");
   if (obs.html) {
     const scripts = obs.html.scripts;
     const chosen = pickScripts(scripts);
-    await inBatches(chosen, 3, async (s) => {
+    await inBatches(chosen, 6, async (s) => {
       try {
-        const rec = await get(s.url!, { maxBytes: 1_500_000, timeoutMs: 10_000, headers: { accept: "*/*" } });
+        const rec = await get(s.url!, { maxBytes: 1_000_000, timeoutMs: 10_000, headers: { accept: "*/*" } });
         noteLimit(rec);
         if (!rec.error && rec.status === 200) {
           s.fetched = rec;
@@ -313,6 +309,7 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
     }
   }
 
+  [obs.dns, obs.legacyTls] = await Promise.all([dnsJob, legacyJob]);
   obs.limits.requestsUsed = budget.used;
   return obs;
 }

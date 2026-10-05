@@ -1,6 +1,6 @@
 import { detectPublicConfig, detectSecrets } from "../secrets";
 import type { Finding, Observations, Rule, Severity } from "../types";
-import { makeFinding, MDN, pass, pathOf, truncate } from "../util";
+import { makeFinding, MDN, OWASP, pass, pathOf, truncate } from "../util";
 
 const CAT = "Exposure" as const;
 
@@ -363,4 +363,67 @@ function OWASPErr() {
   return { title: "OWASP WSTG: Error Handling", url: "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/08-Testing_for_Error_Handling/01-Testing_For_Improper_Error_Handling" };
 }
 
-export const exposureRules: Rule[] = [secrets, publicConfig, sourceMaps, robots, sitemap, securityTxt, outdatedLibraries, subdomainTakeover, errorPage];
+// ---------------------------------------------------------------- phân tích tĩnh: không thêm request nào
+
+const PRIVATE_IP = /(?<![\d.])(10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2})(?::\d{2,5})?(?![\d.])/g;
+const INTERNAL_HOST = /\bhttps?:\/\/((?:[a-z0-9-]+\.)+(?:internal|corp|lan|intranet|local)|localhost|127\.0\.0\.1)(?::\d{2,5})?(?:\/|["'\s)])/gi;
+const SDK_NOISE = /(w3\.org|schemas\.|xmlns|example\.|\.local\b.*(?:webpack|hot-update))/i;
+
+/** Địa chỉ nội bộ (IP riêng, *.internal, localhost…) bị đóng gói vào trang công khai. */
+const internalReferences: Rule = {
+  id: "exposure.internal-references",
+  title: "Không lộ địa chỉ mạng nội bộ",
+  category: CAT,
+  run(obs) {
+    const docs = publicDocuments(obs);
+    if (docs.length === 0) return [];
+    const hits = new Map<string, string>(); // địa chỉ → URL tài liệu
+    for (const d of docs) {
+      for (const m of d.text.matchAll(PRIVATE_IP)) hits.set(m[1]!, d.url);
+      for (const m of d.text.matchAll(INTERNAL_HOST)) if (!SDK_NOISE.test(m[0])) hits.set(m[1]!.toLowerCase(), d.url);
+      if (hits.size >= 8) break;
+    }
+    const refs = [OWASP("Information_Exposure_Through_Query_Strings_in_GET_Request.html", "OWASP: Information exposure")];
+    if (hits.size === 0) return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: docs[0]!.url, summary: "Không thấy địa chỉ IP riêng hay tên miền nội bộ trong trang và script công khai.", explanation: "Kẻ tấn công không biết được cấu trúc mạng nội bộ của bạn qua mã phía trình duyệt.", evidence: [] })];
+    return [makeFinding({
+      ruleId: this.id, title: "Trang công khai tham chiếu địa chỉ mạng nội bộ", category: CAT, severity: "low", confidence: "medium", status: "fail", affectedUrl: [...hits.values()][0], references: refs,
+      key: [...hits.keys()].sort().join(",").slice(0, 80),
+      summary: `${hits.size} địa chỉ nội bộ xuất hiện trong mã công khai (ví dụ: ${[...hits.keys()][0]}).`,
+      explanation: "Địa chỉ IP riêng, máy chủ *.internal hoặc localhost trong mã trình duyệt cho kẻ tấn công biết cấu trúc mạng và tên dịch vụ nội bộ, và thường là dấu hiệu cấu hình môi trường phát triển bị đưa nhầm lên production.",
+      technical: "Khớp mẫu IP thuộc dải RFC 1918 / link-local hoặc tên miền .internal/.corp/.lan/.local/localhost trong HTML hoặc JavaScript cùng origin.",
+      evidence: [...hits].slice(0, 6).map(([h, u]) => `${h} trong ${truncate(u, 120)}`),
+      remediation: { summary: "Dùng biến môi trường cho từng môi trường và không đóng gói địa chỉ nội bộ vào bản build production.", steps: ["Tìm các địa chỉ trên trong mã nguồn/biến môi trường lúc build.", "Gọi dịch vụ nội bộ từ phía máy chủ, không từ trình duyệt."], snippets: [] },
+    })];
+  },
+};
+
+const COMMENT_SENSITIVE = /(password|passwd|secret|api[_-]?key|token|credential|todo\s*[:\-]?\s*(?:remove|delete|fix|hack)|fixme|hack|staging|internal use)/i;
+
+/** Bình luận HTML chứa từ khoá nhạy cảm. Chỉ ghi nhận TỪ KHOÁ + vị trí, không lưu nguyên văn (có thể chứa bí mật). */
+const htmlComments: Rule = {
+  id: "exposure.html-comments",
+  title: "Bình luận HTML không lộ thông tin nhạy cảm",
+  category: CAT,
+  run(obs) {
+    const p = obs.page;
+    if (!p || !/html/i.test(p.contentType)) return [];
+    const found: string[] = [];
+    for (const m of p.body.matchAll(/<!--(?!\[if|<!\]|\s*\/?ko\b)([\s\S]{4,600}?)-->/g)) {
+      const k = COMMENT_SENSITIVE.exec(m[1]!)?.[1];
+      if (k) found.push(k.toLowerCase().replace(/\s+/g, " "));
+    }
+    if (found.length === 0) return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: p.finalUrl, summary: "Bình luận HTML (nếu có) không chứa từ khoá nhạy cảm.", explanation: "Ghi chú của lập trình viên không bị lộ ra khách truy cập.", evidence: [] })];
+    const uniq = [...new Set(found)];
+    return [makeFinding({
+      ruleId: this.id, title: "Bình luận HTML có từ khoá nhạy cảm", category: CAT, severity: "low", confidence: "low", status: "fail", affectedUrl: p.finalUrl, key: "comments",
+      references: [OWASP("Information_Exposure_Through_Query_Strings_in_GET_Request.html", "OWASP: Information exposure")],
+      summary: `${found.length} bình luận HTML chứa từ khoá như "${uniq[0]}".`,
+      explanation: "Bình luận trong HTML ai cũng đọc được qua \"Xem nguồn trang\". Ghi chú về mật khẩu, token, môi trường staging hay việc cần sửa có thể giúp kẻ tấn công.",
+      technical: "Khớp từ khoá nhạy cảm bên trong <!-- … -->. Độ tin cậy thấp vì từ khoá có thể vô hại; nội dung bình luận không được lưu để tránh làm lộ bí mật.",
+      evidence: uniq.slice(0, 6).map((k) => `từ khoá: ${k}`),
+      remediation: { summary: "Xoá bình luận khỏi HTML production (minify HTML hoặc loại bỏ khi build).", steps: ["Mở \"Xem nguồn trang\" và tìm các từ khoá trên.", "Bật bước loại bỏ bình luận trong quy trình build."], snippets: [] },
+    })];
+  },
+};
+
+export const exposureRules: Rule[] = [internalReferences, htmlComments, secrets, publicConfig, sourceMaps, robots, sitemap, securityTxt, outdatedLibraries, subdomainTakeover, errorPage];

@@ -3,6 +3,8 @@
  * logic phát hiện không phụ thuộc file này, và luật chưa có ở đây sẽ dùng chính tiêu đề của nó.
  */
 export const PLAIN_TITLES: Record<string, string> = {
+  "exposure.internal-references": "Website có vô tình để lộ địa chỉ mạng nội bộ không?",
+  "exposure.html-comments": "Ghi chú của lập trình viên có bị lộ trong trang không?",
   "headers.deprecated": "Website có còn dùng cấu hình bảo mật đã lỗi thời không?",
   "tls.https-available": "Website có “ổ khoá” HTTPS hoạt động không?",
   "tls.certificate-expiry": "Chứng chỉ ổ khoá có sắp hết hạn không?",
