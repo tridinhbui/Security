@@ -28,9 +28,10 @@ export const env = {
   get googleEnabled() { return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET); },
   get isProd() { return process.env.NODE_ENV === "production"; },
   limits: {
-    get dailyQuota() { return int("SCAN_DAILY_QUOTA", 5); },
-    get monthlyQuota() { return int("SCAN_MONTHLY_QUOTA", 60); },
-    get hourlyLimit() { return int("SCAN_HOURLY_LIMIT", 3); },
+    get dailyQuota() { return int("SCAN_DAILY_QUOTA", 3); },
+    get monthlyQuota() { return int("SCAN_MONTHLY_QUOTA", 30); },
+    get globalDailyCap() { return int("SCAN_GLOBAL_DAILY_CAP", 60); },
+    get hourlyLimit() { return int("SCAN_HOURLY_LIMIT", 2); },
     get maxConcurrentPerUser() { return int("SCAN_MAX_CONCURRENT_PER_USER", 1); },
     get ipHourlyLimit() { return int("SCAN_IP_HOURLY_LIMIT", 15); },
     get hostHourlyLimit() { return int("SCAN_HOST_HOURLY_LIMIT", 4); },

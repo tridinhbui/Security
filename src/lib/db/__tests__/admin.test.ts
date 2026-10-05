@@ -51,7 +51,7 @@ describe("chat hỗ trợ", () => {
 
 describe("admin", () => {
   it("tổng quan, danh sách trang đã quét, kiểm tra liên kết Google", async () => {
-    await repo.createScanChecked(db, { userId: u1, url: "https://site.com/", host: "site.com", ipHash: null, limits: { maxConcurrent: 9, hourly: 9, daily: 9, monthly: 9, ipHourly: 9, hostHourly: 9 } });
+    await repo.createScanChecked(db, { userId: u1, url: "https://site.com/", host: "site.com", ipHash: null, limits: { maxConcurrent: 9, hourly: 9, daily: 9, monthly: 9, globalDaily: 99, ipHourly: 9, hostHourly: 9 } });
     const o = await repo.adminOverview(db);
     expect(o).toMatchObject({ users: 2, scansTotal: 1, scans24h: 1 });
     expect((await repo.adminUserScans(db, u1)).map((s) => s.normalized_url)).toEqual(["https://site.com/"]);

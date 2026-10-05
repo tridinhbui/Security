@@ -53,7 +53,7 @@ describe("createScan", () => {
     expect(JSON.stringify(db.sqlite.prepare("SELECT * FROM scan_events").all())).not.toContain("SECRET123");
   });
 
-  it.each([["daily_quota", { SCAN_DAILY_QUOTA: "1" }], ["hourly_limit", { SCAN_HOURLY_LIMIT: "1" }], ["monthly_quota", { SCAN_MONTHLY_QUOTA: "1" }], ["too_many_concurrent", { SCAN_MAX_CONCURRENT_PER_USER: "1" }], ["host_limit", { SCAN_HOST_HOURLY_LIMIT: "1" }]])(
+  it.each([["daily_quota", { SCAN_DAILY_QUOTA: "1" }], ["hourly_limit", { SCAN_HOURLY_LIMIT: "1" }], ["monthly_quota", { SCAN_MONTHLY_QUOTA: "1" }], ["global_cap", { SCAN_GLOBAL_DAILY_CAP: "1" }], ["too_many_concurrent", { SCAN_MAX_CONCURRENT_PER_USER: "1" }], ["host_limit", { SCAN_HOST_HOURLY_LIMIT: "1" }]])(
     "maps %s → HTTP 429 and audits it", async (code, envVars) => {
       Object.assign(process.env, envVars);
       try {

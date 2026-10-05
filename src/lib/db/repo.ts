@@ -101,8 +101,8 @@ export function rowToScan(r: Record<string, unknown>): ScanRow {
   };
 }
 
-export interface ScanLimits { maxConcurrent: number; hourly: number; daily: number; monthly: number; ipHourly: number; hostHourly: number }
-export type CreateScanOutcome = { ok: true; id: string } | { ok: false; code: "account_blocked" | "too_many_concurrent" | "hourly_limit" | "daily_quota" | "monthly_quota" | "ip_limit" | "host_limit"; retryAfter?: string };
+export interface ScanLimits { maxConcurrent: number; hourly: number; daily: number; monthly: number; globalDaily: number; ipHourly: number; hostHourly: number }
+export type CreateScanOutcome = { ok: true; id: string } | { ok: false; code: "account_blocked" | "too_many_concurrent" | "hourly_limit" | "daily_quota" | "monthly_quota" | "global_cap" | "ip_limit" | "host_limit"; retryAfter?: string };
 
 const HOUR = 3_600_000, DAY = 86_400_000, MONTH = 30 * DAY;
 
@@ -124,6 +124,7 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
       AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
       AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
       AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
+      AND (SELECT COUNT(*) FROM scans WHERE created_at > ?) < ?
       AND (? IS NULL OR (SELECT COUNT(*) FROM scans WHERE ip_hash = ? AND created_at > ?) < ?)
       AND (SELECT COUNT(*) FROM scans WHERE host = ? AND created_at > ?) < ?`)
     .bind(id, a.userId, a.url, a.url, a.host, a.ipHash, now,
@@ -132,6 +133,7 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
       a.userId, hourAgo, L.hourly,
       a.userId, dayAgo, L.daily,
       a.userId, monthAgo, L.monthly,
+      dayAgo, L.globalDaily,
       a.ipHash, a.ipHash, hourAgo, L.ipHourly,
       a.host, hourAgo, L.hostHourly).run();
   if ((res.meta.changes ?? 0) === 1) return { ok: true, id };
@@ -143,6 +145,7 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
   if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, hourAgo)) >= L.hourly) return { ok: false, code: "hourly_limit" };
   if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, dayAgo)) >= L.daily) return { ok: false, code: "daily_quota" };
   if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, monthAgo)) >= L.monthly) return { ok: false, code: "monthly_quota" };
+  if ((await count("SELECT COUNT(*) c FROM scans WHERE created_at>?", dayAgo)) >= L.globalDaily) return { ok: false, code: "global_cap" };
   if (a.ipHash && (await count("SELECT COUNT(*) c FROM scans WHERE ip_hash=? AND created_at>?", a.ipHash, hourAgo)) >= L.ipHourly) return { ok: false, code: "ip_limit" };
   return { ok: false, code: "host_limit" };
 }

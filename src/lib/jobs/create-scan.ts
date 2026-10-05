@@ -18,6 +18,7 @@ const LIMIT_MESSAGES: Record<string, string> = {
   hourly_limit: "Bạn đã đạt giới hạn quét mỗi giờ. Vui lòng thử lại sau.",
   daily_quota: "Bạn đã dùng hết hạn mức quét trong ngày. Hạn mức được tính theo cửa sổ trượt 24 giờ.",
   monthly_quota: "Bạn đã dùng hết hạn mức quét trong 30 ngày gần nhất. Hạn mức được tính theo cửa sổ trượt 30 ngày.",
+  global_cap: "Hệ thống đã đạt giới hạn quét trong 24 giờ qua để giữ chi phí ở mức thấp. Vui lòng quay lại sau.",
   ip_limit: "Có quá nhiều lượt quét từ mạng của bạn. Vui lòng thử lại sau.",
   host_limit: "Website này vừa được quét nhiều lần. Để tránh gây quá tải cho website, vui lòng chờ một lúc rồi quét lại.",
 };
@@ -46,7 +47,7 @@ export async function createScan(db: D1Like, userId: string, rawUrl: string, ipH
 
   const out = await repo.createScanChecked(db, {
     userId, url: target.url, host: target.host, ipHash,
-    limits: { maxConcurrent: env.limits.maxConcurrentPerUser, hourly: env.limits.hourlyLimit, daily: env.limits.dailyQuota, monthly: env.limits.monthlyQuota, ipHourly: env.limits.ipHourlyLimit, hostHourly: env.limits.hostHourlyLimit },
+    limits: { maxConcurrent: env.limits.maxConcurrentPerUser, hourly: env.limits.hourlyLimit, daily: env.limits.dailyQuota, monthly: env.limits.monthlyQuota, globalDaily: env.limits.globalDailyCap, ipHourly: env.limits.ipHourlyLimit, hostHourly: env.limits.hostHourlyLimit },
   });
   if (!out.ok) {
     await repo.recordEvent(db, { type: "rate_limited", userId, level: "warn", message: out.code, meta: { code: out.code, host: target.host } });

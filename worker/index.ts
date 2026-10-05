@@ -23,7 +23,8 @@ interface Env {
   LOCAL_SCANNER_URL?: string;
 }
 
-const SCANNER_POOL_SIZE = 3;
+// 1 container xử lý song song 3 lượt (SCAN_CONCURRENCY): đánh thức nhiều container chỉ làm tăng chi phí RAM.
+const SCANNER_POOL_SIZE = 1;
 
 /** Private/loopback/metadata ranges the scanner must never reach. Second line of defence behind the in-code SSRF checks. */
 const DENIED = [
@@ -33,7 +34,7 @@ const DENIED = [
 
 export class ScannerContainer extends Container {
   defaultPort = 8080;
-  sleepAfter = "3m";
+  sleepAfter = "30s"; // RAM tính tiền cả lúc chờ: ngủ sớm để tiết kiệm
   pingEndpoint = "localhost/ready";
   envVars = { NODE_ENV: "production", SCAN_CONCURRENCY: "3" };
   // Internet is required to scan public sites. deniedHosts is enforced for HTTP:80 (and for 443 only with
