@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "opennextjs-cloudflare build",
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p worker/tsconfig.json",
     "test": "vitest run",
@@ -19,7 +19,8 @@
     "deploy": "opennextjs-cloudflare build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
-    "scanner": "tsx container/server.ts"
+    "scanner": "tsx container/server.ts",
+    "build:next": "next build"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",

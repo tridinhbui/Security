@@ -85,21 +85,31 @@ Mở `http://localhost:8787`. Chạy test: `npm test` (500+ test).
 
 ## Triển khai
 
+Cách đơn giản nhất là **Cloudflare Workers Builds** (kết nối repo GitHub với Worker). Cấu hình mặc định là đủ: lệnh build `npm run build` (đã chạy `opennextjs-cloudflare build`) và lệnh deploy `npx wrangler deploy`. Workers Builds dựng được cả image Container từ `container/Dockerfile`, nên **không cần Docker ở máy bạn**.
+
+Tên Worker trong Workers Builds phải trùng `name` trong `wrangler.jsonc` (mặc định `vibesec`).
+
+**Bước 1 — tạo tài nguyên một lần** (chạy ở máy bạn, đã `npx wrangler login`; Queue **không** tự tạo khi deploy):
 ```bash
-npx wrangler login
 npx wrangler d1 create vibesec
-npx wrangler queues create vibesec-scans
-npx wrangler queues create vibesec-scans-dlq
 ```
-Dán `database_id` vào `wrangler.jsonc`, đặt `NEXT_PUBLIC_SITE_URL` trong `vars`, rồi:
+```bash
+npx wrangler queues create vibesec-scans
+```
+Dán `database_id` mà lệnh đầu in ra vào `wrangler.jsonc` (thay giá trị `0000…`) và đặt `NEXT_PUBLIC_SITE_URL` trong `vars` thành địa chỉ thật của bạn. Hàng đợi `vibesec-scans-dlq` được tạo tự động.
+
+**Bước 2 — áp dụng migration lên D1 thật:**
 ```bash
 npm run db:migrate
-npx wrangler secret put DATA_ENCRYPTION_KEY
-npx wrangler secret put IP_HASH_SECRET
-npx wrangler secret put CRON_SECRET
-npm run deploy
 ```
-Cần gói Workers **Paid** (Containers, Queues, CPU cho băm mật khẩu) và Docker để dựng image khi deploy. Turnstile (tuỳ chọn): tạo widget, đặt `NEXT_PUBLIC_TURNSTILE_SITE_KEY` lúc build và secret `TURNSTILE_SECRET_KEY`.
+
+**Bước 3 — đặt secret** (Dashboard → Worker → Settings → Variables and Secrets, hoặc `wrangler secret put`): `DATA_ENCRYPTION_KEY`, `IP_HASH_SECRET`, `CRON_SECRET` (tạo bằng `npm run gen-keys`). **Không** đặt `LOCAL_SCANNER_URL` ở production.
+
+**Bước 4 — commit và push** `wrangler.jsonc`; Workers Builds sẽ tự build và deploy. Cần gói Workers **Paid** (Containers, Queues, CPU cho băm mật khẩu). Lần deploy đầu có thể mất vài phút để Cloudflare cấp image Container; Worker lên trước, quét chỉ chạy được khi Container sẵn sàng (`npx wrangler containers list`).
+
+Triển khai từ máy bạn: `npm run deploy` (cần Docker để dựng image). Turnstile (tuỳ chọn): tạo widget, đặt `NEXT_PUBLIC_TURNSTILE_SITE_KEY` trong *Build variables* của Workers Builds và secret `TURNSTILE_SECRET_KEY`.
+
+**Lỗi thường gặp:** `Could not find compiled Open Next config` nghĩa là bước build không chạy OpenNext (lệnh build đang là `next build` thuần) — đặt lệnh build là `npm run build`.
 
 Quan sát: Workers Logs bật sẵn (JSON có cấu trúc, không bao giờ ghi nội dung phản hồi). `GET /api/admin/metrics` (Bearer `CRON_SECRET`) trả độ sâu hàng đợi, tuổi job cũ nhất, số quét hoàn tất/lỗi/từ chối/chặn/giới hạn trong 1 giờ, tỉ lệ lỗi, p50/p95 độ trễ. Job lỗi sau 3 lần thử vào `vibesec-scans-dlq`.
 
