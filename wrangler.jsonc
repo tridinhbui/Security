@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "vibesec",
+	"name": "security",
 	"main": "worker/index.ts",
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": [
@@ -22,7 +22,7 @@
 		"binding": "ASSETS"
 	},
 	"vars": {
-		"NEXT_PUBLIC_SITE_URL": "https://vibesec.example.com",
+		"NEXT_PUBLIC_SITE_URL": "https://security.tridinhbui0901.workers.dev",
 		// Client ID của Google là công khai (hiện trong URL đăng nhập). Client SECRET KHÔNG đặt ở đây: dùng `wrangler secret put GOOGLE_CLIENT_SECRET`.
 		"GOOGLE_CLIENT_ID": "379967826823-2s5a3v3tnrea6cdsauvkoa9u7q4703m2.apps.googleusercontent.com"
 	},
