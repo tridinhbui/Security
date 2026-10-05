@@ -65,6 +65,9 @@
 	// The scanner runs unchanged Node code (DNS pinning, TLS inspection) in a Container, reached only via this binding.
 	"containers": [
 		{
+			// Ghim tên ứng dụng Container ĐÃ TỒN TẠI (tạo lần deploy đầu khi Worker còn tên "vibesec"). Nếu để mặc định,
+			// wrangler đặt "<tên-worker>-scannercontainer" và báo DURABLE_OBJECT_ALREADY_HAS_APPLICATION.
+			"name": "vibesec-scannercontainer",
 			"class_name": "ScannerContainer",
 			"image": "./container/Dockerfile",
 			"image_build_context": ".",
