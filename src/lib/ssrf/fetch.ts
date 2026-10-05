@@ -8,54 +8,11 @@ import { SsrfError, validateRequestUrl } from "./url";
 
 export const USER_AGENT = "VibeSecBot/1.0 (+https://vibesec.app/bot; passive, non-destructive security audit)";
 
-import type { FetchRecord, Headers, HttpHop, TlsInfo } from "./types";
-export type { FetchRecord, Headers, HttpHop, TlsInfo };
-
-export type BudgetErrorCode = "request_budget" | "deadline" | "byte_budget";
-export class BudgetError extends Error {
-  constructor(public readonly code: BudgetErrorCode, message: string) {
-    super(message);
-    this.name = "BudgetError";
-  }
-}
-
-/** Hard ceilings for one scan. Shared by every request the scan makes. */
-export class ScanBudget {
-  used = 0;
-  bytes = 0;
-  readonly deadline: number;
-  constructor(
-    readonly maxRequests = 20,
-    readonly maxTotalBytes = 6 * 1024 * 1024,
-    readonly maxDurationMs = 60_000,
-    now = Date.now(),
-  ) {
-    this.deadline = now + maxDurationMs;
-  }
-  remainingMs() {
-    return this.deadline - Date.now();
-  }
-  take() {
-    if (this.remainingMs() <= 0) throw new BudgetError("deadline", "Đã hết thời gian quét tối đa.");
-    if (this.used >= this.maxRequests) throw new BudgetError("request_budget", "Đã đạt giới hạn số request cho một lần quét.");
-    if (this.bytes >= this.maxTotalBytes) throw new BudgetError("byte_budget", "Đã đạt giới hạn dung lượng tải cho một lần quét.");
-    this.used++;
-  }
-  addBytes(n: number) {
-    this.bytes += n;
-  }
-}
-
-export interface FetchOptions {
-  method?: "GET" | "HEAD";
-  headers?: Record<string, string>;
-  maxBytes?: number;
-  timeoutMs?: number;
-  maxRedirects?: number;
-  followRedirects?: boolean;
-  /** Retry once without certificate verification if the cert is invalid, so headers can still be audited. */
-  tolerateBadCert?: boolean;
-}
+import { BudgetError, ScanBudget } from "./budget";
+import type { FetchOptions, FetchRecord, Headers, HttpHop, SafeFetch, TlsInfo } from "./types";
+export { BudgetError, ScanBudget };
+export type { FetchOptions, FetchRecord, Headers, HttpHop, SafeFetch, TlsInfo };
+export type { BudgetErrorCode } from "./budget";
 
 export interface FetcherDeps {
   /**
@@ -69,7 +26,7 @@ export interface FetcherDeps {
 }
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const CERT_ERRORS = new Set([
+export const CERT_ERRORS = new Set([
   "CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
   "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", "ERR_TLS_CERT_ALTNAME_INVALID", "CERT_NOT_YET_VALID", "CERT_REVOKED",
 ]);
@@ -82,7 +39,7 @@ interface HopResult {
   tls?: TlsInfo;
 }
 
-function describeCert(socket: TLSSocket): TlsInfo {
+export function describeCert(socket: TLSSocket): TlsInfo {
   const cert = socket.getPeerCertificate(true);
   const info: TlsInfo = {
     protocol: socket.getProtocol(),
@@ -309,8 +266,6 @@ export function createSafeFetcher(budget: ScanBudget, deps: FetcherDeps = {}) {
     return fail("too_many_redirects", `Chuyển hướng quá ${maxRedirects} lần.`);
   };
 }
-
-export type SafeFetch = ReturnType<typeof createSafeFetcher>;
 
 function friendlyNetError(code: string): string {
   switch (code) {

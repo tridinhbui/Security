@@ -9,8 +9,8 @@ beforeAll(async () => { process.env.VIBESEC_NO_LISTEN = "1"; ({ createServer } =
 
 const fakeReport = { version: 1, score: { score: 88 }, findings: [], targets: [], stats: { requests: 3 } } as unknown as ScanReport;
 let server: http.Server | null = null;
-async function start(scan: Parameters<typeof createServer>[0]) {
-  server = createServer(scan);
+async function start(scan: Parameters<typeof createServer>[0], inspect?: Parameters<typeof createServer>[1]) {
+  server = createServer(scan, inspect);
   await new Promise<void>((r) => server!.listen(0, "127.0.0.1", r));
   const port = (server.address() as AddressInfo).port;
   return { port, client: createNdjsonScanner((req) => fetch(`http://127.0.0.1:${port}${new URL(req.url).pathname}`, { method: req.method, headers: req.headers, body: req.body, duplex: "half" } as RequestInit)), base: `http://127.0.0.1:${port}` };
@@ -79,5 +79,24 @@ describe("NDJSON client robustness", () => {
     await expect(createNdjsonScanner(async () => streamOf(["x".repeat(9 * 1024 * 1024)])).scan("u", async () => {})).rejects.toBeInstanceOf(ScannerUnavailableError);
     await expect(createNdjsonScanner(async () => { throw new Error("connect"); }).scan("u", async () => {})).rejects.toBeInstanceOf(ScannerUnavailableError);
     await expect(createNdjsonScanner(async () => new Response("", { status: 503 })).scan("u", async () => {})).rejects.toBeInstanceOf(ScannerUnavailableError);
+  });
+});
+
+describe("container POST /tls", () => {
+  it("trả JSON kết quả kiểm tra TLS", async () => {
+    const { base } = await start(async () => fakeReport, async () => ({ ok: true, tls: { protocol: "TLSv1.3", cipher: "x", authorized: true }, legacyTls: { tls10: false, tls11: false, h2: true }, resolved: ["93.184.216.34"] }));
+    const r = await fetch(`${base}/tls`, { method: "POST", body: JSON.stringify({ host: "example.com" }) });
+    expect(await r.json()).toMatchObject({ ok: true, tls: { protocol: "TLSv1.3" }, legacyTls: { h2: true } });
+  });
+  it("host nội bộ → refused (không phải 500)", async () => {
+    const { SsrfError } = await import("@/lib/ssrf/url");
+    const { base } = await start(async () => fakeReport, async () => { throw new SsrfError("non_public_ip", "nội bộ"); });
+    const r = await fetch(`${base}/tls`, { method: "POST", body: JSON.stringify({ host: "10.0.0.1" }) });
+    expect(await r.json()).toMatchObject({ ok: false, refused: { code: "non_public_ip" } });
+  });
+  it("host thiếu/không hợp lệ → 400; lỗi nội bộ → 500", async () => {
+    const { base } = await start(async () => fakeReport, async () => { throw new Error("boom"); });
+    expect((await fetch(`${base}/tls`, { method: "POST", body: "{}" })).status).toBe(400);
+    expect((await fetch(`${base}/tls`, { method: "POST", body: JSON.stringify({ host: "example.com" }) })).status).toBe(500);
   });
 });

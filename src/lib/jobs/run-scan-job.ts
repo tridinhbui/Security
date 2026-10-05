@@ -39,7 +39,7 @@ export async function processScanJob(db: D1Like, scanId: string, scanner: Scanne
   };
 
   try {
-    const report = await scanner.scan(scan.normalized_url, setStage); // query/fragment were stripped at creation
+    const report = await scanner.scan(scan.normalized_url, setStage, { quick: scan.mode === "quick" }); // query/fragment were stripped at creation
     await persist(db, scan.id, scan.user_id, report);
     const latency = Date.now() - started;
     await repo.recordEvent(db, { type: "scan_completed", scanId: scan.id, userId: scan.user_id, meta: { score: report.score.score, requests: report.stats.requests, latency_ms: latency, queue_wait_ms: queueWaitMs, hit_limit: report.stats.hitLimit, rule_errors: report.stats.ruleErrors.length } });

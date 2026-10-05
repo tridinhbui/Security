@@ -41,7 +41,11 @@ Trình duyệt ─► Worker (giao diện Next.js + API) ──► D1 (người 
           Cron */2 phút: gửi lại job lạc, đánh dấu job treo · Cron hằng giờ: xoá dữ liệu hết hạn
 ```
 
-Vì sao bộ quét nằm trong Container? `fetch` của Workers không ghim được địa chỉ DNS, không đọc được chứng chỉ TLS, không thử được TLS cũ — đều là phần cốt lõi của chống SSRF và các luật TLS. Container chạy đúng mã Node mà 500+ test đang kiểm tra; nó **không có quyền vào DB và không giữ secret**.
+**Quét lai (mặc định, `SCAN_ENGINE=hybrid`):** Worker tự làm toàn bộ phần HTTP/HTML/cookie/DNS (bộ tải `src/lib/ssrf/worker-fetch.ts`, DNS qua DoH) — gần như miễn phí. Container **chỉ** bắt tay TLS (`POST /tls`: chứng chỉ, phiên bản TLS, TLS cũ, HTTP/2), vì Worker không đọc được các thông tin này; kết quả được đệm 12 giờ trong D1 nên thường container không cần thức dậy. Nếu Worker không tự đánh giá được trang qua HTTPS (chứng chỉ hỏng, lỗi mạng) thì chuyển sang bộ quét đầy đủ trong Container như trước (`POST /scan`). Đặt `SCAN_ENGINE=container` để quay về hoàn toàn đường cũ. Container chạy đúng mã Node mà các test đang kiểm tra; nó **không có quyền vào DB và không giữ secret**.
+
+**Đánh đổi bảo mật của đường Worker:** `fetch` của Worker không ghim được IP kết nối. Bù lại: mọi bước (kể cả mỗi lần chuyển hướng) đều kiểm tra lại scheme/cổng/tên miền nội bộ/IP literal và phân giải DoH, yêu cầu *tất cả* câu trả lời là IP công khai; hạ tầng Cloudflare không định tuyến được tới dải riêng/loopback (fetch từ chối IP literal và tên miền trỏ vào dải cấm), nên cửa sổ DNS-rebinding không có mạng nội bộ nào để chạm tới. Đường Container vẫn ghim IP như cũ.
+
+**Quét nhanh:** bỏ qua tải script/source map/trang đăng nhập (ít request hơn, ít sâu hơn); báo cáo ghi rõ là quét nhanh. Kết quả quét đầy đủ gần đây của cùng URL được dùng lại (không tốn container, không tính hạn mức).
 
 | Lớp | Đường dẫn |
 |---|---|

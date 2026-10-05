@@ -28,7 +28,8 @@ const LIMIT_MESSAGES: Record<string, string> = {
  * in D1, and enqueue the scan. The authoritative DNS check + connection pinning happens again in the scanner
  * container; this preflight just fails fast on obviously bad targets before they consume queue capacity.
  */
-export async function createScan(db: D1Like, userId: string, rawUrl: string, ipHash: string | null, resolver: Resolver): Promise<CreateScanResult> {
+export async function createScan(db: D1Like, userId: string, rawUrl: string, ipHash: string | null, resolver: Resolver, opts: { quick?: boolean } = {}): Promise<CreateScanResult> {
+  const mode = opts.quick ? "quick" : "full";
   let target;
   try {
     target = normalizeTargetUrl(rawUrl);
@@ -47,7 +48,7 @@ export async function createScan(db: D1Like, userId: string, rawUrl: string, ipH
 
   if (await repo.userBlocked(db, userId)) { /* để createScanChecked trả account_blocked */ }
   else {
-    const cachedId = await repo.cloneRecentScan(db, { userId, url: target.url, host: target.host, ipHash });
+    const cachedId = await repo.cloneRecentScan(db, { userId, url: target.url, host: target.host, ipHash, mode });
     if (cachedId) {
       await repo.recordEvent(db, { type: "scan_cached", userId, scanId: cachedId, meta: { host: target.host } });
       return { ok: true, id: cachedId, cached: true };
@@ -55,7 +56,7 @@ export async function createScan(db: D1Like, userId: string, rawUrl: string, ipH
   }
 
   const out = await repo.createScanChecked(db, {
-    userId, url: target.url, host: target.host, ipHash,
+    mode, userId, url: target.url, host: target.host, ipHash,
     limits: { maxConcurrent: env.limits.maxConcurrentPerUser, hourly: env.limits.hourlyLimit, daily: env.limits.dailyQuota, monthly: env.limits.monthlyQuota, globalDaily: env.limits.globalDailyCap, ipHourly: env.limits.ipHourlyLimit, hostHourly: env.limits.hostHourlyLimit },
   });
   if (!out.ok) {

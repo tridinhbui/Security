@@ -9,7 +9,7 @@ import { createScan } from "@/lib/jobs/create-scan";
 import { log } from "@/lib/log";
 import { createDohResolver } from "@/lib/ssrf/doh";
 
-const Body = z.object({ url: z.string().min(1).max(2048) });
+const Body = z.object({ url: z.string().min(1).max(2048), quick: z.boolean().optional() });
 
 /** Create a scan and enqueue it. Returns immediately with the scan id; the queue consumer + container do the rest. */
 export async function POST(req: NextRequest) {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   const { DB, SCAN_QUEUE } = await bindings();
   const ip = clientIp(req);
-  const result = await createScan(DB, user.id, parsed.data.url, ip ? await hashIp(ip) : null, createDohResolver());
+  const result = await createScan(DB, user.id, parsed.data.url, ip ? await hashIp(ip) : null, createDohResolver(), { quick: parsed.data.quick });
   if (!result.ok) return json({ error: result.code, message: result.message }, result.status, result.retryAfter ? { "Retry-After": "3600" } : undefined);
 
   if (result.cached) return NextResponse.json({ id: result.id, cached: true }, { status: 201, headers: { "Cache-Control": "no-store" } });

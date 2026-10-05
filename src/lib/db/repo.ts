@@ -101,6 +101,7 @@ export function rowToScan(r: Record<string, unknown>): ScanRow {
   };
 }
 
+export type ScanMode = "full" | "quick";
 export interface ScanLimits { maxConcurrent: number; hourly: number; daily: number; monthly: number; globalDaily: number; ipHourly: number; hostHourly: number }
 export type CreateScanOutcome = { ok: true; id: string } | { ok: false; code: "account_blocked" | "too_many_concurrent" | "hourly_limit" | "daily_quota" | "monthly_quota" | "global_cap" | "ip_limit" | "host_limit"; retryAfter?: string };
 
@@ -111,14 +112,14 @@ const HOUR = 3_600_000, DAY = 86_400_000, MONTH = 30 * DAY;
  * writes, so concurrent requests cannot slip past a limit (the TOCTOU a read-then-insert would have).
  * When the insert is refused we run read-only diagnostics to tell the caller which limit was hit.
  */
-export async function createScanChecked(db: D1Like, a: { userId: string; url: string; host: string; ipHash: string | null; limits: ScanLimits }): Promise<CreateScanOutcome> {
+export async function createScanChecked(db: D1Like, a: { userId: string; url: string; host: string; ipHash: string | null; limits: ScanLimits; mode?: ScanMode }): Promise<CreateScanOutcome> {
   const id = newId();
   const now = nowIso();
   const hourAgo = isoAgo(HOUR), dayAgo = isoAgo(DAY), monthAgo = isoAgo(MONTH);
   const L = a.limits;
   const res = await db.prepare(`
-    INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,created_at)
-    SELECT ?,?,?,?,?,?, 'queued', ?
+    INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,created_at,mode)
+    SELECT ?,?,?,?,?,?, 'queued', ?, ?
     WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = ? AND blocked_until IS NOT NULL AND blocked_until > ?)
       AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND user_id = ? AND status NOT IN ('completed','failed')) < ?
       AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND user_id = ? AND created_at > ?) < ?
@@ -127,7 +128,7 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
       AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND created_at > ?) < ?
       AND (? IS NULL OR (SELECT COUNT(*) FROM scans WHERE cached = 0 AND ip_hash = ? AND created_at > ?) < ?)
       AND (SELECT COUNT(*) FROM scans WHERE cached = 0 AND host = ? AND created_at > ?) < ?`)
-    .bind(id, a.userId, a.url, a.url, a.host, a.ipHash, now,
+    .bind(id, a.userId, a.url, a.url, a.host, a.ipHash, now, a.mode ?? "full",
       a.userId, now,
       a.userId, L.maxConcurrent,
       a.userId, hourAgo, L.hourly,
@@ -237,6 +238,7 @@ export async function purgeExpired(db: D1Like): Promise<{ scans: number; session
     db.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now),
     db.prepare("DELETE FROM scan_events WHERE created_at < ?").bind(isoAgo(180 * DAY)),
     db.prepare("DELETE FROM auth_attempts WHERE at < ?").bind(isoAgo(DAY)),
+    db.prepare("DELETE FROM tls_cache WHERE fetched_at < ?").bind(isoAgo(2 * DAY)),
   ]);
   return { scans: s!.meta.changes ?? 0, sessions: se!.meta.changes ?? 0, events: ev!.meta.changes ?? 0, attempts: at!.meta.changes ?? 0 };
 }
@@ -412,10 +414,10 @@ export const CACHE_TTL_OTHERS_MS = 6 * HOUR, CACHE_TTL_OWN_MS = 15 * 60_000, CAC
  * Của người khác: ≤ 6 giờ. Của chính mình: chỉ ≤ 15 phút (để quét lại sau khi sửa lỗi luôn là quét thật).
  * Bản sao thuộc về người gọi, tuân thủ thời hạn lưu trữ của họ và KHÔNG tính vào hạn mức.
  */
-export async function cloneRecentScan(db: D1Like, a: { userId: string; url: string; host: string; ipHash: string | null }): Promise<string | null> {
-  const src = await db.prepare(`SELECT id FROM scans WHERE normalized_url = ? AND status = 'completed' AND cached = 0 AND (
+export async function cloneRecentScan(db: D1Like, a: { userId: string; url: string; host: string; ipHash: string | null; mode?: ScanMode }): Promise<string | null> {
+  const src = await db.prepare(`SELECT id FROM scans WHERE normalized_url = ? AND status = 'completed' AND cached = 0 AND (mode = 'full' OR ? = 'quick') AND (
       (user_id <> ? AND completed_at > ?) OR (user_id = ? AND completed_at > ?)) ORDER BY completed_at DESC LIMIT 1`)
-    .bind(a.url, a.userId, isoAgo(CACHE_TTL_OTHERS_MS), a.userId, isoAgo(CACHE_TTL_OWN_MS)).first<{ id: string }>();
+    .bind(a.url, a.mode ?? "full", a.userId, isoAgo(CACHE_TTL_OTHERS_MS), a.userId, isoAgo(CACHE_TTL_OWN_MS)).first<{ id: string }>();
   if (!src) return null;
   const recent = (await db.prepare("SELECT COUNT(*) c FROM scans WHERE user_id = ? AND cached = 1 AND created_at > ?").bind(a.userId, isoAgo(HOUR)).first<{ c: number }>())?.c ?? 0;
   if (recent >= CACHE_CLONES_PER_HOUR) return null; // quá nhiều → rơi về luồng quét thật (có hạn mức)
@@ -424,8 +426,8 @@ export async function cloneRecentScan(db: D1Like, a: { userId: string; url: stri
   const expires = new Date(Date.now() + (u?.retention_days ?? 30) * DAY).toISOString();
   const rid = "lower(hex(randomblob(16)))";
   await db.batch([
-    db.prepare(`INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,score,grade,category_scores,severity_counts,platforms,request_count,cached,created_at,started_at,completed_at,expires_at)
-      SELECT ?,?,normalized_url,normalized_url,host,?,'completed',score,grade,category_scores,severity_counts,platforms,0,1,?,?,?,? FROM scans WHERE id = ?`)
+    db.prepare(`INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,score,grade,category_scores,severity_counts,platforms,request_count,cached,created_at,started_at,completed_at,expires_at,mode)
+      SELECT ?,?,normalized_url,normalized_url,host,?,'completed',score,grade,category_scores,severity_counts,platforms,0,1,?,?,?,?,mode FROM scans WHERE id = ?`)
       .bind(id, a.userId, a.ipHash, now, now, now, expires, src.id),
     db.prepare(`INSERT INTO findings (id,scan_id,rule_id,fingerprint,title,category,severity,confidence,status,evidence,explanation,summary,technical,remediation,affected_url,refs)
       SELECT ${rid},?,rule_id,fingerprint,title,category,severity,confidence,status,evidence,explanation,summary,technical,remediation,affected_url,refs FROM findings WHERE scan_id = ?`).bind(id, src.id),
@@ -438,3 +440,13 @@ export const userBlocked = async (db: D1Like, userId: string) => {
   const u = await getUserById(db, userId);
   return !!(u?.blocked_until && u.blocked_until > nowIso());
 };
+
+// ------------------------------------------------------------------ bộ nhớ đệm TLS (tránh đánh thức container)
+
+export const TLS_CACHE_TTL_MS = 12 * HOUR;
+export async function getTlsCache<T>(db: D1Like, host: string): Promise<T | null> {
+  const r = await db.prepare("SELECT data FROM tls_cache WHERE host = ? AND fetched_at > ?").bind(host, isoAgo(TLS_CACHE_TTL_MS)).first<{ data: string }>();
+  return r ? parseJson<T | null>(r.data, null) : null;
+}
+export const putTlsCache = (db: D1Like, host: string, data: unknown) =>
+  db.prepare("INSERT INTO tls_cache (host,data,fetched_at) VALUES (?,?,?) ON CONFLICT(host) DO UPDATE SET data=excluded.data, fetched_at=excluded.fetched_at").bind(host, JSON.stringify(data), nowIso()).run();

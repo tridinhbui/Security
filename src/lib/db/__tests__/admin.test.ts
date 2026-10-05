@@ -89,4 +89,28 @@ describe("cloneRecentScan — dùng lại kết quả", () => {
   it("không có kết quả gần đây → null", async () => {
     expect(await repo.cloneRecentScan(db, { userId: u2, url: "https://none.com/", host: "none.com", ipHash: null })).toBeNull();
   });
+  it("quét nhanh có thể dùng lại kết quả đầy đủ, nhưng quét đầy đủ không dùng lại kết quả nhanh", async () => {
+    const r = await repo.createScanChecked(db, { userId: u1, url: "https://q.com/", host: "q.com", ipHash: null, limits: L, mode: "quick" });
+    if (!r.ok) throw new Error("x");
+    db.sqlite.prepare("UPDATE scans SET status='completed', score=70, grade='C', completed_at=? WHERE id=?").run(new Date().toISOString(), r.id);
+    expect(db.sqlite.prepare("SELECT mode FROM scans WHERE id=?").get(r.id)).toMatchObject({ mode: "quick" });
+    expect(await repo.cloneRecentScan(db, { userId: u2, url: "https://q.com/", host: "q.com", ipHash: null, mode: "full" })).toBeNull();
+    const id = await repo.cloneRecentScan(db, { userId: u2, url: "https://q.com/", host: "q.com", ipHash: null, mode: "quick" });
+    expect(db.sqlite.prepare("SELECT mode FROM scans WHERE id=?").get(id!)).toMatchObject({ mode: "quick" });
+    const full = await completed(u1, "https://f.com/");
+    const q = await repo.cloneRecentScan(db, { userId: u2, url: "https://f.com/", host: "f.com", ipHash: null, mode: "quick" });
+    expect(q).toBeTruthy();
+    expect(full).toBeTruthy();
+  });
+});
+
+describe("tls cache", () => {
+  it("lưu, đọc trong TTL, và hết hạn", async () => {
+    await repo.putTlsCache(db, "a.com", { ok: true, n: 1 });
+    expect(await repo.getTlsCache(db, "a.com")).toEqual({ ok: true, n: 1 });
+    await repo.putTlsCache(db, "a.com", { ok: true, n: 2 });
+    expect(await repo.getTlsCache(db, "a.com")).toEqual({ ok: true, n: 2 });
+    db.sqlite.prepare("UPDATE tls_cache SET fetched_at=?").run(new Date(Date.now() - 13 * 3_600_000).toISOString());
+    expect(await repo.getTlsCache(db, "a.com")).toBeNull();
+  });
 });

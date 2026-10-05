@@ -25,7 +25,7 @@ export interface ScanReport {
   platforms: Platform[];
   technologies: string[];
   targets: RedactedTarget[];
-  stats: { requests: number; hitLimit: string | null; rulesRun: number; ruleErrors: string[] };
+  stats: { requests: number; hitLimit: string | null; rulesRun: number; ruleErrors: string[]; quick?: boolean };
   disclaimer: string;
 }
 

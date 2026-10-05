@@ -23,6 +23,8 @@
 	},
 	"vars": {
 		"NEXT_PUBLIC_SITE_URL": "https://security.tridinhbui0901.workers.dev",
+		// "hybrid": Worker làm phần HTTP, container chỉ làm TLS (rẻ). Đặt "container" để quay về quét toàn bộ trong container.
+		"SCAN_ENGINE": "hybrid",
 		// Hạn mức quét MỖI NGƯỜI DÙNG (kiểm soát chi phí Container). Cửa sổ trượt; chỉnh ở đây rồi deploy lại.
 		"SCAN_MAX_CONCURRENT_PER_USER": "1",
 		"SCAN_HOURLY_LIMIT": "2",

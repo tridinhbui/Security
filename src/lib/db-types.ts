@@ -21,6 +21,7 @@ export interface ScanRow {
   input_url: string;
   normalized_url: string;
   host: string;
+  mode: "full" | "quick";
   status: ScanStatus;
   error_code: string | null;
   error_message: string | null;

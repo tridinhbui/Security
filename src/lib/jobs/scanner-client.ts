@@ -8,7 +8,7 @@ export class ScannerUnavailableError extends Error {
 
 export interface ScannerClient {
   /** Runs one scan. Throws ScanRefusedError for policy refusals, ScannerUnavailableError for infrastructure faults. */
-  scan(url: string, onStage: (stage: string) => Promise<void>): Promise<ScanReport>;
+  scan(url: string, onStage: (stage: string) => Promise<void>, opts?: { quick?: boolean }): Promise<ScanReport>;
 }
 
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -21,10 +21,10 @@ type Line = { t: "stage"; stage: string } | { t: "report"; report: ScanReport } 
  */
 export function createNdjsonScanner(send: (req: Request) => Promise<Response>): ScannerClient {
   return {
-    async scan(url, onStage) {
+    async scan(url, onStage, opts) {
       let res: Response;
       try {
-        res = await send(new Request("http://scanner/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) }));
+        res = await send(new Request("http://scanner/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url, quick: opts?.quick === true }) }));
       } catch (e) {
         throw new ScannerUnavailableError(`scanner request failed: ${(e as Error).name}`);
       }
@@ -60,4 +60,19 @@ export function createNdjsonScanner(send: (req: Request) => Promise<Response>): 
       return report;
     },
   };
+}
+
+/** Kết quả kiểm tra TLS của container (JSON). */
+export type TlsReply = import("../scanner/tls-inspect").TlsInspectResult | { ok: false; refused: { code: string; message: string; detail?: string } };
+
+/** POST /tls tới container: chỉ bắt tay TLS (vài giây). */
+export async function requestTls(send: (req: Request) => Promise<Response>, host: string): Promise<TlsReply> {
+  let res: Response;
+  try {
+    res = await send(new Request("http://scanner/tls", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ host }) }));
+  } catch (e) {
+    throw new ScannerUnavailableError(`scanner request failed: ${(e as Error).name}`);
+  }
+  if (!res.ok) throw new ScannerUnavailableError(`scanner returned ${res.status}`);
+  try { return (await res.json()) as TlsReply; } catch { throw new ScannerUnavailableError("malformed scanner output"); }
 }

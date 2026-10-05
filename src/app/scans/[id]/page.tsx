@@ -50,6 +50,9 @@ export default async function ScanPage({ params, searchParams }: { params: Promi
 
   return (
     <>
+      {scan.mode === "quick" && (
+        <div className="container-x pt-6"><p className="panel-soft flex items-start gap-2 p-3 text-sm text-muted"><span className="chip-info shrink-0">quét nhanh</span>Lượt quét này bỏ qua việc tải file JavaScript, nên các kiểm tra về bí mật trong mã, source map và thư viện lỗi thời chỉ dựa trên phần HTML. Hãy quét đầy đủ để kiểm tra sâu hơn.</p></div>
+      )}
       <Report data={data} actions={<ReportActions scanId={id} url={scan.input_url} />} />
       {earlier.length > 1 && (
         <div className="container-x -mt-4 pb-10 text-sm text-muted">

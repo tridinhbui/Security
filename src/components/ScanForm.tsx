@@ -23,6 +23,7 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
   const router = useRouter();
   const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
+  const [quick, setQuick] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const started = useRef(false);
 
@@ -35,7 +36,7 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/scans", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: value.trim() }) });
+      const res = await fetch("/api/scans", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: value.trim(), quick }) });
       const body = await res.json().catch(() => ({}));
       if (res.status === 401) return router.push(`/login?next=/dashboard`);
       if (!res.ok) {
@@ -77,6 +78,12 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
           {busy ? <><span className="live-dot !bg-white" aria-hidden />Đang bắt đầu…</> : <>{label}<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></>}
         </button>
       </div>
+      {authed && (
+        <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-muted">
+          <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} disabled={busy} className="mt-0.5 size-4 accent-[var(--color-accent)]" />
+          <span><span className="font-medium text-fg">Quét nhanh</span> — bỏ qua việc tải và phân tích file JavaScript (nhẹ hơn, ít sâu hơn). Bỏ chọn để quét đầy đủ.</span>
+        </label>
+      )}
       {error && <p id="scan-error" role="alert" className="pop mt-3 flex items-start gap-2 text-sm text-crit"><svg viewBox="0 0 24 24" className="mt-0.5 size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.01" /></svg>{error}</p>}
     </form>
   );

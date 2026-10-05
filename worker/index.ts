@@ -9,7 +9,9 @@ import openNext from "../.open-next/worker.js";
 import { Container, ContainerProxy, getRandom } from "@cloudflare/containers";
 import * as repo from "../src/lib/db/repo";
 import { processScanJob } from "../src/lib/jobs/run-scan-job";
+import { createHybridScanner } from "../src/lib/jobs/hybrid-scanner";
 import { createNdjsonScanner } from "../src/lib/jobs/scanner-client";
+import { createDohResolver } from "../src/lib/ssrf/doh";
 import { log } from "../src/lib/log";
 import type { D1Like } from "../src/lib/db/d1";
 
@@ -21,6 +23,9 @@ interface Env {
   SCANNER: DurableObjectNamespace<ScannerContainer>;
   /** DEV ONLY (.dev.vars): send scans to a locally running `npm run scanner` instead of the Container. Never set in production. */
   LOCAL_SCANNER_URL?: string;
+  NEXT_PUBLIC_SITE_URL?: string;
+  /** "hybrid" (mặc định): Worker làm phần HTTP, container chỉ làm TLS. "container": quay về quét toàn bộ trong container (công tắc dự phòng). */
+  SCAN_ENGINE?: string;
 }
 
 // 1 container xử lý song song 3 lượt (SCAN_CONCURRENCY): đánh thức nhiều container chỉ làm tăng chi phí RAM.
@@ -34,7 +39,7 @@ const DENIED = [
 
 export class ScannerContainer extends Container {
   defaultPort = 8080;
-  sleepAfter = "30s"; // RAM tính tiền cả lúc chờ: ngủ sớm để tiết kiệm
+  sleepAfter = "10s"; // RAM tính tiền cả lúc chờ: ngủ sớm để tiết kiệm (quét lai chỉ cần vài giây)
   pingEndpoint = "localhost/ready";
   envVars = { NODE_ENV: "production", SCAN_CONCURRENCY: "3" };
   // Internet is required to scan public sites. deniedHosts is enforced for HTTP:80 (and for 443 only with
@@ -49,10 +54,14 @@ export default {
   async queue(batch, env): Promise<void> {
     for (const msg of batch.messages) {
       try {
+        // Container chỉ được đánh thức khi thật sự gọi `send` (lười): quét lai thường chỉ cần /tls, và thường còn trúng đệm.
         const send = env.LOCAL_SCANNER_URL
           ? (req: Request) => fetch(new URL(new URL(req.url).pathname, env.LOCAL_SCANNER_URL), { method: req.method, headers: req.headers, body: req.body })
-          : await getRandom(env.SCANNER, SCANNER_POOL_SIZE).then((stub) => (req: Request) => stub.fetch(req));
-        const scanner = createNdjsonScanner(send);
+          : async (req: Request) => (await getRandom(env.SCANNER, SCANNER_POOL_SIZE)).fetch(req);
+        const selfHost = env.NEXT_PUBLIC_SITE_URL ? new URL(env.NEXT_PUBLIC_SITE_URL).hostname : null;
+        const scanner = env.SCAN_ENGINE === "container"
+          ? createNdjsonScanner(send)
+          : createHybridScanner({ db: env.DB, resolver: createDohResolver(), container: send, denyHosts: selfHost ? [selfHost] : [] });
         const outcome = await processScanJob(env.DB, msg.body.scanId, scanner);
         if (outcome === "retry") msg.retry({ delaySeconds: 15 * msg.attempts });
         else msg.ack();

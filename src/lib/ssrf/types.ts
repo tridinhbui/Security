@@ -48,3 +48,17 @@ export interface FetchRecord {
   /** Set if the request (or a redirect hop) failed or was refused. */
   error?: { code: string; message: string; blocked?: boolean; detail?: string };
 }
+
+export interface FetchOptions {
+  method?: "GET" | "HEAD";
+  headers?: Record<string, string>;
+  maxBytes?: number;
+  timeoutMs?: number;
+  maxRedirects?: number;
+  followRedirects?: boolean;
+  /** Retry once without certificate verification if the cert is invalid, so headers can still be audited. */
+  tolerateBadCert?: boolean;
+}
+
+/** Hàm tải an toàn: có hai bản cài đặt (Node + ghim IP trong container; fetch của Worker + kiểm tra DNS-over-HTTPS). */
+export type SafeFetch = (rawUrl: string, opts?: FetchOptions) => Promise<FetchRecord>;

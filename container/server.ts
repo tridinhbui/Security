@@ -8,6 +8,8 @@
 import http from "node:http";
 import { runScan } from "../src/lib/scanner/engine";
 import { ScanRefusedError } from "../src/lib/scanner/report";
+import { inspectTls } from "../src/lib/scanner/tls-inspect";
+import { SsrfError } from "../src/lib/ssrf/url";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const MAX_CONCURRENT = Number(process.env.SCAN_CONCURRENCY ?? 3);
@@ -16,9 +18,10 @@ let active = 0;
 
 const log = (event: string, f: Record<string, string | number | boolean> = {}) => console.log(JSON.stringify({ t: new Date().toISOString(), level: "info", event, ...f }));
 
-export function createServer(scan: typeof runScan = runScan) {
+export function createServer(scan: typeof runScan = runScan, inspect: typeof inspectTls = inspectTls) {
   return http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/ready") return void res.writeHead(200).end("ok");
+    if (req.method === "POST" && req.url === "/tls") return void handleTls(req, res, inspect);
     if (req.method !== "POST" || req.url !== "/scan") return void res.writeHead(404).end();
 
     if (active >= MAX_CONCURRENT) return void res.writeHead(429, { "retry-after": "5" }).end();
@@ -28,8 +31,8 @@ export function createServer(scan: typeof runScan = runScan) {
       body += chunk;
       if (body.length > 4096) return void res.writeHead(413).end();
     }
-    let url: unknown;
-    try { url = (JSON.parse(body) as { url?: unknown }).url; } catch { /* handled below */ }
+    let url: unknown, quick = false;
+    try { const j = JSON.parse(body) as { url?: unknown; quick?: unknown }; url = j.url; quick = j.quick === true; } catch { /* handled below */ }
     if (typeof url !== "string" || url.length === 0 || url.length > 2048) return void res.writeHead(400).end();
 
     active++;
@@ -38,7 +41,7 @@ export function createServer(scan: typeof runScan = runScan) {
     const killer = setTimeout(() => { send({ t: "error", message: "scan exceeded hard timeout" }); res.end(); }, HARD_TIMEOUT_MS);
     const started = Date.now();
     try {
-      const report = await scan(url, { onStage: (stage) => void send({ t: "stage", stage }) });
+      const report = await scan(url, { quick, onStage: (stage) => void send({ t: "stage", stage }) });
       send({ t: "report", report });
       log("scan_done", { ms: Date.now() - started, requests: report.stats.requests });
     } catch (e) {
@@ -55,6 +58,31 @@ export function createServer(scan: typeof runScan = runScan) {
       res.end();
     }
   });
+}
+
+/** POST /tls {"host": "..."} → JSON. Chỉ bắt tay TLS (vài giây): phần duy nhất mà Worker không tự làm được. */
+async function handleTls(req: http.IncomingMessage, res: http.ServerResponse, inspect: typeof inspectTls) {
+  if (active >= MAX_CONCURRENT) return void res.writeHead(429, { "retry-after": "5" }).end();
+  let body = "";
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > 1024) return void res.writeHead(413).end();
+  }
+  let host: unknown;
+  try { host = (JSON.parse(body) as { host?: unknown }).host; } catch { /* handled below */ }
+  if (typeof host !== "string" || host.length === 0 || host.length > 255) return void res.writeHead(400).end();
+  active++;
+  const started = Date.now();
+  const reply = (o: unknown) => { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }).end(JSON.stringify(o)); };
+  try {
+    reply(await inspect(host));
+    log("tls_done", { ms: Date.now() - started });
+  } catch (e) {
+    if (e instanceof SsrfError) { reply({ ok: false, refused: { code: e.code, message: e.message, detail: e.detail } }); log("tls_refused", { code: e.code }); }
+    else { res.writeHead(500).end(); log("tls_error", { name: (e as Error).name }); }
+  } finally {
+    active--;
+  }
 }
 
 if (process.env.VIBESEC_NO_LISTEN !== "1") {
