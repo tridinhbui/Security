@@ -233,4 +233,29 @@ const brokenHeaders: Rule = {
   },
 };
 
-export const headerRules: Rule[] = [csp, frameProtection, xcto, brokenHeaders, crossOrigin, charset];
+/** Header đã bị loại bỏ khỏi chuẩn (OWASP Secure Headers Project / Mozilla Web Security Guidelines). */
+const DEPRECATED: { name: string; sev: Severity; title: string; why: string }[] = [
+  { name: "public-key-pins", sev: "medium", title: "Còn dùng HPKP (Public-Key-Pins) đã bị gỡ bỏ", why: "HPKP có thể khiến chính bạn bị khoá khỏi website vĩnh viễn nếu làm sai khoá, và mọi trình duyệt lớn đã gỡ hỗ trợ. Hãy bỏ nó và dùng Certificate Transparency." },
+  { name: "public-key-pins-report-only", sev: "low", title: "Còn dùng Public-Key-Pins-Report-Only đã bị gỡ bỏ", why: "Header này không còn tác dụng ở trình duyệt hiện đại." },
+  { name: "expect-ct", sev: "info", title: "Expect-CT đã lỗi thời", why: "Certificate Transparency nay được trình duyệt bắt buộc mặc định nên Expect-CT không còn tác dụng." },
+  { name: "feature-policy", sev: "info", title: "Feature-Policy đã được thay bằng Permissions-Policy", why: "Trình duyệt hiện đại chỉ đọc Permissions-Policy." },
+];
+const deprecatedHeaders: Rule = {
+  id: "headers.deprecated",
+  title: "Không còn dùng header đã bị loại bỏ",
+  category: CAT,
+  run(obs: Observations): Finding[] {
+    const p = livePage(obs);
+    if (!p) return [];
+    const found = DEPRECATED.filter((d) => header(p.headers, d.name) !== undefined);
+    if (found.length === 0) return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: p.finalUrl, summary: "Không phát hiện header đã bị loại bỏ khỏi chuẩn.", explanation: "Website không gửi HPKP, Expect-CT hay Feature-Policy.", evidence: [] })];
+    return found.map((d) => makeFinding({
+      ruleId: this.id, key: d.name, title: d.title, category: CAT, severity: d.sev, confidence: "high", status: d.sev === "info" ? "info" : "fail", affectedUrl: p.finalUrl,
+      summary: d.why, explanation: "Header lỗi thời không bảo vệ gì thêm nhưng có thể gây hiểu lầm rằng bạn đã được bảo vệ, hoặc (với HPKP) gây rủi ro vận hành.",
+      evidence: [headerEvidence(p.headers, d.name)], remediation: null,
+      references: [OWASP("HTTP_Headers_Cheat_Sheet.html", "OWASP HTTP Headers"), MDN("Web/HTTP/Reference/Headers", "MDN: HTTP headers")],
+    }));
+  },
+};
+
+export const headerRules: Rule[] = [csp, frameProtection, xcto, brokenHeaders, crossOrigin, charset, deprecatedHeaders];

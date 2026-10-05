@@ -44,3 +44,10 @@ export function relativeTime(iso: string): string {
   if (s < 86400) return `${Math.floor(s / 3600)} giờ trước`;
   return `${Math.floor(s / 86400)} ngày trước`;
 }
+
+/** Thời lượng dạng "2 giờ 05 phút" / "7 phút" / "<1 phút". */
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return seconds === 0 ? "0 phút" : "<1 phút";
+  const m = Math.floor(seconds / 60), h = Math.floor(m / 60);
+  return h > 0 ? `${h} giờ ${String(m % 60).padStart(2, "0")} phút` : `${m} phút`;
+}

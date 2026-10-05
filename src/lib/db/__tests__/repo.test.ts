@@ -6,7 +6,7 @@ import { createTestD1, seedUser } from "./test-d1";
 
 let db: ReturnType<typeof createTestD1>;
 let u1: string, u2: string;
-const LIM = { maxConcurrent: 2, hourly: 8, daily: 20, ipHourly: 15, hostHourly: 4 };
+const LIM = { maxConcurrent: 2, hourly: 8, daily: 20, monthly: 60, ipHourly: 15, hostHourly: 4 };
 const create = (userId: string, host: string, over: Partial<typeof LIM> = {}, ip: string | null = "ip1") =>
   repo.createScanChecked(db, { userId, url: `https://${host}/`, host, ipHash: ip, limits: { ...LIM, ...over } });
 const finishAll = () => db.sqlite.exec("UPDATE scans SET status='completed', completed_at=created_at");
@@ -29,6 +29,12 @@ describe("createScanChecked — atomic limits", () => {
     finishAll();
     expect(await create(u1, "z.com", { hourly: 6, maxConcurrent: 99 })).toMatchObject({ code: "hourly_limit" });
     expect(await create(u1, "z.com", { hourly: 99, daily: 6, maxConcurrent: 99 })).toMatchObject({ code: "daily_quota" });
+  });
+  it("monthly limit uses a rolling 30-day window", async () => {
+    for (const h of ["a", "b", "c"]) await create(u1, `${h}.com`, { maxConcurrent: 99 });
+    finishAll();
+    expect(await create(u1, "z.com", { monthly: 3, maxConcurrent: 99 })).toMatchObject({ code: "monthly_quota" });
+    expect(await create(u2, "z.com", { monthly: 3, maxConcurrent: 99 })).toMatchObject({ ok: true });
   });
   it("per-IP limit applies across accounts", async () => {
     for (const h of ["a", "b", "c"]) { await create(u1, `${h}.com`, { maxConcurrent: 99 }, "shared-ip"); }

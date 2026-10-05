@@ -3,6 +3,7 @@
  * logic phát hiện không phụ thuộc file này, và luật chưa có ở đây sẽ dùng chính tiêu đề của nó.
  */
 export const PLAIN_TITLES: Record<string, string> = {
+  "headers.deprecated": "Website có còn dùng cấu hình bảo mật đã lỗi thời không?",
   "tls.https-available": "Website có “ổ khoá” HTTPS hoạt động không?",
   "tls.certificate-expiry": "Chứng chỉ ổ khoá có sắp hết hạn không?",
   "tls.certificate-strength": "Khoá mã hoá của chứng chỉ có đủ mạnh không?",

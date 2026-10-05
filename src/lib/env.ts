@@ -16,6 +16,8 @@ const int = (name: string, fallback: number) => {
 export const env = {
   get dataKey() { return required("DATA_ENCRYPTION_KEY"); },
   get ipHashSecret() { return required("IP_HASH_SECRET"); },
+  /** Danh sách email quản trị (phân tách bằng dấu phẩy). Chỉ có hiệu lực khi tài khoản đã liên kết Google (email đã được Google xác minh). */
+  get adminEmails(): string[] { return (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean); },
   get cronSecret() { return required("CRON_SECRET"); },
   get siteUrl() { return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"; },
   /** Optional Cloudflare Turnstile on signup/login. Enabled when both keys are set. */
@@ -26,9 +28,10 @@ export const env = {
   get googleEnabled() { return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET); },
   get isProd() { return process.env.NODE_ENV === "production"; },
   limits: {
-    get dailyQuota() { return int("SCAN_DAILY_QUOTA", 20); },
-    get hourlyLimit() { return int("SCAN_HOURLY_LIMIT", 8); },
-    get maxConcurrentPerUser() { return int("SCAN_MAX_CONCURRENT_PER_USER", 2); },
+    get dailyQuota() { return int("SCAN_DAILY_QUOTA", 5); },
+    get monthlyQuota() { return int("SCAN_MONTHLY_QUOTA", 60); },
+    get hourlyLimit() { return int("SCAN_HOURLY_LIMIT", 3); },
+    get maxConcurrentPerUser() { return int("SCAN_MAX_CONCURRENT_PER_USER", 1); },
     get ipHourlyLimit() { return int("SCAN_IP_HOURLY_LIMIT", 15); },
     get hostHourlyLimit() { return int("SCAN_HOST_HOURLY_LIMIT", 4); },
     get ssrfStrikeThreshold() { return int("ABUSE_SSRF_STRIKES", 5); },

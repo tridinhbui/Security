@@ -22,7 +22,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const db = await getDb();
 
   const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
-  const [recent, used] = await Promise.all([repo.listScans(db, user.id, 50), repo.countScansSince(db, user.id, dayAgo)]);
+  const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const [recent, used, usedMonth] = await Promise.all([repo.listScans(db, user.id, 50), repo.countScansSince(db, user.id, dayAgo), repo.countScansSince(db, user.id, monthAgo)]);
+  const monthQuota = env.limits.monthlyQuota;
   const quota = env.limits.dailyQuota;
   const completed = recent.filter((s) => s.status === "completed" && s.score !== null);
 
@@ -55,6 +57,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <h2 className="eyebrow">lượt quét (24 giờ)</h2>
             <p className="mt-3 text-4xl font-semibold"><AnimatedNumber value={used} /><span className="mono text-base font-normal text-faint"> / {quota}</span></p>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={used} aria-valuemax={quota} aria-label="Hạn mức quét mỗi ngày"><div className={`h-full rounded-full transition-[width] duration-1000 ${pct > 85 ? "bg-high" : "bg-accent"}`} style={{ width: `${pct}%` }} /></div>
+            <p className="mono mt-3 text-xs text-faint">30 ngày: {usedMonth} / {monthQuota}</p>
           </div>
           <div className="panel reveal p-5 md:col-span-2" style={{ ["--i" as string]: 2 }}>
             <h2 className="eyebrow">xu hướng điểm{trendUrl ? <span className="normal-case tracking-normal"> · {new URL(trendUrl).host}</span> : null}</h2>

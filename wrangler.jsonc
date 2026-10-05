@@ -23,6 +23,11 @@
 	},
 	"vars": {
 		"NEXT_PUBLIC_SITE_URL": "https://security.tridinhbui0901.workers.dev",
+		// Hạn mức quét MỖI NGƯỜI DÙNG (kiểm soát chi phí Container). Cửa sổ trượt; chỉnh ở đây rồi deploy lại.
+		"SCAN_MAX_CONCURRENT_PER_USER": "1",
+		"SCAN_HOURLY_LIMIT": "3",
+		"SCAN_DAILY_QUOTA": "5",
+		"SCAN_MONTHLY_QUOTA": "60",
 		// Client ID của Google là công khai (hiện trong URL đăng nhập). Client SECRET KHÔNG đặt ở đây: dùng `wrangler secret put GOOGLE_CLIENT_SECRET`.
 		"GOOGLE_CLIENT_ID": "379967826823-2s5a3v3tnrea6cdsauvkoa9u7q4703m2.apps.googleusercontent.com"
 	},

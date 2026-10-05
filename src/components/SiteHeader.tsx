@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getAdmin } from "@/lib/auth/admin";
 import { getUser } from "@/lib/auth/next";
 import { UserMenu } from "./UserMenu";
 
@@ -15,6 +16,7 @@ export function Logo({ className = "" }: { className?: string }) {
 
 export async function SiteHeader() {
   const user = await getUser();
+  const isAdmin = user ? !!(await getAdmin()) : false;
   const links = [{ href: "/demo", label: "Bản demo" }, { href: "/phuong-phap", label: "Phương pháp" }];
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/80 backdrop-blur-md supports-[backdrop-filter]:bg-white/70">
@@ -24,6 +26,8 @@ export async function SiteHeader() {
           <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 text-sm sm:flex">
             {links.map((l) => <Link key={l.href} href={l.href} className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">{l.label}</Link>)}
             {user && <Link href="/dashboard" className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">Bảng điều khiển</Link>}
+            {user && <Link href="/ho-tro" className="rounded-md px-3 py-1.5 text-muted transition-colors hover:bg-surface hover:text-fg">Hỗ trợ</Link>}
+            {isAdmin && <Link href="/admin" className="rounded-md px-3 py-1.5 font-medium text-accent transition-colors hover:bg-accent-soft">Quản trị</Link>}
           </nav>
         </div>
         <div className="flex items-center gap-2">
@@ -41,6 +45,8 @@ export async function SiteHeader() {
             <div className="absolute right-0 mt-2 w-52 rounded-xl border border-line bg-white p-1.5 shadow-pop">
               {links.map((l) => <Link key={l.href} href={l.href} className="block rounded-lg px-3 py-2 text-sm hover:bg-surface">{l.label}</Link>)}
               {user ? <Link href="/dashboard" className="block rounded-lg px-3 py-2 text-sm hover:bg-surface">Bảng điều khiển</Link> : <Link href="/login" className="block rounded-lg px-3 py-2 text-sm hover:bg-surface">Đăng nhập</Link>}
+              {user && <Link href="/ho-tro" className="block rounded-lg px-3 py-2 text-sm hover:bg-surface">Hỗ trợ</Link>}
+              {isAdmin && <Link href="/admin" className="block rounded-lg px-3 py-2 text-sm font-medium text-accent hover:bg-accent-soft">Quản trị</Link>}
             </div>
           </details>
         </div>

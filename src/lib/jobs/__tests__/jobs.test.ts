@@ -40,7 +40,7 @@ const realScanner: ScannerClient = {
   scan: (url, onStage) => runScan(url, { resolver: nx, testRoutes: { "site.example.org": { port } }, onStage, collectOverrides: { lookupDns: async () => ({ domain: "example.org", caa: [], spf: null, dmarc: null }) } }),
 };
 async function enqueue(url: string) {
-  const r = await repo.createScanChecked(db, { userId: user, url, host: new URL(url).hostname, ipHash: null, limits: { maxConcurrent: 99, hourly: 99, daily: 99, ipHourly: 99, hostHourly: 99 } });
+  const r = await repo.createScanChecked(db, { userId: user, url, host: new URL(url).hostname, ipHash: null, limits: { maxConcurrent: 99, hourly: 99, daily: 99, monthly: 99, ipHourly: 99, hostHourly: 99 } });
   if (!r.ok) throw new Error("enqueue failed");
   return r.id;
 }
@@ -105,7 +105,7 @@ describe("processScanJob — refusals and abuse", () => {
     for (let i = 0; i < 5; i++) await processScanJob(db, await enqueue(`https://10.0.0.${i + 1}/`), realScanner);
     const u = (await repo.getUserById(db, user))!;
     expect(u.blocked_until && u.blocked_until > new Date().toISOString()).toBeTruthy();
-    expect(await repo.createScanChecked(db, { userId: user, url: "https://a.com/", host: "a.com", ipHash: null, limits: { maxConcurrent: 9, hourly: 9, daily: 9, ipHourly: 9, hostHourly: 9 } })).toMatchObject({ ok: false, code: "account_blocked" });
+    expect(await repo.createScanChecked(db, { userId: user, url: "https://a.com/", host: "a.com", ipHash: null, limits: { maxConcurrent: 9, hourly: 9, daily: 9, monthly: 99, ipHourly: 9, hostHourly: 9 } })).toMatchObject({ ok: false, code: "account_blocked" });
   });
   it("'unreachable' is a normal failure, not an abuse strike", async () => {
     const dead = http.createServer(); await new Promise<void>((r) => dead.listen(0, "127.0.0.1", r));

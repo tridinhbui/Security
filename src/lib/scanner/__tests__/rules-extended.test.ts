@@ -453,3 +453,18 @@ describe("nội dung hiển thị hoàn toàn bằng tiếng Việt", () => {
 });
 
 void GOOD_HEADERS;
+
+describe("headers.deprecated", () => {
+  const id = "headers.deprecated";
+  it("HPKP → Medium; Expect-CT/Feature-Policy → Info", () => {
+    const o = baseline();
+    const h = hdr(o);
+    Object.assign(h, { "public-key-pins": 'pin-sha256="x"; max-age=100', "expect-ct": "max-age=86400", "feature-policy": "camera 'none'" });
+    const sev = new Set(run(o, id).map((f) => f.severity));
+    expect(sev.has("medium")).toBe(true);
+    expect(sev.has("info")).toBe(true);
+  });
+  it("không có header lỗi thời → đạt", () => {
+    expect(run(baseline(), id)[0]!.status).toBe("pass");
+  });
+});

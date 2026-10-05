@@ -69,6 +69,7 @@ export async function resolveSession(db: D1Like, token: string | undefined | nul
   const row = await repo.getSessionUser(db, idHash);
   if (!row) return null;
   if (Date.parse(row.session_expires) - Date.now() < REFRESH_WHEN_LEFT_MS) await repo.extendSession(db, idHash, isoIn(SESSION_TTL_MS));
+  await repo.touchActivity(db, row.id).catch(() => undefined); // theo dõi thời lượng: không bao giờ làm hỏng yêu cầu
   return { id: row.id, email: row.email, retention_days: row.retention_days, name: row.display_name, avatar_url: row.avatar_url };
 }
 

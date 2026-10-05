@@ -101,10 +101,10 @@ export function rowToScan(r: Record<string, unknown>): ScanRow {
   };
 }
 
-export interface ScanLimits { maxConcurrent: number; hourly: number; daily: number; ipHourly: number; hostHourly: number }
-export type CreateScanOutcome = { ok: true; id: string } | { ok: false; code: "account_blocked" | "too_many_concurrent" | "hourly_limit" | "daily_quota" | "ip_limit" | "host_limit"; retryAfter?: string };
+export interface ScanLimits { maxConcurrent: number; hourly: number; daily: number; monthly: number; ipHourly: number; hostHourly: number }
+export type CreateScanOutcome = { ok: true; id: string } | { ok: false; code: "account_blocked" | "too_many_concurrent" | "hourly_limit" | "daily_quota" | "monthly_quota" | "ip_limit" | "host_limit"; retryAfter?: string };
 
-const HOUR = 3_600_000, DAY = 86_400_000;
+const HOUR = 3_600_000, DAY = 86_400_000, MONTH = 30 * DAY;
 
 /**
  * Enqueue a scan, enforcing every limit in ONE atomic INSERT…SELECT…WHERE statement. SQLite/D1 serialises
@@ -114,13 +114,14 @@ const HOUR = 3_600_000, DAY = 86_400_000;
 export async function createScanChecked(db: D1Like, a: { userId: string; url: string; host: string; ipHash: string | null; limits: ScanLimits }): Promise<CreateScanOutcome> {
   const id = newId();
   const now = nowIso();
-  const hourAgo = isoAgo(HOUR), dayAgo = isoAgo(DAY);
+  const hourAgo = isoAgo(HOUR), dayAgo = isoAgo(DAY), monthAgo = isoAgo(MONTH);
   const L = a.limits;
   const res = await db.prepare(`
     INSERT INTO scans (id,user_id,input_url,normalized_url,host,ip_hash,status,created_at)
     SELECT ?,?,?,?,?,?, 'queued', ?
     WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = ? AND blocked_until IS NOT NULL AND blocked_until > ?)
       AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND status NOT IN ('completed','failed')) < ?
+      AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
       AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
       AND (SELECT COUNT(*) FROM scans WHERE user_id = ? AND created_at > ?) < ?
       AND (? IS NULL OR (SELECT COUNT(*) FROM scans WHERE ip_hash = ? AND created_at > ?) < ?)
@@ -130,6 +131,7 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
       a.userId, L.maxConcurrent,
       a.userId, hourAgo, L.hourly,
       a.userId, dayAgo, L.daily,
+      a.userId, monthAgo, L.monthly,
       a.ipHash, a.ipHash, hourAgo, L.ipHourly,
       a.host, hourAgo, L.hostHourly).run();
   if ((res.meta.changes ?? 0) === 1) return { ok: true, id };
@@ -140,6 +142,7 @@ export async function createScanChecked(db: D1Like, a: { userId: string; url: st
   if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND status NOT IN ('completed','failed')", a.userId)) >= L.maxConcurrent) return { ok: false, code: "too_many_concurrent" };
   if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, hourAgo)) >= L.hourly) return { ok: false, code: "hourly_limit" };
   if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, dayAgo)) >= L.daily) return { ok: false, code: "daily_quota" };
+  if ((await count("SELECT COUNT(*) c FROM scans WHERE user_id=? AND created_at>?", a.userId, monthAgo)) >= L.monthly) return { ok: false, code: "monthly_quota" };
   if (a.ipHash && (await count("SELECT COUNT(*) c FROM scans WHERE ip_hash=? AND created_at>?", a.ipHash, hourAgo)) >= L.ipHourly) return { ok: false, code: "ip_limit" };
   return { ok: false, code: "host_limit" };
 }
@@ -322,3 +325,79 @@ export { isoIn };
 /** Put an in-flight scan back on the queue so a retried message can claim it again. */
 export const requeueScan = (db: D1Like, id: string) =>
   db.prepare("UPDATE scans SET status = 'queued', locked_at = NULL WHERE id = ? AND status NOT IN ('completed','failed')").bind(id).run();
+
+// ------------------------------------------------------------------ thời lượng sử dụng, chat hỗ trợ, quản trị
+
+const ACTIVITY_THROTTLE_S = 30, ACTIVITY_MAX_GAP_S = 300;
+
+/**
+ * Cộng dồn thời gian hoạt động: mỗi yêu cầu có phiên đăng nhập cộng khoảng cách tới lần trước nếu ≤ 5 phút
+ * (nghỉ lâu hơn = phiên mới, không tính). Ghi tối đa 1 lần / 30 giây / người dùng để không tốn lượt ghi D1.
+ */
+export async function touchActivity(db: D1Like, userId: string): Promise<void> {
+  const now = nowIso();
+  await db.prepare(`UPDATE users SET
+      usage_seconds = usage_seconds + CASE WHEN last_seen_at IS NOT NULL AND (julianday(?1) - julianday(last_seen_at)) * 86400 <= ?3
+        THEN CAST((julianday(?1) - julianday(last_seen_at)) * 86400 AS INTEGER) ELSE 0 END,
+      last_seen_at = ?1
+    WHERE id = ?2 AND (last_seen_at IS NULL OR (julianday(?1) - julianday(last_seen_at)) * 86400 >= ?4)`)
+    .bind(now, userId, ACTIVITY_MAX_GAP_S, ACTIVITY_THROTTLE_S).run();
+}
+
+export const hasGoogleLink = async (db: D1Like, userId: string) =>
+  !!(await db.prepare("SELECT 1 x FROM users WHERE id = ? AND google_sub IS NOT NULL").bind(userId).first());
+
+export interface ChatMessage { id: string; sender: "user" | "admin"; body: string; created_at: string; read_at: string | null }
+export const CHAT_MAX_LEN = 1000;
+
+export async function sendChat(db: D1Like, userId: string, sender: "user" | "admin", body: string): Promise<ChatMessage> {
+  const m: ChatMessage = { id: newId(), sender, body: body.slice(0, CHAT_MAX_LEN), created_at: nowIso(), read_at: null };
+  await db.prepare("INSERT INTO chat_messages (id,user_id,sender,body,created_at) VALUES (?,?,?,?,?)").bind(m.id, userId, sender, m.body, m.created_at).run();
+  return m;
+}
+export async function listChat(db: D1Like, userId: string, limit = 200): Promise<ChatMessage[]> {
+  const { results } = await db.prepare("SELECT id,sender,body,created_at,read_at FROM (SELECT * FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC")
+    .bind(userId, limit).all<ChatMessage>();
+  return results;
+}
+/** Đánh dấu đã đọc các tin của PHÍA KIA (reader = người đang xem). */
+export const markChatRead = (db: D1Like, userId: string, reader: "user" | "admin") =>
+  db.prepare("UPDATE chat_messages SET read_at = ? WHERE user_id = ? AND sender = ? AND read_at IS NULL").bind(nowIso(), userId, reader === "user" ? "admin" : "user").run();
+export const countChatSince = async (db: D1Like, userId: string, sender: "user" | "admin", since: string) =>
+  (await db.prepare("SELECT COUNT(*) c FROM chat_messages WHERE user_id = ? AND sender = ? AND created_at > ?").bind(userId, sender, since).first<{ c: number }>())?.c ?? 0;
+export const unreadAdminReplies = async (db: D1Like, userId: string) =>
+  (await db.prepare("SELECT COUNT(*) c FROM chat_messages WHERE user_id = ? AND sender = 'admin' AND read_at IS NULL").bind(userId).first<{ c: number }>())?.c ?? 0;
+
+export interface AdminOverview { users: number; activeToday: number; scansTotal: number; scans24h: number; unreadChats: number; usageSecondsTotal: number }
+export async function adminOverview(db: D1Like): Promise<AdminOverview> {
+  const day = isoAgo(DAY);
+  const one = async (sql: string, ...p: string[]) => (await db.prepare(sql).bind(...p).first<{ c: number }>())?.c ?? 0;
+  const [users, activeToday, scansTotal, scans24h, unreadChats, usageSecondsTotal] = await Promise.all([
+    one("SELECT COUNT(*) c FROM users"),
+    one("SELECT COUNT(*) c FROM users WHERE last_seen_at > ?", day),
+    one("SELECT COUNT(*) c FROM scans"),
+    one("SELECT COUNT(*) c FROM scans WHERE created_at > ?", day),
+    one("SELECT COUNT(DISTINCT user_id) c FROM chat_messages WHERE sender='user' AND read_at IS NULL"),
+    one("SELECT COALESCE(SUM(usage_seconds),0) c FROM users"),
+  ]);
+  return { users, activeToday, scansTotal, scans24h, unreadChats, usageSecondsTotal };
+}
+
+export interface AdminUserRow { id: string; email: string; display_name: string | null; created_at: string; last_seen_at: string | null; usage_seconds: number; scan_count: number; last_scan_at: string | null; unread: number; blocked_until: string | null }
+export async function adminListUsers(db: D1Like, limit = 200): Promise<AdminUserRow[]> {
+  const { results } = await db.prepare(`
+    SELECT u.id, u.email, u.display_name, u.created_at, u.last_seen_at, u.usage_seconds, u.blocked_until,
+      (SELECT COUNT(*) FROM scans s WHERE s.user_id = u.id) AS scan_count,
+      (SELECT MAX(created_at) FROM scans s WHERE s.user_id = u.id) AS last_scan_at,
+      (SELECT COUNT(*) FROM chat_messages c WHERE c.user_id = u.id AND c.sender = 'user' AND c.read_at IS NULL) AS unread
+    FROM users u ORDER BY unread DESC, COALESCE(u.last_seen_at, u.created_at) DESC LIMIT ?`).bind(limit).all<AdminUserRow>();
+  return results;
+}
+export const adminGetUser = (db: D1Like, id: string) =>
+  db.prepare("SELECT id,email,display_name,created_at,last_seen_at,usage_seconds,blocked_until FROM users WHERE id = ?").bind(id)
+    .first<Pick<AdminUserRow, "id" | "email" | "display_name" | "created_at" | "last_seen_at" | "usage_seconds" | "blocked_until">>();
+export async function adminUserScans(db: D1Like, userId: string, limit = 100) {
+  const { results } = await db.prepare("SELECT id,normalized_url,status,score,grade,created_at FROM scans WHERE user_id = ? ORDER BY created_at DESC LIMIT ?").bind(userId, limit)
+    .all<{ id: string; normalized_url: string; status: string; score: number | null; grade: string | null; created_at: string }>();
+  return results;
+}
