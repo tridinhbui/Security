@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getAdmin } from "@/lib/auth/admin";
 import { getDb } from "@/lib/cf";
 import * as repo from "@/lib/db/repo";
+import { adminCountNewHelp } from "@/lib/db/help-repo";
 import { formatDate, formatDuration, relativeTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Quản trị", robots: { index: false } };
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function Admin() {
   if (!(await getAdmin())) notFound(); // không tiết lộ khu vực quản trị cho người khác
   const db = await getDb();
-  const [o, users, fb] = await Promise.all([repo.adminOverview(db), repo.adminListUsers(db), repo.adminListFeedback(db)]);
+  const [o, users, fb, helpNew] = await Promise.all([repo.adminOverview(db), repo.adminListUsers(db), repo.adminListFeedback(db), adminCountNewHelp(db)]);
   const stats = [
     ["Người dùng", o.users], ["Hoạt động 24 giờ", o.activeToday], ["Lượt quét tổng", o.scansTotal], ["Lượt quét 24 giờ", o.scans24h],
     ["Cuộc chat chưa đọc", o.unreadChats], ["Tổng thời lượng dùng", formatDuration(o.usageSecondsTotal)],
@@ -20,6 +21,7 @@ export default async function Admin() {
   return (
     <div className="container-x py-10 sm:py-14">
       <h1 className="reveal text-3xl font-semibold tracking-tight">Quản trị</h1>
+      <Link href="/admin/yeu-cau" className="btn-ghost btn-sm mt-3 inline-flex">Yêu cầu nhờ chuyên gia{helpNew > 0 && <span className="chip-accent">{helpNew} mới</span>}</Link>
       <section className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6" aria-label="Tổng quan">
         {stats.map(([k, v], i) => (
           <div key={k} className="panel reveal p-4" style={{ ["--i" as string]: i }}>

@@ -77,6 +77,7 @@ export function Block({ title, children }: { title: string; children: React.Reac
 }
 
 export interface ProjectReportData {
+  id: string;
   kind: "code" | "system";
   label: string;
   stackLabel: string;
@@ -132,6 +133,7 @@ export function ProjectReport({ data }: { data: ProjectReportData }) {
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
             <Link href={data.rescanHref} className="btn-ghost btn-sm">Quét lại sau khi sửa</Link>
             <Link href="/truoc-ra-mat" className="btn-ghost btn-sm">Đánh giá trước ra mắt</Link>
+            {g.fails.length > 0 && <Link href={`/nho-chuyen-gia?kind=${data.kind}&id=${data.id}`} className="btn-primary btn-sm">Nhờ chuyên gia xử lý</Link>}
             <span className="text-xs text-faint">Giá trị bí mật luôn được ẩn. Chúng tôi không lưu khoá hay token bạn nhập.</span>
           </div>
         </section>

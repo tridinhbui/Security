@@ -22,6 +22,7 @@ const ICONS: Record<string, string> = {
   code: "m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16",
   server: "M4 4h16v6H4V4Zm0 10h16v6H4v-6ZM8 7h.01M8 17h.01",
   rocket: "M12 3c3 2 5 5 5 9l-2 3H9l-2-3c0-4 2-7 5-9ZM9 15l-2 4 3-1M15 15l2 4-3-1M12 9v.01",
+  wrench: "M14.7 6.3a4 4 0 0 0-5.4 5.1L3 17.7 6.3 21l6.3-6.3a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6Z",
   deep: "M12 3 3 8l9 5 9-5-9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5",
 };
 
@@ -61,6 +62,7 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
   const main: Item[] = [
     { href: "/dashboard", label: "Bảng điều khiển", icon: "dashboard", exact: true },
     { href: "/scans", label: "Lịch sử quét", icon: "history" },
+    { href: "/nho-chuyen-gia", label: "Nhờ chuyên gia", icon: "wrench" },
     ...(supportUnread > 0 ? [{ href: "/ho-tro", label: "Hỗ trợ trực tiếp", icon: "support", badge: supportUnread }] : []),
     { href: "/settings", label: "Cài đặt", icon: "settings" },
   ];

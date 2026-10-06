@@ -19,5 +19,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const stack = s.stack === "firebase" ? "firebase" : "supabase";
   const m = s.meta as { site?: string };
   const names = (s.stack ?? "").split("+").map((x) => (x === "firebase" ? "Firebase" : "Supabase")).join(" + ");
-  return <ProjectReport data={{ kind: "system", label: s.label, stackLabel: names, createdAt: s.created_at, score: s.score ?? 0, grade: s.grade ?? "F", items: s.items, rescanHref: m.site ? `/quet-he-thong?site=${encodeURIComponent(m.site)}` : `/quet-he-thong?stack=${stack}&ref=${encodeURIComponent(s.label)}`, notes: [m.site ? "Cấu hình được đọc tự động từ website và không được lưu lại." : "Khoá bạn nhập không được lưu. Để quét lại, hãy dán lại khoá công khai."] }} />;
+  return <ProjectReport data={{ id: s.id, kind: "system", label: s.label, stackLabel: names, createdAt: s.created_at, score: s.score ?? 0, grade: s.grade ?? "F", items: s.items, rescanHref: m.site ? `/quet-he-thong?site=${encodeURIComponent(m.site)}` : `/quet-he-thong?stack=${stack}&ref=${encodeURIComponent(s.label)}`, notes: [m.site ? "Cấu hình được đọc tự động từ website và không được lưu lại." : "Khoá bạn nhập không được lưu. Để quét lại, hãy dán lại khoá công khai."] }} />;
 }

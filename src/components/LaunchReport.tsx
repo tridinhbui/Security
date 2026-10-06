@@ -72,6 +72,7 @@ export function LaunchReport({ data }: { data: LaunchReportData }) {
                 <button type="button" onClick={recheck} disabled={busy} className="btn-primary btn-sm">{busy ? <><span className="live-dot !bg-white" aria-hidden />Đang đánh giá…</> : "Đánh giá lại sau khi sửa"}</button>
                 <span className="text-xs text-muted">Hãy quét lại các phần bạn đã sửa trước (bên dưới), rồi bấm nút này để xem Trước / Sau.</span>
               </div>
+              {(data.blockers.length > 0 || data.shoulds.some((x) => x.status === "fail")) && <Link href={`/nho-chuyen-gia?kind=launch&id=${data.id}`} className="btn-ghost btn-sm mt-3 inline-flex">Nhờ chuyên gia xử lý các lỗi này</Link>}
               {err && <p role="alert" className="mt-2 text-sm text-crit">{err}</p>}
             </div>
           </div>

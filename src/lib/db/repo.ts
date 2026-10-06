@@ -287,7 +287,7 @@ export async function revokeShares(db: D1Like, userId: string, scanId: string): 
 
 export type EventType =
   | "scan_created" | "scan_cached" | "stage" | "scan_completed" | "scan_failed" | "scan_refused" | "ssrf_blocked" | "rate_limited" | "user_blocked"
-  | "metric" | "share_created" | "share_revoked" | "scan_deleted" | "auth_login" | "auth_login_failed" | "auth_signup" | "auth_throttled";
+  | "metric" | "share_created" | "share_revoked" | "scan_deleted" | "auth_login" | "auth_login_failed" | "auth_signup" | "auth_throttled" | "help_requested";
 
 /** Audit/observability event. `meta` must hold only small scalars — never response content. */
 export async function recordEvent(db: D1Like, e: { type: EventType; scanId?: string | null; userId?: string | null; level?: "debug" | "info" | "warn" | "error"; message?: string; meta?: Record<string, string | number | boolean | null> }) {

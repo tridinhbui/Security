@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -32,6 +33,7 @@ export function ReportActions({ scanId, url }: { scanId: string; url: string }) 
     <div className="flex flex-col gap-3 lg:items-end">
       <div className="flex flex-wrap items-start gap-2 lg:justify-end">
         <RescanButton url={url} />
+        <Link href={`/nho-chuyen-gia?kind=website&id=${scanId}`} className="btn-ghost btn-sm">Nhờ chuyên gia xử lý</Link>
         <button className="btn-ghost btn-sm" onClick={createShare}>Chia sẻ (chỉ đọc)</button>
         <button className="btn-ghost btn-sm" onClick={revoke}>Thu hồi liên kết</button>
         <button className="btn-danger btn-sm" onClick={() => setConfirmDel(true)}>Xoá</button>
