@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "./CopyButton";
+import { ExportButtons, headline, ProblemPane, TriageStrip } from "./QuickAnalyst";
 import { MatMatSays } from "./matmat/MatMatSays";
 import { ScanStage } from "./ScanStage";
 import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
 
 type Status = "pass" | "warning" | "fail";
-interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" } }
+interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" }; statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null }
 interface Item { id: string; group?: string; label: string; status: Status; text: string; tech?: Tech }
 interface Recon {
   server: string | null; poweredBy: string | null; platforms: string[]; technologies: string[]; addresses: string[]; httpVersion: string | null;
@@ -247,15 +248,17 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} disabled={k === "recon" && !r.recon}
                     className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${tab === k ? "bg-white text-fg shadow-crisp" : "text-muted hover:text-fg"}`}>{label}</button>
                 ))}
+                <div className="ml-auto self-center pb-1"><ExportButtons result={r} /></div>
               </div>
+              {tab === "findings" && <TriageStrip items={r.items} />}
               {tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
-              <div className="grid h-[34rem] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[30rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+              <div className="grid h-[44rem] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[36rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
                 <ul className="min-h-0 divide-y divide-line overflow-y-auto border-b border-line md:border-b-0 md:border-r" role="listbox" aria-label="Các mục kiểm tra">
                   {r.items.map((i, n) => (
                     <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
                       <button type="button" onClick={() => setSelected(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
                         <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
-                        <span className="min-w-0 text-sm"><span className="block font-medium">{i.label}</span><span className="line-clamp-2 text-muted">{i.text}</span></span>
+                        <span className="min-w-0 text-sm"><span className="block font-medium leading-snug">{headline(i).title}</span><span className="line-clamp-2 text-muted">{i.status === "pass" ? i.text : headline(i).sub}</span></span>
                       </button>
                     </li>
                   ))}
@@ -264,23 +267,8 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:col-span-2 lg:grid-cols-2 lg:grid-rows-1" aria-live="polite">
                     {/* vấn đề */}
                     <div className="min-h-0 overflow-y-auto bg-white p-5">
-                      <p className="eyebrow">vấn đề</p>
-                      <div className="mt-2 flex items-center gap-2"><span className={CHIP[sel.status].cls}>{CHIP[sel.status].label}</span><h3 className="font-semibold">{sel.label}</h3></div>
-                      <p className="mt-3 text-[15px] leading-relaxed text-muted">{sel.text}</p>
-                      {sel.tech?.impact && (
-                        <div className="mt-4 rounded-xl border border-line bg-surface p-3.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2"><p className="eyebrow">nếu để 1 ngày thì sao?</p><span className={`${URGENCY[sel.tech.impact.urgency]!.cls} !normal-case`}>{URGENCY[sel.tech.impact.urgency]!.label}</span></div>
-                          <dl className="mt-2 space-y-2 text-sm leading-relaxed">
-                            <div><dt className="text-xs font-medium text-faint">Trong 1 ngày</dt><dd>{sel.tech.impact.today}</dd></div>
-                            <div><dt className="text-xs font-medium text-faint">Trường hợp xấu nhất</dt><dd>{sel.tech.impact.worst}</dd></div>
-                            <div><dt className="text-xs font-medium text-faint">Ai khai thác được</dt><dd>{sel.tech.impact.who}</dd></div>
-                          </dl>
-                        </div>
-                      )}
-                      {sel.tech && <p className="mono mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-faint"><span>{sel.tech.ruleId}</span><span>mức: {SEV[sel.tech.severity] ?? sel.tech.severity}</span><span>tin cậy: {CONF[sel.tech.confidence] ?? sel.tech.confidence}</span></p>}
-                      {sel.tech && sel.tech.evidence.length > 0 && <div className="mt-4"><p className="eyebrow mb-1.5">bằng chứng</p><pre className="mono max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-[12px] leading-5">{sel.tech.evidence.join("\n")}</pre></div>}
-                      {sel.tech && sel.tech.owasp.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{sel.tech.owasp.map((o) => <span key={o} className="chip-info !normal-case">{o}</span>)}</div>}
-                      <MatMatSays key={`${selected}:${sel.id}`} className="mt-5" cps={85} text={`${LIKE[sel.group ?? ""] ?? "Đây là một chỗ trên website mình vừa kiểm tra."}\n${TAIL[sel.status]}`} />
+                      <ProblemPane item={sel} />
+                      <MatMatSays key={`${selected}:${sel.id}`} className="mt-4" cps={85} text={`${LIKE[sel.group ?? ""] ?? "Đây là một chỗ trên website mình vừa kiểm tra."}\n${TAIL[sel.status]}`} />
                     </div>
                     {/* giải pháp: luôn hiện, song song với vấn đề */}
                     <div className="min-h-0 overflow-y-auto border-t border-line bg-accent-soft/40 p-5 lg:border-l lg:border-t-0">

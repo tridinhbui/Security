@@ -14,6 +14,7 @@ import { OWASP_MAP } from "../guidance";
 import { collectCookies } from "./rules/cookies";
 import { header } from "./util";
 import { IMPACT, urgencyFor, type Urgency } from "./impact";
+import { ANALYST, originFor, reproFor, type Origin } from "./analyst";
 
 /**
  * QUÉT NHANH MIỄN PHÍ (không cần tài khoản). Chạy hoàn toàn trong Worker, thụ động và rất nhẹ:
@@ -60,6 +61,8 @@ export interface QuickTech {
   references: { title: string; url: string }[];
   /** "Nếu để 1 ngày thì sao?" — chỉ có ở mục chưa đạt. */
   impact?: { today: string; worst: string; who: string; urgency: Urgency };
+  /** Góc nhìn analyst: câu khẳng định + câu phụ, nguồn gốc lỗi, và lệnh chỉ-đọc để tự tái hiện. */
+  statement?: string; sub?: string; origin?: Origin; repro?: string | null;
 }
 export interface QuickItem { id: string; group: QuickGroup; label: string; status: QuickStatus; text: string; tech?: QuickTech }
 /** Dấu vân tay + bề mặt tấn công quan sát được (từ dữ liệu đã thu, không request thêm). */
@@ -85,7 +88,7 @@ export function toStatus(f: Pick<Finding, "status" | "severity">): QuickStatus |
 }
 
 const clip = (x: string, n: number) => (x.length > n ? `${x.slice(0, n - 1)}…` : x);
-export function toItems(findings: Finding[]): QuickItem[] {
+export function toItems(findings: Finding[], host = ""): QuickItem[] {
   const out: QuickItem[] = [];
   for (const f of findings) {
     const meta = QUICK_RULES[f.ruleId];
@@ -100,6 +103,7 @@ export function toItems(findings: Finding[]): QuickItem[] {
       fixSteps: bad ? (f.remediation?.steps ?? []).slice(0, 4).map((x) => clip(x, 220)) : [],
       fix: bad ? (f.remediation?.snippets ?? []).slice(0, 4).map((x) => ({ label: clip(x.label, 90), language: x.language, code: clip(x.code, 900) })) : [],
       references: f.references.slice(0, 3),
+      ...(bad && ANALYST[f.ruleId] ? { statement: ANALYST[f.ruleId]!.statement, sub: ANALYST[f.ruleId]!.sub, origin: originFor(f.ruleId, f.title), repro: host ? reproFor(f.ruleId, host) : null } : {}),
       ...(bad && IMPACT[f.ruleId] ? { impact: { today: IMPACT[f.ruleId]!.today, worst: IMPACT[f.ruleId]!.worst, who: IMPACT[f.ruleId]!.who, urgency: urgencyFor(f.ruleId, f.severity) } } : {}),
     };
     out.push({ id: f.fingerprint, group: meta.group, label: GROUP_LABEL[meta.group], status, text: short(status === "pass" ? f.summary : `${f.title}. ${f.summary}`), tech });
@@ -155,7 +159,7 @@ export async function runQuickScan(input: string, deps: QuickDeps): Promise<Quic
   const { findings } = evaluate(obs, rules);
   // HTTPS không dùng được (chứng chỉ hỏng, lỗi mạng…): luật tls.https-available báo; các luật phụ thuộc trang HTTP vẫn chạy trên bản HTTP nếu có.
   const score = calculateScore(findings.filter((f) => f.ruleId in QUICK_RULES), { limitedCoverage: true });
-  const items = toItems(attachFixCommands(findings, { host: target.host, platforms: obs.platforms }));
+  const items = toItems(attachFixCommands(findings, { host: target.host, platforms: obs.platforms }), target.host);
   // Luật SRI im lặng khi không có gì để báo; với trang HTML đã phân tích được, hiển thị rõ là "đạt" thay vì bỏ trống mục này.
   if (obs.html && !items.some((i) => i.group === "sri")) items.push({ id: "sri-none", group: "sri", label: GROUP_LABEL.sri, status: "pass", text: "Không thấy script hay stylesheet từ CDN công cộng nào thiếu mã kiểm tra toàn vẹn (SRI)." });
   const counts = { pass: 0, warning: 0, fail: 0 } as Record<QuickStatus, number>;
