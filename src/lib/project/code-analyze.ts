@@ -233,7 +233,7 @@ const CODE_RULES: CodeRule[] = [
 
 function findCodePatterns(files: SourceFile[]): ProjectItem[] {
   const out: ProjectItem[] = [];
-  const candidates = files.filter((f) => !isTest(f.path) && !MINIFIED.test(f.path) && !/\.(?:md|json|lock|txt)$/i.test(f.path) || /(?:^|\/)\.env/.test(f.path) && false);
+  const candidates = files.filter((f) => !isTest(f.path) && !MINIFIED.test(f.path) && !/\.(?:md|json|lock|txt)$/i.test(f.path));
   for (const r of CODE_RULES) {
     const relevant = files.filter((f) => r.exts.test(f.path));
     if (relevant.length === 0) continue;

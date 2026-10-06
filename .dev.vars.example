@@ -11,3 +11,8 @@ CRON_SECRET=
 # Đăng nhập Google (tuỳ chọn; xem README). Redirect URI local: http://localhost:8787/api/auth/google/callback
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=
+
+# Kết nối GitHub cho Quét mã nguồn (tuỳ chọn). Tạo OAuth App tại GitHub → Settings → Developer settings → OAuth Apps.
+# Callback URL local: http://localhost:3111/api/github/callback
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=

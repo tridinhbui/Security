@@ -19,6 +19,9 @@ const ICONS: Record<string, string> = {
   book: "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Zm0 13a3 3 0 0 1 3-3h10",
   play: "M8 5v14l11-7L8 5Z",
   bolt: "M13 3 5 13h6l-1 8 8-10h-6l1-8Z",
+  code: "m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16",
+  server: "M4 4h16v6H4V4Zm0 10h16v6H4v-6ZM8 7h.01M8 17h.01",
+  rocket: "M12 3c3 2 5 5 5 9l-2 3H9l-2-3c0-4 2-7 5-9ZM9 15l-2 4 3-1M15 15l2 4-3-1M12 9v.01",
   deep: "M12 3 3 8l9 5 9-5-9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5",
 };
 
@@ -49,6 +52,11 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
   const scan: Item[] = [
     { href: "/quet-co-ban", label: "Quét cơ bản", icon: "bolt" },
     { href: "/quet-nang-cao", label: "Quét nâng cao", icon: "deep" },
+  ];
+  const project: Item[] = [
+    { href: "/quet-ma-nguon", label: "Quét mã nguồn", icon: "code" },
+    { href: "/quet-he-thong", label: "Quét hệ thống", icon: "server" },
+    { href: "/truoc-ra-mat", label: "Quét trước ra mắt", icon: "rocket" },
   ];
   const main: Item[] = [
     { href: "/dashboard", label: "Bảng điều khiển", icon: "dashboard", exact: true },
@@ -89,6 +97,8 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
       <nav aria-label="Điều hướng chính" className="mt-5 flex-1 overflow-y-auto px-3">
         <p className="eyebrow px-3 pb-1.5">Quét website</p>
         <ul className="space-y-0.5">{scan.map(link)}</ul>
+        <p className="eyebrow px-3 pb-1.5 pt-5">Quét dự án</p>
+        <ul className="space-y-0.5">{project.map(link)}</ul>
         <p className="eyebrow px-3 pb-1.5 pt-5">Khu vực làm việc</p>
         <ul className="space-y-0.5">{main.map(link)}</ul>
         {admin.length > 0 && <><p className="eyebrow px-3 pb-1.5 pt-5">Quản trị</p><ul className="space-y-0.5">{admin.map(link)}</ul></>}

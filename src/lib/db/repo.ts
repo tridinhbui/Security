@@ -83,7 +83,7 @@ export const deleteUserSessions = (db: D1Like, userId: string) => db.prepare("DE
 
 // ------------------------------------------------------------------ auth throttling
 
-export type AttemptKind = "login_fail_email" | "login_fail_ip" | "signup_ip" | "oauth_fail_ip";
+export type AttemptKind = "login_fail_email" | "login_fail_ip" | "signup_ip" | "oauth_fail_ip" | "project_scan";
 export const recordAttempt = (db: D1Like, kind: AttemptKind, key: string) => db.prepare("INSERT INTO auth_attempts (kind,key,at) VALUES (?,?,?)").bind(kind, key, nowIso()).run();
 export async function countAttempts(db: D1Like, kind: AttemptKind, key: string, windowMs: number): Promise<number> {
   const r = await db.prepare("SELECT COUNT(*) AS c FROM auth_attempts WHERE kind = ? AND key = ? AND at > ?").bind(kind, key, isoAgo(windowMs)).first<{ c: number }>();
@@ -240,6 +240,7 @@ export async function purgeExpired(db: D1Like): Promise<{ scans: number; session
     db.prepare("DELETE FROM scan_events WHERE created_at < ?").bind(isoAgo(180 * DAY)),
     db.prepare("DELETE FROM auth_attempts WHERE at < ?").bind(isoAgo(DAY)),
     db.prepare("DELETE FROM tls_cache WHERE fetched_at < ?").bind(isoAgo(2 * DAY)),
+    db.prepare("DELETE FROM project_scans WHERE expires_at < ?").bind(now),
   ]);
   return { scans: s!.meta.changes ?? 0, sessions: se!.meta.changes ?? 0, events: ev!.meta.changes ?? 0, attempts: at!.meta.changes ?? 0 };
 }

@@ -26,6 +26,10 @@ export const env = {
   get googleClientId() { return process.env.GOOGLE_CLIENT_ID || null; },
   get googleClientSecret() { return process.env.GOOGLE_CLIENT_SECRET || null; },
   get googleEnabled() { return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET); },
+  /** GitHub OAuth (tuỳ chọn, cho tính năng "Kết nối GitHub" ở Quét mã nguồn). Cả hai phải có thì mới bật. */
+  get githubClientId() { return process.env.GITHUB_CLIENT_ID || null; },
+  get githubClientSecret() { return process.env.GITHUB_CLIENT_SECRET || null; },
+  get githubEnabled() { return !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET); },
   get isProd() { return process.env.NODE_ENV === "production"; },
   limits: {
     get dailyQuota() { return int("SCAN_DAILY_QUOTA", 3); },
