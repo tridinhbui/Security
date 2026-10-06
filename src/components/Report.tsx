@@ -541,13 +541,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** Nút copy prompt để dán vào công cụ AI viết code (Cursor, Claude Code…). */
+/**
+ * Prompt dán vào công cụ AI viết code (Cursor, Claude Code…): hiện sẵn nội dung ngay phía trên nút Copy để người dùng đọc và kiểm tra
+ * trước khi dán. Phần tử nằm trong hàng flex-wrap nên `basis-full` đẩy nút xuống dòng dưới.
+ */
 function PromptButton({ text, label = "Copy prompt cho AI", big = false }: { text: string; label?: string; big?: boolean }) {
   const [ok, setOk] = useState(false);
   return (
-    <button type="button" className={`btn-primary ${big ? "" : "btn-sm"}`} onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); } catch { /* clipboard bị chặn */ } }}>
-      {ok ? "Đã copy prompt ✓" : label}
-    </button>
+    <>
+      <pre tabIndex={0} aria-label="Nội dung prompt" className="mono max-h-56 w-full basis-full overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-[12.5px] leading-6 text-fg/90">{text}</pre>
+      <button type="button" className={`btn-primary ${big ? "" : "btn-sm"}`} onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); } catch { /* clipboard bị chặn */ } }}>
+        {ok ? "Đã copy prompt ✓" : label}
+      </button>
+    </>
   );
 }
 
