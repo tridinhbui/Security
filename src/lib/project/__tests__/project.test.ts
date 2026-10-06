@@ -163,3 +163,21 @@ describe("project-repo", () => {
   });
 });
 function pass(id: string) { return item({ id, group: "g", source: "code", title: id, severity: "info", status: "pass", summary: "s", why: "w" }); }
+
+import { extractBackends } from "../discover";
+describe("extractBackends", () => {
+  const REF = "abcdefghijklmnopqrst";
+  const j = (p: object) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(p)).toString("base64url")}.signaturepart1`;
+  it("chọn khoá anon, KHÔNG BAO GIỜ chọn service_role", () => {
+    const text = `createClient("https://${REF}.supabase.co","${j({ role: "service_role", ref: REF })}"); k="${j({ role: "anon", ref: REF })}"`;
+    const r = extractBackends(text).supabase!;
+    expect(r.ref).toBe(REF);
+    expect(JSON.parse(Buffer.from(r.key.split(".")[1]!, "base64url").toString()).role).toBe("anon");
+    expect(extractBackends(`https://${REF}.supabase.co ${j({ role: "service_role", ref: REF })}`).supabase).toBeNull();
+  });
+  it("đọc cấu hình Firebase", () => {
+    const f = extractBackends(`{apiKey:"AIza${"a".repeat(35)}",authDomain:"x.firebaseapp.com",projectId:"my-app-12345",storageBucket:"my-app-12345.appspot.com"}`).firebase!;
+    expect(f).toMatchObject({ projectId: "my-app-12345", storageBucket: "my-app-12345.appspot.com" });
+    expect(extractBackends("projectId:'something-else'").firebase).toBeNull();
+  });
+});

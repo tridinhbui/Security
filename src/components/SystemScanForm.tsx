@@ -20,10 +20,12 @@ function Field({ label, hint, id, ...p }: { label: string; hint?: string } & Rea
 const split = (s: string) => s.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
 
 /** Chọn stack trước, rồi chỉ hỏi đúng thông tin công khai tối thiểu. Khoá nhập vào không được lưu. */
-export function SystemScanForm({ initialStack = "supabase", initialRef = "" }: { initialStack?: Stack; initialRef?: string }) {
+export function SystemScanForm({ initialStack = "supabase", initialRef = "", initialSite = "" }: { initialStack?: Stack; initialRef?: string; initialSite?: string }) {
   const router = useRouter();
   const [stack, setStack] = useState<Stack>(initialStack);
   const [f, setF] = useState({ url: initialStack === "supabase" ? initialRef : "", anonKey: "", tables: "", buckets: "", projectId: initialStack === "firebase" ? initialRef : "", apiKey: "", databaseURL: "", storageBucket: "" });
+  const [manual, setManual] = useState(!!initialRef);
+  const [site, setSite] = useState(initialSite);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,11 +33,12 @@ export function SystemScanForm({ initialStack = "supabase", initialRef = "" }: {
 
   async function submit() {
     setError(null);
-    if (stack === "supabase" && (!f.url.trim() || !f.anonKey.trim())) return setError("Hãy nhập địa chỉ dự án và khoá anon (công khai).");
-    if (stack === "firebase" && !f.projectId.trim()) return setError("Hãy nhập mã dự án Firebase (Project ID).");
+    if (!manual && !site.trim()) return setError("Hãy dán link website của bạn, ví dụ https://ten-ban.com");
+    if (manual && stack === "supabase" && (!f.url.trim() || !f.anonKey.trim())) return setError("Hãy nhập địa chỉ dự án và khoá anon (công khai).");
+    if (manual && stack === "firebase" && !f.projectId.trim()) return setError("Hãy nhập mã dự án Firebase (Project ID).");
     if (!consent) return setError("Hãy xác nhận bạn là chủ hoặc được phép kiểm tra dự án này.");
     setBusy(true);
-    const body = stack === "supabase"
+    const body = !manual ? { stack: "auto", consent, siteUrl: site.trim() } : stack === "supabase"
       ? { stack, consent, url: f.url.trim(), anonKey: f.anonKey.trim(), tables: split(f.tables), buckets: split(f.buckets) }
       : { stack, consent, projectId: f.projectId.trim(), apiKey: f.apiKey.trim() || undefined, databaseURL: f.databaseURL.trim() || undefined, storageBucket: f.storageBucket.trim() || undefined };
     try {
@@ -51,6 +54,15 @@ export function SystemScanForm({ initialStack = "supabase", initialRef = "" }: {
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void submit(); }} noValidate className="w-full max-w-3xl">
+      {!manual && (
+        <div>
+          <label htmlFor="sys-site" className="eyebrow mb-2 block">dán link website của bạn</label>
+          <input id="sys-site" value={site} onChange={(e) => setSite(e.target.value)} disabled={busy} inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2048} placeholder="https://ten-ban.com" className="input !h-12" />
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">Chúng tôi tự đọc website để tìm Supabase hoặc Firebase mà nó đang dùng (các thông tin công khai vốn có sẵn trong trang). Bạn không cần tìm hay dán khoá nào.</p>
+          <button type="button" onClick={() => setManual(true)} className="mt-2 text-[13px] text-muted underline hover:text-fg">Không tìm thấy? Nhập thủ công</button>
+        </div>
+      )}
+      {manual && <><button type="button" onClick={() => setManual(false)} className="mb-4 text-[13px] text-muted underline hover:text-fg">← Quay lại dán link website</button>
       <fieldset>
         <legend className="eyebrow mb-2">1 · chọn nơi dự án của bạn chạy</legend>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -91,11 +103,13 @@ export function SystemScanForm({ initialStack = "supabase", initialRef = "" }: {
         )}
       </div>
 
+      </>}
+
       <div className="panel-soft mt-6 p-4 text-[14px] leading-relaxed">
         <p className="font-medium">Chúng tôi chỉ làm những việc này</p>
         <ul className="mt-1.5 space-y-1 text-muted">
           <li className="flex gap-2"><span className="text-ok" aria-hidden>✓</span>Hỏi dịch vụ của bạn như một người lạ: “tôi có đọc được dữ liệu này không?”</li>
-          <li className="flex gap-2"><span className="text-ok" aria-hidden>✓</span>Chỉ cần khoá công khai. Không cần mật khẩu, không cần quyền quản trị.</li>
+          <li className="flex gap-2"><span className="text-ok" aria-hidden>✓</span>Chỉ dùng thông tin công khai của website. Không cần mật khẩu, không cần quyền quản trị.</li>
           <li className="flex gap-2"><span className="text-ok" aria-hidden>✓</span>Không ghi, sửa, xoá, không tạo tài khoản, không tải nội dung dữ liệu (chỉ đếm).</li>
         </ul>
       </div>

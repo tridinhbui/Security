@@ -18,7 +18,7 @@ const GROUPS: CoverGroup[] = [
   { title: "API & CORS", simple: "Xem API có cho website lạ gọi vào một cách nguy hiểm không.", tech: ["CORS reflect origin + credentials", "Endpoint lộ công khai"] },
 ];
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ stack?: string; ref?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ stack?: string; ref?: string; site?: string }> }) {
   const sp = await searchParams;
   const user = await getUser();
   if (!user) redirect("/login?next=/quet-he-thong");
@@ -28,7 +28,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       <p className="eyebrow reveal">quét hệ thống</p>
       <h1 className="reveal mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Quét hệ thống</h1>
       <MatMatSays className="mt-5 max-w-2xl" text="Chọn nơi dự án của bạn chạy. Mình chỉ hỏi như một người lạ ‘cho tôi xem dữ liệu được không?’, không ghi hay sửa gì hết." />
-      <div className="mt-6"><SystemScanForm initialStack={sp.stack === "firebase" ? "firebase" : "supabase"} initialRef={sp.ref ?? ""} /></div>
+      <div className="mt-6"><SystemScanForm initialStack={sp.stack === "firebase" ? "firebase" : "supabase"} initialRef={sp.ref ?? ""} initialSite={sp.site ?? ""} /></div>
       <section className="mt-10" aria-label="Gồm những gì"><h2 className="eyebrow">gồm những gì</h2><ScanCovers groups={GROUPS} columns /></section>
       <section className="mt-10" aria-label="Gần đây"><h2 className="text-lg font-semibold tracking-tight">Gần đây</h2><ProjectScanList scans={scans} base="/quet-he-thong" empty="Chưa có lượt quét hệ thống nào." /></section>
     </div>

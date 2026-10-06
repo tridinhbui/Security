@@ -17,5 +17,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const s = await getProjectScan(await getDb(), user.id, id);
   if (!s || s.kind !== "system") notFound();
   const stack = s.stack === "firebase" ? "firebase" : "supabase";
-  return <ProjectReport data={{ kind: "system", label: s.label, stackLabel: stack === "firebase" ? "Firebase" : "Supabase", createdAt: s.created_at, score: s.score ?? 0, grade: s.grade ?? "F", items: s.items, rescanHref: `/quet-he-thong?stack=${stack}&ref=${encodeURIComponent(s.label)}`, notes: ["Khoá bạn nhập không được lưu. Để quét lại, hãy dán lại khoá công khai."] }} />;
+  const m = s.meta as { site?: string };
+  const names = (s.stack ?? "").split("+").map((x) => (x === "firebase" ? "Firebase" : "Supabase")).join(" + ");
+  return <ProjectReport data={{ kind: "system", label: s.label, stackLabel: names, createdAt: s.created_at, score: s.score ?? 0, grade: s.grade ?? "F", items: s.items, rescanHref: m.site ? `/quet-he-thong?site=${encodeURIComponent(m.site)}` : `/quet-he-thong?stack=${stack}&ref=${encodeURIComponent(s.label)}`, notes: [m.site ? "Cấu hình được đọc tự động từ website và không được lưu lại." : "Khoá bạn nhập không được lưu. Để quét lại, hãy dán lại khoá công khai."] }} />;
 }
