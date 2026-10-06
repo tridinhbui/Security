@@ -198,3 +198,84 @@ dialog.confirm[open] { animation: pop 0.25s var(--ease-out-expo) both; }
 .float-y { animation: float-y 6s ease-in-out infinite; }
 .orbit-ping { animation: orbit-ping 2.4s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .float-y, .orbit-ping { animation: none !important; } }
+
+
+/* ------------------------------------------------------------------ chuyển động trang chủ
+ * Ngôn ngữ chuyển động thống nhất: một đường cong (--ease-out-expo), thời lượng 0.6–0.9 s, dịch chuyển ≤ 28 px,
+ * chỉ transform/opacity (chạy trên GPU). Mọi thứ tắt khi người dùng chọn giảm chuyển động (xem cuối khối). */
+
+/* Hiện dần khi cuộn */
+.rv { transition: opacity 0.85s var(--ease-out-expo) var(--d, 0ms), transform 0.85s var(--ease-out-expo) var(--d, 0ms); }
+.rv.rv-hide { opacity: 0; transform: translate3d(0, 24px, 0); }
+.rv.rv-hide[data-from="left"] { transform: translate3d(-32px, 0, 0); }
+.rv.rv-hide[data-from="right"] { transform: translate3d(32px, 0, 0); }
+.rv.rv-hide[data-from="scale"] { transform: scale(0.96); }
+
+/* Chữ vào từng từ */
+.w-mask { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 0.1em; margin-bottom: -0.1em; }
+.w-in { display: inline-block; transform: translate3d(0, 108%, 0); animation: word-up 0.95s var(--ease-out-expo) both; }
+@keyframes word-up { to { transform: translate3d(0, 0, 0); } }
+.headline-live { background: linear-gradient(100deg, var(--color-accent) 10%, var(--color-accent-2) 50%, var(--color-accent) 90%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: word-up 0.95s var(--ease-out-expo) both, grad-pan 9s ease-in-out 1.2s infinite alternate; }
+@keyframes grad-pan { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+
+/* Hero: nền chuyển động + chiều sâu */
+.hero-stage { position: relative; overflow: hidden; --px: 0; --py: 0; --sy: 0; }
+.hero-stage .depth-1 { transform: translate3d(calc(var(--px) * -10px), calc(var(--py) * -8px + var(--sy) * 30px), 0); }
+.hero-stage .depth-2 { transform: translate3d(calc(var(--px) * 16px), calc(var(--py) * 12px + var(--sy) * 50px), 0); }
+.hero-stage .depth-3 { transform: translate3d(calc(var(--px) * 26px), calc(var(--py) * 18px + var(--sy) * 70px), 0); }
+.hero-stage .depth-4 { transform: translate3d(calc(var(--px) * 12px), calc(var(--py) * 8px + var(--sy) * 40px), 0); }
+.hero-stage .depth-copy { transform: translate3d(0, calc(var(--sy) * 36px), 0); }
+.hero-orbs { position: absolute; inset: 0; pointer-events: none; }
+.orb { position: absolute; border-radius: 9999px; will-change: transform; }
+.orb-a { width: 620px; height: 620px; left: -160px; top: -220px; background: radial-gradient(circle, rgb(11 87 255 / 0.10), transparent 65%); animation: drift-a 24s ease-in-out infinite alternate; }
+.orb-b { width: 560px; height: 560px; right: -140px; top: 40px; background: radial-gradient(circle, rgb(91 61 245 / 0.10), transparent 65%); animation: drift-b 28s ease-in-out infinite alternate; }
+.orb-c { width: 420px; height: 420px; left: 38%; bottom: -200px; background: radial-gradient(circle, rgb(8 145 178 / 0.09), transparent 65%); animation: drift-c 32s ease-in-out infinite alternate; }
+.cursor-glow { position: absolute; left: 50%; top: 30%; width: 640px; height: 640px; margin: -320px 0 0 -320px; border-radius: 9999px; pointer-events: none;
+  background: radial-gradient(circle, rgb(11 87 255 / 0.07), transparent 62%); transform: translate3d(calc(var(--px) * 360px), calc(var(--py) * 160px), 0); }
+@keyframes drift-a { to { transform: translate3d(90px, 70px, 0) scale(1.12); } }
+@keyframes drift-b { to { transform: translate3d(-110px, 60px, 0) scale(0.92); } }
+@keyframes drift-c { to { transform: translate3d(70px, -50px, 0) scale(1.15); } }
+.hero-stage.is-paused .orb, .hero-stage.is-paused .float-y, .hero-stage.is-paused .data-flow, .hero-stage.is-paused .slow-spin, .hero-stage.is-paused .headline-live { animation-play-state: paused; }
+.slow-spin { animation: spin 140s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin-ring { animation: spin 0.9s linear infinite; }
+.data-flow { stroke-dasharray: 3 22; animation: dash-flow 2.6s linear infinite; }
+@keyframes dash-flow { to { stroke-dashoffset: -50; } }
+.hub-pulse { animation: hub 2.8s ease-in-out infinite; }
+@keyframes hub { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+.log-in { animation: log-in 0.5s var(--ease-out-expo) both; }
+@keyframes log-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+
+/* Thẻ nghiêng theo con trỏ */
+.tilt-wrap { perspective: 1100px; }
+.tilt { --rx: 0deg; --ry: 0deg; --gx: 50%; --gy: 50%; position: relative; transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform 0.5s var(--ease-out-expo); transform-style: preserve-3d; }
+.tilt-glare { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.4s ease;
+  background: radial-gradient(420px circle at var(--gx) var(--gy), rgb(255 255 255 / 0.55), transparent 55%); mix-blend-mode: soft-light; }
+.tilt:hover .tilt-glare { opacity: 1; }
+
+/* Vi tương tác khi rê chuột */
+.check-card { transition: transform 0.45s var(--ease-out-expo); }
+.check-card svg:first-child { transition: transform 0.5s var(--ease-out-expo), color 0.3s ease; }
+.check-card:hover { transform: translate3d(0, -4px, 0); }
+.check-card:hover svg:first-child { transform: translate3d(0, -2px, 0) rotate(-6deg) scale(1.08); color: var(--color-accent); }
+.check-card .bars i { transform-origin: bottom; }
+.check-card:hover .bars i.on { animation: bar-wave 0.9s var(--ease-out-expo) both; animation-delay: calc(var(--k, 0) * 30ms); }
+@keyframes bar-wave { 0% { transform: scaleY(0.35); } 100% { transform: scaleY(1); } }
+.step-item .step-n { transition: background-color 0.35s ease, color 0.35s ease, transform 0.45s var(--ease-out-expo); }
+.step-item:hover .step-n { background: var(--color-accent); color: #fff; transform: scale(1.08) rotate(-4deg); }
+.btn-primary > svg:last-child, .btn-dark > svg:last-child { transition: transform 0.35s var(--ease-out-expo); }
+.btn-primary:hover > svg:last-child, .btn-dark:hover > svg:last-child { transform: translate3d(4px, 0, 0); }
+.pill { transition: transform 0.35s var(--ease-out-expo), border-color 0.25s ease; }
+.pill:hover { transform: translate3d(0, -2px, 0); border-color: var(--color-line-strong); }
+.section-rule { height: 1px; background: linear-gradient(90deg, transparent, var(--color-line-strong), transparent); transform-origin: center; transition: transform 1.1s var(--ease-out-expo); }
+.rv.rv-hide .section-rule { transform: scaleX(0.2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv.rv-hide { opacity: 1; transform: none; }
+  .w-in { transform: none; animation: none; }
+  .headline-live, .orb, .slow-spin, .spin-ring, .data-flow, .hub-pulse, .log-in { animation: none !important; }
+  .headline-live { background-position: 50% 50%; }
+  .hero-stage .depth-1, .hero-stage .depth-2, .hero-stage .depth-3, .hero-stage .depth-4, .hero-stage .depth-copy, .cursor-glow { transform: none; }
+  .tilt { transform: none; }
+  .check-card:hover, .pill:hover, .step-item:hover .step-n { transform: none; }
+}
