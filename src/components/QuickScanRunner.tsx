@@ -24,19 +24,25 @@ interface Result { host: string; score: number; grade: string; counts: Record<St
 
 const CHIP: Record<Status, { cls: string; label: string }> = { pass: { cls: "chip-ok", label: "Đạt" }, warning: { cls: "chip-med", label: "Cảnh báo" }, fail: { cls: "chip-crit", label: "Lỗi" } };
 
-/** Các bước Mật Mật “đang làm bên trong” (đúng với các nhóm kiểm tra thật của quét nhanh). Thời gian chỉ mang tính minh hoạ tiến trình. */
-const STEPS: { label: string; log: (h: string) => string; say: string }[] = [
-  { label: "Tìm địa chỉ máy chủ (DNS)", log: (h) => `dig ${h}`, say: "Mình đang hỏi danh bạ internet xem website này nằm ở đâu 📒" },
-  { label: "Gõ cửa HTTPS, xem ổ khoá", log: (h) => `GET https://${h}/`, say: "Giờ mình gõ cửa chính, xem ổ khoá HTTPS có chắc không 🔐" },
-  { label: "Thử đi cửa sau (HTTP → HTTPS)", log: (h) => `GET http://${h}/`, say: "Mình thử đi cửa sau xem có được chỉ sang cửa trước không 🚪" },
-  { label: "Đọc “biển báo an toàn” (header)", log: () => "đọc header: CSP, nosniff, frame…", say: "Mình đang đọc các biển báo an toàn dán ở cửa 🪧" },
-  { label: "Soi cookie và quy tắc CORS", log: () => "kiểm tra Set-Cookie, CORS", say: "Mình xem vé gửi xe (cookie) có tem chống giả chưa 🎟️" },
-  { label: "Kiểm tra chữ ký email (SPF/DMARC)", log: (h) => `dig TXT ${h}`, say: "Giờ mình kiểm tra xem ai đó có giả mạo email của bạn được không ✉️" },
-  { label: "Tìm thứ lỡ để lộ trong trang", log: () => "quét ghi chú, địa chỉ nội bộ, trang lỗi", say: "Mình đang tìm xem có ghi chú nội bộ nào bị bỏ quên ngoài cửa không 🔍" },
-  { label: "Chấm điểm và viết nhận xét", log: () => "tính điểm 0–100", say: "Sắp xong rồi! Mình đang viết nhận xét cho bạn ✍️" },
+/** Các bước Mật Mật “đang làm bên trong” (bám theo các nhóm kiểm tra thật). Thời gian và số dòng nhật ký chỉ mang tính minh hoạ tiến trình. */
+interface Step { label: string; say: string; lines: (h: string) => string[] }
+const STEPS: Step[] = [
+  { label: "Kiểm tra địa chỉ & chặn mạng nội bộ", say: "Trước hết mình kiểm tra địa chỉ này có phải website công khai không, để không đụng vào mạng nội bộ nào cả 🛡️", lines: (h) => [`validate ${h}`, "scheme=https · port=443 · không có user:pass", "chặn 10/8, 172.16/12, 192.168/16, 169.254/16 ✓"] },
+  { label: "Tìm địa chỉ máy chủ (DNS)", say: "Mình đang hỏi danh bạ internet xem website này nằm ở đâu 📒", lines: (h) => [`dig A ${h}`, `dig AAAA ${h}`, "kiểm tra IP trả về có công khai không (chống DNS rebinding)"] },
+  { label: "Gõ cửa HTTPS, xem ổ khoá", say: "Giờ mình gõ cửa chính, xem ổ khoá HTTPS có chắc không 🔐", lines: (h) => [`GET https://${h}/`, "đọc status, header, thời gian phản hồi", "xác minh chứng chỉ, tên miền, hạn dùng"] },
+  { label: "Thử đi cửa sau (HTTP → HTTPS)", say: "Mình thử đi cửa sau xem có được chỉ sang cửa trước không 🚪", lines: (h) => [`GET http://${h}/`, "theo dõi chuỗi chuyển hướng (tối đa 5 bước)", "có về HTTPS bằng 301/308 không?"] },
+  { label: "Đọc “biển báo an toàn” (header)", say: "Mình đang đọc các biển báo an toàn dán ở cửa 🪧", lines: () => ["strict-transport-security ?", "x-content-type-options · x-frame-options ?", "referrer-policy · permissions-policy ?"] },
+  { label: "Phân tích chính sách CSP", say: "Mình xem danh sách khách mời (CSP) có chặt không 📋", lines: () => ["parse content-security-policy", "tìm 'unsafe-inline', '*', thiếu object-src/base-uri", "chấm độ chặt của script-src"] },
+  { label: "Soi cookie và quy tắc CORS", say: "Mình xem vé gửi xe (cookie) có tem chống giả chưa 🎟️", lines: () => ["đọc Set-Cookie: Secure / HttpOnly / SameSite", "gửi Origin giả lập để xem CORS có mở quá rộng không", "kiểm tra Access-Control-Allow-Origin"] },
+  { label: "Phân tích HTML: script, form, nội dung hỗn hợp", say: "Mình đọc trang để xem có tải gì đó qua đường không an toàn không 🔎", lines: () => ["parse HTML: <script>, <form>, <img>, <link>", "tìm http:// lẫn trong trang https", "script từ CDN có integrity (SRI) không?"] },
+  { label: "Kiểm tra chữ ký email (SPF/DMARC/CAA)", say: "Giờ mình kiểm tra xem ai đó có giả mạo email của bạn được không ✉️", lines: (h) => [`dig TXT ${h}`, `dig TXT _dmarc.${h}`, `dig CAA ${h}`] },
+  { label: "Tìm thứ lỡ để lộ trong trang", say: "Mình đang tìm xem có ghi chú nội bộ nào bị bỏ quên ngoài cửa không 🔍", lines: () => ["quét ghi chú HTML, địa chỉ nội bộ", "thử một đường dẫn không tồn tại để xem trang lỗi", "tìm header gỡ lỗi, phiên bản máy chủ"] },
+  { label: "Đọc security.txt và robots.txt", say: "Mình tìm số đường dây nóng bảo mật của website 📞", lines: (h) => [`GET https://${h}/.well-known/security.txt`, `GET https://${h}/robots.txt`, "kiểm tra có là file thật hay trang SPA trả về"] },
+  { label: "Chấm điểm và viết nhận xét", say: "Sắp xong rồi! Mình đang chấm điểm và viết nhận xét cho bạn ✍️", lines: () => ["trọng số mức độ × độ tin cậy", "áp trần điểm cho quét nhanh (tối đa 90)", "soạn lời giải thích dễ hiểu cho từng mục"] },
 ];
-const STEP_MS = 1100;
-const MIN_LOADING_MS = STEPS.length * 500;
+const TICK_MS = 430;
+const TICKS_PER_STEP = 4;
+const MIN_LOADING_MS = STEPS.length * TICKS_PER_STEP * TICK_MS;
 
 const LIKE: Record<string, string> = {
   headers: "Giống các biển báo an toàn dán ở cửa: “đừng đoán loại file”, “đừng nhúng tôi vào khung lạ”.",
@@ -84,21 +90,26 @@ function summaryText(r: Result): string {
   return `Xong rồi nè! ${r.host} được ${r.score}/100 điểm (hạng ${r.grade}). ${mood}\nMình thấy: ${bits}. Bấm “Mật Mật giải thích” ở từng mục để hiểu dễ hơn${r.counts.warning + r.counts.fail ? ", rồi copy prompt bên dưới đưa cho AI sửa giúp" : ""} nhé 🐾`;
 }
 
-/** Màn hình chia đôi: trái là các bước Mật Mật đang làm, phải là “màn hình trực tiếp” với nhật ký chạy. */
+/** Màn hình chia đôi: trái là các bước Mật Mật đang làm, phải là “màn hình trực tiếp” với nhật ký chạy từng dòng. */
 function Thinking({ host, done }: { host: string; done: boolean }) {
-  const [step, setStep] = useState(0);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setStep((v) => Math.min(v + 1, STEPS.length - 1)), STEP_MS);
+    const t = setInterval(() => setTick((v) => v + 1), TICK_MS);
     return () => clearInterval(t);
   }, []);
-  const cur = done ? STEPS.length : step;
+  const cur = done ? STEPS.length : Math.min(Math.floor(tick / TICKS_PER_STEP), STEPS.length - 1);
+  const into = done ? 0 : tick % TICKS_PER_STEP; // số dòng nhật ký của bước hiện tại đã hiện
   const steps = STEPS.map((x, i) => ({ label: x.label, state: (i < cur ? "done" : i === cur ? "run" : "wait") as "done" | "run" | "wait" }));
-  const logs = [
-    { text: `mật-mật scan https://${host}/ --passive`, tone: "accent" as const },
-    ...STEPS.slice(0, Math.min(cur + 1, STEPS.length)).flatMap((x, i) => (i < cur ? [{ text: x.log(host), tone: "muted" as const }, { text: `✓ ${x.label}`, tone: "ok" as const }] : [{ text: x.log(host), tone: "muted" as const }])),
-    ...(done ? [{ text: "Hoàn tất. Đang mở kết quả…", tone: "ok" as const }] : []),
-  ];
-  return <ScanStage host={host} steps={steps} logs={logs} pct={Math.round((cur / STEPS.length) * 100)} say={STEPS[Math.min(cur, STEPS.length - 1)]!.say} footnote="Mật Mật chỉ đọc những gì ai cũng thấy được, không thay đổi website của bạn." />;
+  const logs: { text: string; tone: "accent" | "muted" | "ok" }[] = [{ text: `mật-mật scan https://${host}/ --passive`, tone: "accent" }];
+  STEPS.forEach((x, i) => {
+    if (i > cur) return;
+    const ls = x.lines(host);
+    if (i < cur) { ls.forEach((t) => logs.push({ text: t, tone: "muted" })); logs.push({ text: `✓ ${x.label}`, tone: "ok" }); }
+    else ls.slice(0, Math.min(into + 1, ls.length)).forEach((t) => logs.push({ text: t, tone: "muted" }));
+  });
+  if (done) logs.push({ text: "Hoàn tất. Đang mở kết quả…", tone: "ok" });
+  const frac = done ? 1 : (cur + into / TICKS_PER_STEP) / STEPS.length;
+  return <ScanStage host={host} steps={steps} logs={logs} pct={Math.round(frac * 100)} say={STEPS[Math.min(cur, STEPS.length - 1)]!.say} footnote="Mật Mật chỉ đọc những gì ai cũng thấy được, không thay đổi website của bạn." />;
 }
 
 /**
