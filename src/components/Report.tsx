@@ -7,7 +7,7 @@ import { formatDate, scoreColor, SEV_BAR, SEV_CHIP, SEV_COLOR, SEV_RAIL } from "
 import { buildRoadmap, buildSummary, CONFIDENCE_FACTOR, EFFORT_LABEL, effortFor, OWASP_MAP, scoringTable, toMarkdown } from "@/lib/guidance";
 import { CATEGORY_LABEL, CONFIDENCE_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { CATEGORIES, SEVERITIES, type Finding, type Severity } from "@/lib/scanner/types";
-import { buildFixPrompt } from "@/lib/ai-prompt";
+import { buildAllPrompt, buildFixPrompt } from "@/lib/ai-prompt";
 import { FEYNMAN, plainScore, PLAIN_SEV } from "@/lib/feynman";
 import { CopyButton } from "./CopyButton";
 import { FeedbackModal } from "./matmat/FeedbackModal";
@@ -51,6 +51,10 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
   const [filter, setFilter] = useState<Filter>("issues");
   const [sev, setSev] = useState<Severity | "all">("all");
   const [fresh, setFresh] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const beginner = mode === "beginner";
+  const LIMIT = 5;
 
   useEffect(() => {
     try { if (data.variant === "demo" || sessionStorage.getItem(`vibesec-fresh-${data.id}`) === "1") setFresh(true); } catch { /* bỏ qua */ }
@@ -67,7 +71,13 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
   const summary = useMemo(() => buildSummary(data), [data]);
   const roadmap = useMemo(() => buildRoadmap(data.findings, data.score), [data.findings, data.score]);
   const base = filter === "issues" ? issues : filter === "notes" ? notes : passed;
-  const list = filter === "issues" && sev !== "all" ? base.filter((f) => f.severity === sev) : base;
+  const filtered = filter === "issues" && sev !== "all" ? base.filter((f) => f.severity === sev) : base;
+  const list = beginner && !showAll ? filtered.slice(0, LIMIT) : filtered;
+  const hidden = filtered.length - list.length;
+  function jumpTo(f: Finding) {
+    setFilter("issues"); setSev("all"); setOpenId(f.fingerprint);
+    setTimeout(() => document.getElementById(`f-${slug(f.fingerprint)}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
   const urgent = issues.filter((f) => f.severity === "critical" || f.severity === "high");
   const counts = SEVERITIES.filter((s) => s !== "info").map((s) => ({ s, n: data.severityCounts[s] ?? 0 }));
   const totalIssues = counts.reduce((a, c) => a + c.n, 0);
@@ -128,7 +138,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
         </header>
 
         {/* ---- cảnh báo khẩn */}
-        {urgent.length > 0 && (
+        {!beginner && urgent.length > 0 && (
           <a href={`#f-${slug(urgent[0]!.fingerprint)}`} onClick={() => { setFilter("issues"); setSev("all"); }}
             className="reveal mt-8 flex items-center gap-3 rounded-xl border border-crit/25 bg-crit/5 px-4 py-3 text-sm transition-colors hover:bg-crit/10" style={stagger(1)} role="alert">
             <span className="live-dot !bg-crit" aria-hidden />
@@ -137,8 +147,40 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
           </a>
         )}
 
+        {/* ---- chế độ Dễ hiểu: một màn hình duy nhất cho điểm + 3 việc làm trước */}
+        {beginner && (
+          <section className="reveal mt-8 rounded-2xl border border-line bg-white p-5 shadow-card sm:p-7" style={stagger(2)} aria-label="Tóm tắt">
+            <div className="grid items-center gap-6 md:grid-cols-[auto_1fr] md:gap-10">
+              <div className="mx-auto"><ScoreRing score={data.score} grade={data.grade} size={150} /></div>
+              <div className="min-w-0">
+                <MatMatSays text={`Mình xem giúp bạn rồi nè! ${plainScore(data.score, issues.length, urgent.length)}`} />
+                {issues.length > 0 && (
+                  <div className="mt-5">
+                    <h2 className="text-[15px] font-semibold">{Math.min(3, issues.length)} việc nên làm trước</h2>
+                    <ol className="mt-2 divide-y divide-line rounded-xl border border-line">
+                      {issues.slice(0, 3).map((f, i) => (
+                        <li key={f.fingerprint}>
+                          <button onClick={() => jumpTo(f)} className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-surface">
+                            <span className="mono grid size-6 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent">{i + 1}</span>
+                            <span className="min-w-0 flex-1 leading-snug">{displayTitle(f, mode)}</span>
+                            <span className={`${SEV_CHIP[f.severity]} hidden shrink-0 sm:inline-flex`}>{SEV_LABEL[f.severity]}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <PromptButton text={buildAllPrompt(issues, data.host, data.platforms)} label={`Copy prompt cho AI (${Math.min(issues.length, 12)} vấn đề)`} big />
+                      {data.canRescan && <RescanButton url={data.url} variant="ghost" label="Quét lại sau khi sửa" />}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ---- điểm & phân bố */}
-        <section className="reveal mt-10 grid items-center gap-10 lg:grid-cols-[auto_1fr] lg:gap-16" style={stagger(2)} aria-label="Điểm tổng thể">
+        {!beginner && <section className="reveal mt-10 grid items-center gap-10 lg:grid-cols-[auto_1fr] lg:gap-16" style={stagger(2)} aria-label="Điểm tổng thể">
           <ScoreRing score={data.score} grade={data.grade} />
           <div>
             <p className="mono mb-4 text-xs text-faint">Không website nào đạt 100: quét thụ động có điểm tối đa là 96 (90 nếu phạm vi quét bị hạn chế).</p>
@@ -158,18 +200,17 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
                 <dd className="mt-0.5 text-3xl font-semibold text-ok"><AnimatedNumber value={passed.length} delay={320} /></dd>
               </div>
             </dl>
-            {mode === "beginner" && <MatMatSays className="mt-5 max-w-2xl" text={`Mình xem giúp bạn rồi nè! ${plainScore(data.score, issues.length, urgent.length)}${issues.length ? "\nBấm vào từng việc bên dưới, mình sẽ giải thích thật dễ hiểu." : ""}`} />}
             <p className="mt-6 max-w-2xl text-xs leading-relaxed text-faint">{data.disclaimer}</p>
           </div>
-        </section>
+        </section>}
 
         {/* ---- terminal xuất kết quả */}
-        <section className="reveal mt-10" style={stagger(3)} aria-label="Kết quả phân tích">
+        {!beginner && <section className="reveal mt-10" style={stagger(3)} aria-label="Kết quả phân tích">
           <TermTyper lines={termLines} title="vibesec ~ kết-quả" storageKey={`vibesec-typed-${data.id ?? data.host}`} fresh={fresh} />
-        </section>
+        </section>}
 
         {/* ---- tóm tắt & kế hoạch */}
-        <section className="mt-14 grid gap-10 lg:grid-cols-[1fr_1.6fr]" aria-label="Tóm tắt và kế hoạch khắc phục">
+        {!beginner && <section className="mt-14 grid gap-10 lg:grid-cols-[1fr_1.6fr]" aria-label="Tóm tắt và kế hoạch khắc phục">
           <div className="reveal" style={stagger(4)}>
             <h2 className="eyebrow">tóm tắt</h2>
             <div className="mt-3 space-y-2.5 text-[15px] leading-relaxed">
@@ -201,7 +242,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
               </div>
             </div>
           )}
-        </section>
+        </section>}
 
         {/* ---- so sánh */}
         {data.comparison && (
@@ -222,7 +263,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
         )}
 
         {/* ---- điểm theo nhóm */}
-        <section className="mt-14" aria-label="Điểm theo nhóm">
+        {!beginner && <section className="mt-14" aria-label="Điểm theo nhóm">
           <h2 className="eyebrow">điểm theo nhóm</h2>
           <ul className="mt-4 grid gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
             {CATEGORIES.map((c, i) => {
@@ -240,10 +281,10 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
               );
             })}
           </ul>
-        </section>
+        </section>}
 
         {/* ---- danh sách phát hiện */}
-        <section className="mt-16" aria-label="Các phát hiện">
+        <section className={beginner ? "mt-8" : "mt-16"} aria-label="Các phát hiện">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <h2 className="text-2xl font-semibold tracking-tight">Các phát hiện</h2>
             <div role="tablist" aria-label="Lọc theo loại" className="inline-flex rounded-lg border border-line-strong bg-surface p-0.5 text-[13px]">
@@ -270,9 +311,11 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
             </div>
           ) : (
             <ul className="mt-5 space-y-2.5">
-              {list.map((f, i) => <FindingItem key={f.fingerprint} f={f} mode={mode} data={data} i={i} />)}
+              {list.map((f, i) => <FindingItem key={f.fingerprint} f={f} mode={mode} data={data} i={i} open={openId === f.fingerprint} onToggle={() => setOpenId((c) => (c === f.fingerprint ? null : f.fingerprint))} />)}
             </ul>
           )}
+          {hidden > 0 && <button onClick={() => setShowAll(true)} className="btn-ghost mt-4 w-full">Xem thêm {hidden} mục</button>}
+          {beginner && showAll && filtered.length > LIMIT && <button onClick={() => setShowAll(false)} className="btn-ghost mt-4 w-full">Thu gọn</button>}
         </section>
 
         {/* ---- chi tiết kỹ thuật */}
@@ -299,6 +342,8 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
             </div>
           </section>
         )}
+
+        {beginner && <p className="mt-10 max-w-2xl text-xs leading-relaxed text-faint">{data.disclaimer}</p>}
 
         {/* ---- cách tính điểm */}
         <section className="mt-16 border-t border-line pt-8" aria-label="Cách tính điểm">
@@ -359,10 +404,11 @@ function Confidence({ level }: { level: Finding["confidence"] }) {
   );
 }
 
-function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: ReportData; i: number }) {
+function FindingItem({ f, mode, data, i, open, onToggle }: { f: Finding; mode: Mode; data: ReportData; i: number; open: boolean; onToggle: () => void }) {
   const isPass = f.status === "pass";
   const isFail = f.status === "fail";
   const [opened, setOpened] = useState(false);
+  useEffect(() => { if (open) setOpened(true); }, [open]);
   const fy = mode === "beginner" ? FEYNMAN[f.ruleId] : undefined;
   const simpleText = fy
     ? isFail ? `Mình giải thích nhé! ${fy.like}\n\nViệc bạn cần làm: ${fy.todo}` : `${isPass ? "Chỗ này ổn rồi nha! " : "Chỉ để bạn biết: "}${fy.like}`
@@ -378,8 +424,8 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
 
   return (
     <li id={`f-${slug(f.fingerprint)}`} className="reveal scroll-mt-24" style={stagger(i)}>
-      <details className={`group panel border-l-[3px] ${rail} transition-shadow open:shadow-pop`} onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) setOpened(true); }}>
-        <summary className="flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-surface/70 sm:items-center">
+      <details open={open} className={`group panel border-l-[3px] ${rail} transition-shadow open:shadow-pop`}>
+        <summary onClick={(e) => { e.preventDefault(); onToggle(); }} className="flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-surface/70 sm:items-center">
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               {isFail ? <span className={SEV_CHIP[f.severity]}>{SEV_LABEL[f.severity]}</span> : isPass ? <span className="chip-ok">Đạt</span> : <span className="chip-info">{f.status === "unknown" ? "Chưa kiểm tra được" : "Ghi chú"}</span>}
@@ -496,11 +542,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** Nút copy prompt để dán vào công cụ AI viết code (Cursor, Claude Code…). */
-function PromptButton({ text }: { text: string }) {
+function PromptButton({ text, label = "Copy prompt cho AI", big = false }: { text: string; label?: string; big?: boolean }) {
   const [ok, setOk] = useState(false);
   return (
-    <button type="button" className="btn-primary btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); } catch { /* clipboard bị chặn */ } }}>
-      {ok ? "Đã copy prompt ✓" : "Copy prompt cho AI"}
+    <button type="button" className={`btn-primary ${big ? "" : "btn-sm"}`} onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); } catch { /* clipboard bị chặn */ } }}>
+      {ok ? "Đã copy prompt ✓" : label}
     </button>
   );
 }
