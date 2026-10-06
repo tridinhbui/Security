@@ -67,52 +67,29 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ---- cách hoạt động */}
+      {/* ---- cách hoạt động (dải ngắn) */}
       <section className="hairline" aria-labelledby="how">
-        <div className="container-x py-20">
-          <h2 id="how" className="eyebrow">cách hoạt động</h2>
-          <ol className="mt-8 grid gap-10 md:grid-cols-3">
+        <div className="container-x py-10">
+          <h2 id="how" className="sr-only">Cách hoạt động</h2>
+          <ol className="grid gap-6 md:grid-cols-3 md:gap-10">
             {STEPS.map((s, i) => (
-              <li key={s.n} className="reveal" style={{ ["--i" as string]: i }}>
-                <p className="mono text-sm font-medium text-accent">{s.n}</p>
-                <h3 className="mt-2 text-xl font-semibold tracking-tight">{s.t}</h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-muted">{s.d}</p>
+              <li key={s.n} className="reveal flex items-start gap-4" style={{ ["--i" as string]: i }}>
+                <span className="mono grid size-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">{s.n}</span>
+                <span><span className="block font-semibold tracking-tight">{s.t}</span><span className="mt-1 block text-sm leading-relaxed text-muted">{s.d}</span></span>
               </li>
             ))}
           </ol>
         </div>
       </section>
 
-      {/* ---- báo cáo mẫu */}
-      <section className="hairline bg-surface/60" aria-labelledby="example">
-        <div className="container-x grid items-center gap-12 py-20 lg:grid-cols-[1fr_1.15fr] lg:gap-20">
-          <div>
-            <h2 id="example" className="text-3xl font-semibold tracking-tight sm:text-4xl">Báo cáo giúp bạn hành động ngay</h2>
-            <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-muted">Mỗi phát hiện nêu rõ chúng tôi thấy gì, tác động tiềm ẩn, bằng chứng và cấu hình có thể sao chép cho đúng hệ thống của bạn — hoặc hướng dẫn chung khi chưa xác định được bạn dùng gì. Chúng tôi không bao giờ tự bịa cấu hình.</p>
-            <Link href="/demo" className="btn-dark mt-8">Xem báo cáo demo đầy đủ<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
-          </div>
-          <div className="panel overflow-hidden" aria-label="Xem trước báo cáo mẫu">
-            <div className="term-bar"><span className="term-dot" /><span className="term-dot" /><span className="term-dot" /><span className="mono ml-1">{demo.host}</span></div>
-            <div className="grid items-center gap-6 p-6 sm:grid-cols-[auto_1fr]">
-              <ScoreRing score={demo.score} grade={demo.grade} size={132} />
-              <ul className="space-y-2.5 text-sm">
-                {risks.map((f) => (
-                  <li key={f.fingerprint} className="flex items-start gap-2.5"><span className={`${SEV_CHIP[f.severity]} mt-0.5 shrink-0`}>{SEV_LABEL[f.severity]}</span><span className="leading-snug">{f.title}</span></li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ---- những gì kiểm tra */}
       <section id="checks" className="hairline" aria-labelledby="checks-h">
-        <div className="container-x py-20">
+        <div className="container-x py-14">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div><p className="eyebrow mb-3">{ALL_RULES.length} kiểm tra bảo mật</p><h2 id="checks-h" className="text-3xl font-semibold tracking-tight sm:text-4xl">Kiểm tra toàn diện từ hạ tầng đến mã nguồn.</h2></div>
             <Link href="/phuong-phap" className="text-sm font-medium text-accent hover:underline">Xem chi tiết phương pháp →</Link>
           </div>
-          <div className="mt-12 grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-9 grid gap-x-8 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
             {CATEGORIES.map((c, i) => (
               <div key={c} className="reveal border-l border-line pl-6 first:border-l-0 first:pl-0 sm:[&:nth-child(2n+1)]:border-l-0 sm:[&:nth-child(2n+1)]:pl-0 lg:[&:nth-child(2n+1)]:border-l lg:[&:nth-child(2n+1)]:pl-6 lg:[&:nth-child(4n+1)]:border-l-0 lg:[&:nth-child(4n+1)]:pl-0" style={{ ["--i" as string]: i }}>
                 <svg viewBox="0 0 24 24" className="size-6 text-fg" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{ICONS[c]}</svg>
@@ -125,22 +102,27 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ---- an toàn */}
-      <section className="hairline bg-surface/60" aria-labelledby="safe-h">
-        <div className="container-x grid gap-12 py-20 md:grid-cols-2">
-          <div>
-            <h2 id="safe-h" className="text-3xl font-semibold tracking-tight sm:text-4xl">An toàn ngay từ thiết kế</h2>
-            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted">VibeSec chỉ xem những gì trình duyệt của bất kỳ khách truy cập nào cũng thấy. Kết quả mang tính xác định — không dùng AI đoán mò — và công cụ quét được xây để không thể bị lợi dụng truy cập hạ tầng nội bộ.</p>
+      {/* ---- báo cáo mẫu + an toàn (gộp) */}
+      <section className="hairline bg-surface/60" aria-labelledby="example">
+        <div className="container-x grid items-center gap-10 py-14 lg:grid-cols-2 lg:gap-16">
+          <div className="panel overflow-hidden" aria-label="Xem trước báo cáo mẫu">
+            <div className="term-bar"><span className="term-dot" /><span className="term-dot" /><span className="term-dot" /><span className="mono ml-1">{demo.host}</span></div>
+            <div className="grid items-center gap-5 p-5 sm:grid-cols-[auto_1fr]">
+              <ScoreRing score={demo.score} grade={demo.grade} size={112} />
+              <ul className="space-y-2 text-sm">
+                {risks.slice(0, 3).map((f) => (
+                  <li key={f.fingerprint} className="flex items-start gap-2.5"><span className={`${SEV_CHIP[f.severity]} mt-0.5 shrink-0`}>{SEV_LABEL[f.severity]}</span><span className="leading-snug">{f.title}</span></li>
+                ))}
+              </ul>
+            </div>
           </div>
-          <ul className="space-y-3.5 text-[15px] text-muted">
-            {[
-              "Không dò mật khẩu, không gửi mã khai thác, không SQL/XSS/command injection hay fuzzing.",
-              "Chỉ quét website công khai trên cổng 80/443; mạng nội bộ và metadata đám mây bị chặn ở nhiều lớp, kể cả DNS rebinding và chuyển hướng.",
-              "Số yêu cầu nhỏ và cố định tới trang chủ cùng vài tệp công khai.",
-              "Tự nhận diện là VibeSecBot; không lưu nội dung trang, khoá bí mật nếu phát hiện được che ngay lập tức.",
-              "Giới hạn tần suất theo tài khoản, địa chỉ mạng và từng website đích.",
-            ].map((t) => <li key={t} className="flex gap-3"><Tick />{t}</li>)}
-          </ul>
+          <div>
+            <h2 id="example" className="text-2xl font-semibold tracking-tight sm:text-3xl">Báo cáo dễ hiểu, an toàn ngay từ thiết kế</h2>
+            <ul className="mt-5 space-y-2.5 text-[15px] text-muted">
+              {["Chỉ xem những gì ai cũng thấy được: không dò mật khẩu, không gửi mã khai thác.", "Chỉ quét website công khai; mạng nội bộ bị chặn nhiều lớp.", "Mỗi vấn đề có lời giải thích đơn giản và prompt dán thẳng vào AI để sửa."].map((t) => <li key={t} className="flex gap-3"><Tick />{t}</li>)}
+            </ul>
+            <Link href="/demo" className="btn-dark mt-7">Xem báo cáo demo<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
+          </div>
         </div>
       </section>
     </>

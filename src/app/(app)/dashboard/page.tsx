@@ -46,7 +46,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     <div className="relative">
       <div aria-hidden className="bg-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-64" />
       <div className="container-x py-10 sm:py-14">
-        <section aria-labelledby="scan-h" className="reveal">
+        <section id="quet" aria-labelledby="scan-h" className="reveal">
           <p className="eyebrow">xin chào, {name}</p>
           <h1 id="scan-h" className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Quét một website</h1>
           <MatMatSays className="mb-6 mt-4 max-w-2xl" text={completed.length ? `Chào ${name}! Dán địa chỉ website vào ô bên dưới, mình kiểm tra giúp bạn trong chưa đầy 30 giây nhé. Hôm nay bạn còn ${Math.max(0, quota - used)} lượt quét.` : `Chào ${name}, mình là Mật Mật! Bạn dán địa chỉ website vào ô bên dưới, mình sẽ đi xem thử như một người khách tò mò rồi giải thích cho bạn thật dễ hiểu.`} />

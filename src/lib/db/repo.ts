@@ -473,3 +473,7 @@ export async function adminListFeedback(db: D1Like, limit = 30): Promise<{ rows:
   const agg = await db.prepare("SELECT COUNT(*) n, AVG(rating) a FROM feedback").first<{ n: number; a: number | null }>();
   return { rows: results, avg: agg?.a ?? null, total: agg?.n ?? 0 };
 }
+
+/** Số cuộc chat có tin chưa đọc từ người dùng (huy hiệu ở thanh bên của quản trị viên). */
+export const adminUnreadChats = async (db: D1Like) =>
+  (await db.prepare("SELECT COUNT(DISTINCT user_id) c FROM chat_messages WHERE sender='user' AND read_at IS NULL").first<{ c: number }>())?.c ?? 0;
