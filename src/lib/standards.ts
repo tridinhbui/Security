@@ -122,3 +122,33 @@ export function owaspCoverage(findings: Finding[], owaspMap: Record<string, stri
     return { ...t, checks: failing + passing, failing, passing };
   });
 }
+
+/** Các chương OWASP ASVS 4.0.3 mà bộ luật chạm tới. */
+export const ASVS_CHAPTERS: Record<string, string> = {
+  "2": "V2 · Xác thực", "3": "V3 · Quản lý phiên", "5": "V5 · Kiểm tra dữ liệu đầu vào", "7": "V7 · Xử lý lỗi & nhật ký", "8": "V8 · Bảo vệ dữ liệu",
+  "9": "V9 · Truyền thông", "13": "V13 · API", "14": "V14 · Cấu hình",
+};
+export interface AsvsRow { chapter: string; name: string; checks: number; failing: number; passing: number; reqs: string[] }
+
+/** Tư thế theo chương ASVS: đếm theo luật (luật lỗi ở đâu đó thì tính lỗi), kèm danh sách yêu cầu liên quan. */
+export function asvsPosture(findings: Finding[]): AsvsRow[] {
+  const byRule = new Map<string, "fail" | "pass">();
+  for (const f of findings) {
+    if (f.status !== "pass" && f.status !== "fail") continue;
+    if (f.status === "fail" && f.severity === "info") continue;
+    if (byRule.get(f.ruleId) === "fail") continue;
+    byRule.set(f.ruleId, f.status);
+  }
+  const rows = new Map<string, AsvsRow>();
+  for (const [rule, st] of byRule) {
+    for (const req of standardsFor(rule).asvs) {
+      const ch = req.split(".")[0]!;
+      const r = rows.get(ch) ?? { chapter: ch, name: ASVS_CHAPTERS[ch] ?? `V${ch}`, checks: 0, failing: 0, passing: 0, reqs: [] };
+      if (!r.reqs.includes(req)) r.reqs.push(req);
+      r.checks++;
+      if (st === "fail") r.failing++; else r.passing++;
+      rows.set(ch, r);
+    }
+  }
+  return [...rows.values()].sort((a, b) => Number(a.chapter) - Number(b.chapter)).map((r) => ({ ...r, reqs: r.reqs.sort() }));
+}

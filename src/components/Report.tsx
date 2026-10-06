@@ -8,7 +8,8 @@ import { buildRoadmap, buildSummary, CONFIDENCE_FACTOR, EFFORT_LABEL, effortFor,
 import { CATEGORY_LABEL, CONFIDENCE_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { CATEGORIES, SEVERITIES, type Finding, type Severity } from "@/lib/scanner/types";
 import { buildAllPrompt, buildFixPrompt } from "@/lib/ai-prompt";
-import { ASVS_URL, cweUrl, owaspCoverage, standardsFor, wstgUrl } from "@/lib/standards";
+import { attackChains } from "@/lib/chains";
+import { asvsPosture, ASVS_URL, cweUrl, owaspCoverage, standardsFor, wstgUrl } from "@/lib/standards";
 import { FEYNMAN, plainScore, PLAIN_SEV } from "@/lib/feynman";
 import { CopyButton } from "./CopyButton";
 import { FeedbackModal } from "./matmat/FeedbackModal";
@@ -290,6 +291,9 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
             })}
           </ul>
         </section>}
+
+        {/* ---- chuỗi tấn công */}
+        <AttackChains findings={data.findings} beginner={beginner} />
 
         {/* ---- danh sách phát hiện */}
         <section className={beginner ? "mt-8" : "mt-16"} aria-label="Các phát hiện">
@@ -672,6 +676,54 @@ function OwaspCoverage({ findings }: { findings: Finding[] }) {
           );
         })}
       </ul>
+      <AsvsGrid findings={findings} />
     </div>
+  );
+}
+
+/** Tư thế theo chương OWASP ASVS 4.0.3: chương nào đang có lỗi, kèm các yêu cầu liên quan. */
+function AsvsGrid({ findings }: { findings: Finding[] }) {
+  const rows = asvsPosture(findings);
+  if (!rows.length) return null;
+  return (
+    <div className="mt-8">
+      <h3 className="eyebrow">owasp asvs 4.0.3 theo chương</h3>
+      <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {rows.map((r) => (
+          <li key={r.chapter} className={`rounded-xl border p-3.5 ${r.failing ? "border-crit/30 bg-crit/5" : "border-ok/30 bg-ok/5"}`}>
+            <p className="text-[14px] font-medium leading-snug">{r.name}</p>
+            <p className="mt-1.5 text-[13px]"><span className={r.failing ? "font-semibold text-crit" : "text-ok"}>{r.failing} lỗi</span> <span className="text-muted">· {r.passing} đạt</span></p>
+            <p className="mono mt-1.5 text-[11px] leading-snug text-faint">{r.reqs.join(" · ")}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 max-w-3xl text-xs text-faint">Đây là các yêu cầu ASVS mà kiểm tra thụ động có thể quan sát một phần. Không chương nào được coi là “đạt” khi chưa kiểm thử thủ công bên trong ứng dụng.</p>
+    </div>
+  );
+}
+
+/** Chuỗi tấn công: các phát hiện nhỏ cộng lại thành một con đường tấn công thực tế, kèm cách cắt chuỗi nhanh nhất. Suy luận từ cấu hình, chưa phải bằng chứng đã khai thác. */
+function AttackChains({ findings, beginner }: { findings: Finding[]; beginner: boolean }) {
+  const chains = attackChains(findings);
+  if (!chains.length) return null;
+  const tone: Record<string, string> = { critical: "border-crit/40 bg-crit/5", high: "border-high/40 bg-high/5", medium: "border-med/40 bg-med/5", low: "border-line bg-surface", info: "border-line bg-surface" };
+  return (
+    <section className={beginner ? "mt-8" : "mt-14"} aria-label="Chuỗi tấn công">
+      <h2 className="text-xl font-semibold tracking-tight">{beginner ? "Những lỗi nhỏ có thể cộng lại thành một đường tấn công" : "Chuỗi tấn công có thể xảy ra"}</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted">Một lỗi nhỏ thường chưa gây hại, nhưng nhiều lỗi nối nhau thì có. Đây là suy luận từ cấu hình quan sát được, không phải bằng chứng đã bị khai thác.</p>
+      <ul className="mt-4 grid gap-3 lg:grid-cols-2">
+        {chains.map((c) => (
+          <li key={c.id} className={`rounded-xl border p-4 ${tone[c.severity] ?? tone.low}`}>
+            <div className="flex flex-wrap items-center gap-2"><span className={SEV_CHIP[c.severity]}>{SEV_LABEL[c.severity]}</span>{c.complete && <span className="chip-info">đủ mắt xích</span>}<h3 className="font-semibold leading-snug">{c.title}</h3></div>
+            <p className="mt-2 text-sm text-muted">{c.summary}</p>
+            <details className="group mt-2.5"><summary className="flex cursor-pointer items-center gap-1.5 text-[13px] font-medium text-accent"><Chevron />Xem các bước</summary>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13.5px] text-muted">{c.steps.map((st) => <li key={st}>{st}</li>)}</ol>
+              {!beginner && <p className="mono mt-2 text-[11px] text-faint">{c.ruleIds.join(" · ")}</p>}
+            </details>
+            <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-[13.5px]"><b className="font-semibold">Cắt chuỗi nhanh nhất:</b> {c.cut}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
