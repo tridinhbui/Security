@@ -1,10 +1,24 @@
 import { redirect } from "next/navigation";
 import { MatMatSays } from "@/components/matmat/MatMatSays";
 import { ScanForm } from "@/components/ScanForm";
+import { ScanCovers, type CoverGroup } from "@/components/ScanCovers";
 import { ScanTable } from "@/components/ScanTable";
+import Link from "next/link";
 import { getUser } from "@/lib/auth/next";
 import { getDb } from "@/lib/cf";
 import * as repo from "@/lib/db/repo";
+
+/** Nhóm "gồm những gì" của quét nâng cao: tên + một câu đời thường (Dễ hiểu) và danh sách kiểm tra chi tiết (Kỹ thuật). */
+const ADVANCED_GROUPS: CoverGroup[] = [
+  { title: "Mã JavaScript", simple: "Đọc mã của trang để tìm khoá bí mật hay thư viện cũ lỡ để lộ.",
+    tech: ["Phân tích mã: DOM XSS, postMessage, token trong localStorage, GraphQL", "Chuỗi cung ứng script: nguồn từng bị chiếm dụng, không ghim phiên bản", "Khoá bí mật và thư viện lỗi thời (CVE)"] },
+  { title: "API & endpoint", simple: "Tìm các đường dẫn quản trị hoặc API vô tình bị lộ trong mã trang.",
+    tech: ["Bản đồ endpoint API/quản trị lộ trong mã trang", "Chuỗi chuyển hướng, header nhất quán giữa các trang"] },
+  { title: "Cookie & phiên đăng nhập", simple: "Kiểm tra phiên đăng nhập có bị lưu nhầm hoặc dùng quá lâu không.",
+    tech: ["Rò rỉ phiên qua cache dùng chung", "Phạm vi và tuổi thọ cookie", "Cờ Secure / HttpOnly / SameSite, tiền tố __Host-"] },
+  { title: "CSP & cấu hình bảo mật", simple: "Xem các lớp bảo vệ của trang có đủ chặt và cấu hình đúng không.",
+    tech: ["CSP: unsafe-inline, nguồn quá rộng, thiếu object-src / base-uri", "Vệ sinh chứng chỉ TLS", "SPF / DMARC chi tiết: +all, vượt 10 lần tra, p=none"] },
+];
 
 const COPY = {
   basic: {
@@ -15,9 +29,9 @@ const COPY = {
   },
   advanced: {
     path: "/quet-nang-cao", eyebrow: "quét nâng cao", title: "Quét nâng cao", mode: "full" as const,
-    say: "Quét nâng cao mình đọc kỹ cả mã của trang để tìm thứ lỡ để lộ, như khoá bí mật hay thư viện cũ. Lâu hơn một chút nhưng sâu hơn nhiều 🔍",
-    covers: ["Tất cả kiểm tra của quét cơ bản", "Phân tích sâu CSP: unsafe-inline, nguồn quá rộng, thiếu object-src/base-uri", "Rò rỉ phiên qua cache dùng chung, phạm vi và tuổi thọ cookie", "Chuỗi cung ứng script: nguồn từng bị chiếm dụng, không ghim phiên bản", "Phân tích mã JavaScript: DOM XSS, postMessage, token trong localStorage, GraphQL", "Bản đồ endpoint API/quản trị lộ trong mã trang", "Chuỗi chuyển hướng, header nhất quán giữa các trang, vệ sinh chứng chỉ", "SPF/DMARC chi tiết: +all, vượt 10 lần tra, p=none"],
-    when: "Phù hợp khi bạn sắp ra mắt website, hoặc muốn kiểm tra thật kỹ.",
+    say: "Quét sâu mã nguồn và cấu hình để phát hiện các rủi ro khó thấy hơn.",
+    covers: [],
+    when: "",
   },
 };
 
@@ -27,7 +41,7 @@ export async function ScanModePage({ kind, prefill }: { kind: "basic" | "advance
   const user = await getUser();
   if (!user) redirect(`/login?next=${c.path}`);
   const all = await repo.listScans(await getDb(), user.id, 100);
-  const scans = all.filter((s) => s.mode === c.mode).slice(0, 8);
+  const scans = all.filter((s) => s.mode === c.mode).slice(0, 3);
   return (
     <div className="container-x max-w-4xl py-10 sm:py-14">
       <p className="eyebrow reveal">{c.eyebrow}</p>
@@ -37,11 +51,15 @@ export async function ScanModePage({ kind, prefill }: { kind: "basic" | "advance
       <p className="mt-3 text-[13px] text-faint">Quét thụ động · Không đăng nhập · Không thay đổi website</p>
       <section className="mt-8" aria-label="Kiểu quét này làm gì">
         <h2 className="eyebrow">gồm những gì</h2>
-        <ul className={`mt-3 grid gap-2 text-[15px] text-muted ${kind === "basic" ? "sm:grid-cols-2" : ""}`}>{c.covers.map((t) => <li key={t} className="flex gap-2.5"><span className="mt-1 text-ok" aria-hidden>✓</span>{t}</li>)}</ul>
-        {c.when && <p className="mt-4 text-sm text-muted">{c.when}</p>}
+        {kind === "advanced"
+          ? <ScanCovers groups={ADVANCED_GROUPS} columns />
+          : <ul className="mt-3 grid gap-2 text-[15px] text-muted sm:grid-cols-2">{c.covers.map((t) => <li key={t} className="flex gap-2.5"><span className="mt-1 text-ok" aria-hidden>✓</span>{t}</li>)}</ul>}
       </section>
       {scans.length > 0 && <section className="mt-10" aria-label="Lượt quét gần đây">
-        <h2 className="text-xl font-semibold tracking-tight">Lượt {kind === "basic" ? "quét cơ bản" : "quét nâng cao"} gần đây</h2>
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-lg font-semibold tracking-tight">Gần đây</h2>
+          <Link href="/scans" className="text-sm font-medium text-accent hover:underline">Xem tất cả →</Link>
+        </div>
         <ScanTable scans={scans} />
       </section>}
     </div>
