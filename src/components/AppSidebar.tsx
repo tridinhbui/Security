@@ -78,7 +78,12 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
 
   const nav = (
     <div className="flex h-full flex-col">
-      <div className="px-4 pb-3 pt-5"><Logo href="/dashboard" /></div>
+      <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-5">
+        <Logo href="/dashboard" />
+        <button type="button" onClick={signOut} disabled={busy} title="Đăng xuất" aria-label="Đăng xuất" className="grid size-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-crit/5 hover:text-crit disabled:opacity-60">
+          <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9" /></svg>
+        </button>
+      </div>
       <div className="px-3">
         <Link href="/dashboard#quet" className="btn-primary w-full justify-start gap-2.5 !px-3">
           <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>Quét website mới
