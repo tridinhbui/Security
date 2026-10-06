@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { MatMat } from "@/components/matmat/MatMat";
+import { MatMatProvider } from "@/components/matmat/MatMatProvider";
 import { SiteHeader } from "@/components/SiteHeader";
+import { getUser } from "@/lib/auth/next";
 
 export const metadata: Metadata = {
   title: { default: "VibeSec — kiểm tra bảo mật website bằng ngôn ngữ dễ hiểu", template: "%s · VibeSec" },
@@ -10,11 +13,13 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { themeColor: "#ffffff", width: "device-width", initialScale: 1 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getUser();
   return (
     <html lang="vi">
       <body className="flex min-h-dvh flex-col">
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-fg focus:px-3 focus:py-2 focus:text-sm focus:text-white">Bỏ qua điều hướng</a>
+        <MatMatProvider>
         <SiteHeader />
         <main id="main" className="flex-1">{children}</main>
         <footer className="mt-0 border-t border-line bg-white">
@@ -30,6 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </footer>
+        <MatMat authed={!!user} />
+        </MatMatProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAdmin } from "@/lib/auth/admin";
 import { getUser } from "@/lib/auth/next";
+import { ModeToggle } from "./matmat/ModeToggle";
 import { NavLinks, type NavItem } from "./NavLinks";
 import { UserMenu } from "./UserMenu";
 
@@ -28,6 +29,7 @@ export async function SiteHeader() {
           <nav aria-label="Điều hướng chính" className="ml-6 hidden items-center sm:flex"><NavLinks items={nav} /></nav>
         </div>
         <div className="flex items-center gap-2">
+          <ModeToggle />
           {user ? (
             <UserMenu name={user.name} email={user.email} avatarUrl={user.avatar_url} />
           ) : (

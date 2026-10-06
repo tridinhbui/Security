@@ -31,7 +31,7 @@
 		"SCAN_DAILY_QUOTA": "3",
 		"SCAN_MONTHLY_QUOTA": "30",
 		// Cầu dao chi phí: tổng lượt quét của MỌI người trong 24 giờ.
-		"SCAN_GLOBAL_DAILY_CAP": "60",
+		"SCAN_GLOBAL_DAILY_CAP": "600",
 		// Client ID của Google là công khai (hiện trong URL đăng nhập). Client SECRET KHÔNG đặt ở đây: dùng `wrangler secret put GOOGLE_CLIENT_SECRET`.
 		"GOOGLE_CLIENT_ID": "379967826823-2s5a3v3tnrea6cdsauvkoa9u7q4703m2.apps.googleusercontent.com"
 	},

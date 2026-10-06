@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function Admin() {
   if (!(await getAdmin())) notFound(); // không tiết lộ khu vực quản trị cho người khác
   const db = await getDb();
-  const [o, users] = await Promise.all([repo.adminOverview(db), repo.adminListUsers(db)]);
+  const [o, users, fb] = await Promise.all([repo.adminOverview(db), repo.adminListUsers(db), repo.adminListFeedback(db)]);
   const stats = [
     ["Người dùng", o.users], ["Hoạt động 24 giờ", o.activeToday], ["Lượt quét tổng", o.scansTotal], ["Lượt quét 24 giờ", o.scans24h],
     ["Cuộc chat chưa đọc", o.unreadChats], ["Tổng thời lượng dùng", formatDuration(o.usageSecondsTotal)],
@@ -48,6 +48,19 @@ export default async function Admin() {
             </tbody>
           </table>
         </div>
+      </section>
+      <section className="mt-10" aria-label="Phản hồi">
+        <h2 className="text-lg font-semibold">Phản hồi sau khi quét <span className="num ml-2 text-sm font-normal text-muted">{fb.total ? `${fb.avg?.toFixed(1)}/5 · ${fb.total} lượt` : "chưa có"}</span></h2>
+        <ul className="panel mt-3 divide-y divide-line">
+          {fb.rows.map((r) => (
+            <li key={r.id} className="p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><span aria-label={`${r.rating} trên 5`}>{"★".repeat(r.rating)}<span className="text-line-strong">{"★".repeat(5 - r.rating)}</span></span><span className="mono text-xs text-muted">{r.host}</span><span className="text-xs text-faint">{r.email} · {relativeTime(r.created_at)}</span></div>
+              {r.tags && <p className="mt-1 flex flex-wrap gap-1">{r.tags.split(",").map((t) => <span key={t} className="chip-info">{t}</span>)}</p>}
+              {r.comment && <p className="mt-1 whitespace-pre-wrap text-muted">{r.comment}</p>}
+            </li>
+          ))}
+          {fb.rows.length === 0 && <li className="p-6 text-center text-muted">Chưa có phản hồi.</li>}
+        </ul>
       </section>
     </div>
   );

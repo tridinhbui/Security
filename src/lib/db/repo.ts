@@ -451,3 +451,25 @@ export async function getTlsCache<T>(db: D1Like, host: string): Promise<T | null
 }
 export const putTlsCache = (db: D1Like, host: string, data: unknown) =>
   db.prepare("INSERT INTO tls_cache (host,data,fetched_at) VALUES (?,?,?) ON CONFLICT(host) DO UPDATE SET data=excluded.data, fetched_at=excluded.fetched_at").bind(host, JSON.stringify(data), nowIso()).run();
+
+// ---------------------------------------------------------------- phản hồi sau khi quét
+export const FEEDBACK_TAGS = ["easy", "confusing", "missing-guide", "hard-commands", "slow", "great"] as const;
+export const FEEDBACK_COMMENT_MAX = 600;
+export interface FeedbackRow { id: string; rating: number; tags: string; comment: string; created_at: string; scan_id: string; email: string; host: string }
+
+/** Lưu phản hồi; gửi lại cho cùng lượt quét sẽ cập nhật bản cũ. Chỉ chủ lượt quét mới gửi được. */
+export async function saveFeedback(db: D1Like, userId: string, scanId: string, rating: number, tags: string[], comment: string): Promise<boolean> {
+  const owns = await db.prepare("SELECT id FROM scans WHERE id = ? AND user_id = ?").bind(scanId, userId).first();
+  if (!owns) return false;
+  const t = tags.filter((x) => (FEEDBACK_TAGS as readonly string[]).includes(x)).join(",");
+  await db.prepare("INSERT INTO feedback (id,user_id,scan_id,rating,tags,comment,created_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id,scan_id) DO UPDATE SET rating=excluded.rating, tags=excluded.tags, comment=excluded.comment")
+    .bind(newId(), userId, scanId, rating, t, comment.slice(0, FEEDBACK_COMMENT_MAX), nowIso()).run();
+  return true;
+}
+export const hasFeedback = async (db: D1Like, userId: string, scanId: string) =>
+  !!(await db.prepare("SELECT 1 x FROM feedback WHERE user_id = ? AND scan_id = ?").bind(userId, scanId).first());
+export async function adminListFeedback(db: D1Like, limit = 30): Promise<{ rows: FeedbackRow[]; avg: number | null; total: number }> {
+  const { results } = await db.prepare("SELECT f.id,f.rating,f.tags,f.comment,f.created_at,f.scan_id,u.email,s.normalized_url host FROM feedback f JOIN users u ON u.id=f.user_id JOIN scans s ON s.id=f.scan_id ORDER BY f.created_at DESC LIMIT ?").bind(limit).all<FeedbackRow>();
+  const agg = await db.prepare("SELECT COUNT(*) n, AVG(rating) a FROM feedback").first<{ n: number; a: number | null }>();
+  return { rows: results, avg: agg?.a ?? null, total: agg?.n ?? 0 };
+}

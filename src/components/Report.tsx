@@ -7,7 +7,11 @@ import { formatDate, scoreColor, SEV_BAR, SEV_CHIP, SEV_COLOR, SEV_RAIL } from "
 import { buildRoadmap, buildSummary, CONFIDENCE_FACTOR, EFFORT_LABEL, effortFor, OWASP_MAP, scoringTable, toMarkdown } from "@/lib/guidance";
 import { CATEGORY_LABEL, CONFIDENCE_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { CATEGORIES, SEVERITIES, type Finding, type Severity } from "@/lib/scanner/types";
+import { buildFixPrompt } from "@/lib/ai-prompt";
+import { FEYNMAN, plainScore, PLAIN_SEV } from "@/lib/feynman";
 import { CopyButton } from "./CopyButton";
+import { FeedbackModal } from "./matmat/FeedbackModal";
+import { useMatMat } from "./matmat/MatMatProvider";
 import { AnimatedNumber } from "./motion/AnimatedNumber";
 import { ScoreRing } from "./motion/ScoreRing";
 import { TermTyper, Typed, type TermLine } from "./motion/Typed";
@@ -34,7 +38,7 @@ export interface ReportData {
   disclaimer: string;
 }
 
-type Mode = "beginner" | "technical";
+import type { Mode } from "./matmat/MatMatProvider";
 type Filter = "issues" | "notes" | "passed";
 
 const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
@@ -42,20 +46,23 @@ const displayTitle = (f: Finding, mode: Mode) => (mode === "beginner" ? PLAIN_TI
 const stagger = (i: number) => ({ ["--i" as string]: Math.min(i, 14) });
 
 export function Report({ data, actions }: { data: ReportData; actions?: React.ReactNode }) {
-  const [mode, setMode] = useState<Mode>("beginner");
+  const { mode, setMode, setReport } = useMatMat();
   const [filter, setFilter] = useState<Filter>("issues");
   const [sev, setSev] = useState<Severity | "all">("all");
   const [fresh, setFresh] = useState(false);
 
   useEffect(() => {
-    try { const m = localStorage.getItem("vibesec-mode"); if (m === "technical" || m === "beginner") setMode(m); } catch { /* không đọc được localStorage */ }
     try { if (data.variant === "demo" || sessionStorage.getItem(`vibesec-fresh-${data.id}`) === "1") setFresh(true); } catch { /* bỏ qua */ }
   }, [data.id, data.variant]);
-  const choose = (m: Mode) => { setMode(m); try { localStorage.setItem("vibesec-mode", m); } catch { /* bỏ qua */ } };
+  const choose = (m: Mode) => setMode(m);
 
   const issues = useMemo(() => data.findings.filter((f) => f.status === "fail" && f.severity !== "info"), [data.findings]);
   const notes = useMemo(() => data.findings.filter((f) => f.status === "info" || f.status === "unknown" || (f.status === "fail" && f.severity === "info")), [data.findings]);
   const passed = useMemo(() => data.findings.filter((f) => f.status === "pass"), [data.findings]);
+  useEffect(() => {
+    setReport({ host: data.host, score: data.score, grade: data.grade, platforms: data.platforms, issues });
+    return () => setReport(null);
+  }, [data.host, data.score, data.grade, data.platforms, issues, setReport]);
   const summary = useMemo(() => buildSummary(data), [data]);
   const roadmap = useMemo(() => buildRoadmap(data.findings, data.score), [data.findings, data.score]);
   const base = filter === "issues" ? issues : filter === "notes" ? notes : passed;
@@ -88,6 +95,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
 
   return (
     <div className="relative">
+      {data.variant === "owner" && fresh && data.id && <FeedbackModal scanId={data.id} />}
       <div aria-hidden className="bg-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-72" />
       <div className="container-x py-10 sm:py-14">
         {data.variant === "demo" && (
@@ -149,6 +157,9 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
                 <dd className="mt-0.5 text-3xl font-semibold text-ok"><AnimatedNumber value={passed.length} delay={320} /></dd>
               </div>
             </dl>
+            {mode === "beginner" && (
+              <p className="mt-5 flex max-w-2xl items-start gap-2.5 rounded-xl border border-accent/15 bg-accent-soft/60 px-4 py-3 text-[15px] leading-relaxed"><span aria-hidden>🐾</span><span><strong className="font-semibold">Nói đơn giản:</strong> {plainScore(data.score, issues.length, urgent.length)}</span></p>
+            )}
             <p className="mt-6 max-w-2xl text-xs leading-relaxed text-faint">{data.disclaimer}</p>
           </div>
         </section>
@@ -353,6 +364,8 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
   const isPass = f.status === "pass";
   const isFail = f.status === "fail";
   const [opened, setOpened] = useState(false);
+  const fy = mode === "beginner" ? FEYNMAN[f.ruleId] : undefined;
+  const { askMatMat } = useMatMat();
   const glossary = mode === "beginner" ? glossaryFor(f.title, f.summary, f.remediation?.summary ?? "") : [];
   const effort = isFail ? EFFORT_LABEL[effortFor(f)] : null;
   const owasp = OWASP_MAP[f.ruleId];
@@ -383,8 +396,15 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
 
         <div className="grid gap-x-8 gap-y-6 border-t border-line px-4 py-5 md:grid-cols-2">
           <div className="min-w-0 space-y-5">
-            <Section title="Chúng tôi phát hiện"><p className="text-[15px] leading-relaxed">{f.summary}</p></Section>
-            <Section title="Tác động tiềm ẩn"><p className="text-[15px] leading-relaxed text-muted">{f.explanation}</p></Section>
+            {fy && (
+              <div className="rounded-xl border border-accent/20 bg-accent-soft/60 px-4 py-3.5">
+                <p className="eyebrow !text-accent">hình dung đơn giản</p>
+                <p className="mt-1.5 text-[15px] leading-relaxed">{fy.like}</p>
+                {isFail && <p className="mt-2 text-xs text-muted">Mức độ: {PLAIN_SEV[f.severity]}</p>}
+              </div>
+            )}
+            <Section title={mode === "beginner" ? "Chuyện gì đang xảy ra" : "Chúng tôi phát hiện"}><p className="text-[15px] leading-relaxed">{f.summary}</p></Section>
+            <Section title={mode === "beginner" ? "Vì sao nên quan tâm" : "Tác động tiềm ẩn"}><p className="text-[15px] leading-relaxed text-muted">{f.explanation}</p></Section>
             {glossary.length > 0 && (
               <div className="space-y-1.5 rounded-lg border border-accent/15 bg-accent-soft/60 px-3.5 py-3 text-sm">
                 {glossary.map((g) => <p key={g.term}><strong className="font-medium text-fg">{g.term}:</strong> <span className="text-muted">{g.meaning}</span></p>)}
@@ -406,17 +426,22 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
 
             {f.remediation && !isPass && (
               <>
-                <Section title="Cách khắc phục">
-                  <div className="term">
+                <Section title={mode === "beginner" ? "Bạn cần làm gì" : "Cách khắc phục"}>
+                  {fy && <p className="mb-3 rounded-lg bg-surface px-3.5 py-2.5 text-[15px] leading-relaxed">{fy.todo}</p>}
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <PromptButton text={buildFixPrompt(f, data.host, data.platforms)} />
+                    <button type="button" onClick={() => askMatMat(`Giải thích ${PLAIN_TITLES[f.ruleId] ?? f.title}`)} className="btn-ghost btn-sm">🐾 Hỏi Mật Mật</button>
+                  </div>
+                  {mode === "technical" || !fy ? <div className="term">
                     <div className="term-body whitespace-pre-wrap break-words text-[13px] leading-6">
                       <span className="prompt" aria-hidden>→ </span>
                       <Typed text={fixText} play={opened} cps={260} />
                     </div>
-                  </div>
+                  </div> : <details className="text-sm"><summary className="cursor-pointer text-accent hover:underline">Xem các bước chi tiết</summary><div className="term mt-2"><div className="term-body whitespace-pre-wrap break-words text-[13px] leading-6">{fixText}</div></div></details>}
                   {effort && <p className="mt-2 text-xs text-faint">Ước lượng công sức: {effort.title} — {effort.hint.toLowerCase()}.</p>}
                 </Section>
                 {f.remediation.snippets.length > 0 && (
-                  <Section title="Lệnh và cấu hình để dán">
+                  <Section title={mode === "beginner" ? "Đưa đoạn này cho người làm web (hoặc dán vào cài đặt hosting)" : "Lệnh và cấu hình để dán"}>
                     <div className="space-y-3">
                       {f.remediation.snippets.map((s, k) => (
                         <div key={k}>
@@ -452,5 +477,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3 className="eyebrow mb-2">{title}</h3>
       {children}
     </div>
+  );
+}
+
+/** Nút copy prompt để dán vào công cụ AI viết code (Cursor, Claude Code…). */
+function PromptButton({ text }: { text: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button type="button" className="btn-primary btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); } catch { /* clipboard bị chặn */ } }}>
+      {ok ? "Đã copy prompt ✓" : "Copy prompt cho AI"}
+    </button>
   );
 }

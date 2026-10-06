@@ -127,3 +127,21 @@ describe("tls cache", () => {
     expect(await repo.getTlsCache(db, "a.com")).toBeNull();
   });
 });
+
+describe("feedback sau khi quét", () => {
+  const mkScan = async (userId: string) => {
+    const id = crypto.randomUUID();
+    db.sqlite.prepare("INSERT INTO scans (id,user_id,input_url,normalized_url,host,status,created_at) VALUES (?,?,?,?,?,?,?)").run(id, userId, "a.com", "https://a.com/", "a.com", "completed", new Date().toISOString());
+    return id;
+  };
+  it("chỉ chủ lượt quét được gửi; gửi lại thì cập nhật, không nhân đôi", async () => {
+    const scan = await mkScan(u1);
+    expect(await repo.saveFeedback(db, u2, scan, 5, [], "")).toBe(false);
+    expect(await repo.saveFeedback(db, u1, scan, 2, ["confusing", "bogus"], "khó hiểu")).toBe(true);
+    expect(await repo.saveFeedback(db, u1, scan, 4, ["easy"], "ok")).toBe(true);
+    const r = await repo.adminListFeedback(db);
+    expect(r.total).toBe(1);
+    expect(r.rows[0]).toMatchObject({ rating: 4, tags: "easy", comment: "ok" });
+    expect(await repo.hasFeedback(db, u1, scan)).toBe(true);
+  });
+});
