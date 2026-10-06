@@ -3,7 +3,18 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ScanStatus } from "@/lib/db-types";
 import { ALL_STEPS, progressFraction, STAGE_GROUPS, stepStates, type StepState } from "@/lib/scan-stages";
+import { MatMatSays } from "./matmat/MatMatSays";
 import { Typed } from "./motion/Typed";
+
+const SAYS: Record<string, string> = {
+  queued: "Mình xếp hàng cho bạn rồi, sắp tới lượt nè. Bạn cứ ngồi nghỉ một chút nhé ☕",
+  validating: "Mình đang kiểm tra xem địa chỉ này có đúng và quét được không…",
+  scanning_transport: "Mình đang thử gõ cửa chính của website, xem ổ khoá HTTPS có chắc không 🔐",
+  checking_headers: "Giờ mình đọc các “biển báo an toàn” mà website dán ở cửa…",
+  analyzing_client: "Mình đang nhìn xem trang có để lộ thứ gì không nên lộ, như ghi chú hay khoá bí mật 🔍",
+  generating_report: "Sắp xong rồi! Mình đang viết báo cáo bằng ngôn ngữ dễ hiểu cho bạn ✍️",
+  completed: "Xong rồi nè! Mình mở báo cáo cho bạn đây 🎉",
+};
 
 const StepIcon = ({ s }: { s: StepState }) =>
   s === "done" ? (
@@ -78,6 +89,8 @@ export function ScanProgress({ scanId, initialStatus, url }: { scanId: string; i
         </div>
         <div className="mono mt-2 flex justify-between text-[11px] text-faint"><span>{pct}%</span><span>Thường mất 10–30 giây</span></div>
       </div>
+
+      <MatMatSays className="mt-8" text={SAYS[status] ?? SAYS.queued!} cps={80} />
 
       <div className="mt-10 grid gap-8 md:grid-cols-[1.1fr_1fr]">
         <ol className="space-y-1">

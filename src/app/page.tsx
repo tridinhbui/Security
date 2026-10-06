@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HeroVisual } from "@/components/HeroVisual";
+import { MatMatSays } from "@/components/matmat/MatMatSays";
 import { ScanForm } from "@/components/ScanForm";
 import { ScoreRing } from "@/components/motion/ScoreRing";
 import { getUser } from "@/lib/auth/next";
@@ -59,6 +60,7 @@ export default async function Home() {
               <li className="pill"><span className="size-2 rounded-full bg-accent" />Chỉ thu thập thông tin công khai</li>
               <li className="pill"><span className="size-2 rounded-full bg-faint" />Không khai thác lỗ hổng</li>
             </ul>
+            <MatMatSays className="mt-6 max-w-xl" text="Mình là Mật Mật 🐾 Mình sẽ đi xem website của bạn giống như một người khách tò mò, rồi kể lại cho bạn nghe thật dễ hiểu: chỗ nào chưa khoá cửa và nên sửa thế nào. Không cần biết kỹ thuật đâu!" />
             {!user && <p className="mt-4 text-sm text-faint">Cần tài khoản miễn phí để chống lạm dụng.</p>}
           </div>
           <HeroVisual />

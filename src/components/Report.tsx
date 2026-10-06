@@ -11,6 +11,7 @@ import { buildFixPrompt } from "@/lib/ai-prompt";
 import { FEYNMAN, plainScore, PLAIN_SEV } from "@/lib/feynman";
 import { CopyButton } from "./CopyButton";
 import { FeedbackModal } from "./matmat/FeedbackModal";
+import { MatMatSays } from "./matmat/MatMatSays";
 import { useMatMat } from "./matmat/MatMatProvider";
 import { AnimatedNumber } from "./motion/AnimatedNumber";
 import { ScoreRing } from "./motion/ScoreRing";
@@ -157,9 +158,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
                 <dd className="mt-0.5 text-3xl font-semibold text-ok"><AnimatedNumber value={passed.length} delay={320} /></dd>
               </div>
             </dl>
-            {mode === "beginner" && (
-              <p className="mt-5 flex max-w-2xl items-start gap-2.5 rounded-xl border border-accent/15 bg-accent-soft/60 px-4 py-3 text-[15px] leading-relaxed"><span aria-hidden>🐾</span><span><strong className="font-semibold">Nói đơn giản:</strong> {plainScore(data.score, issues.length, urgent.length)}</span></p>
-            )}
+            {mode === "beginner" && <MatMatSays className="mt-5 max-w-2xl" text={`Mình xem giúp bạn rồi nè! ${plainScore(data.score, issues.length, urgent.length)}${issues.length ? "\nBấm vào từng việc bên dưới, mình sẽ giải thích thật dễ hiểu." : ""}`} />}
             <p className="mt-6 max-w-2xl text-xs leading-relaxed text-faint">{data.disclaimer}</p>
           </div>
         </section>
@@ -365,6 +364,9 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
   const isFail = f.status === "fail";
   const [opened, setOpened] = useState(false);
   const fy = mode === "beginner" ? FEYNMAN[f.ruleId] : undefined;
+  const simpleText = fy
+    ? isFail ? `Mình giải thích nhé! ${fy.like}\n\nViệc bạn cần làm: ${fy.todo}` : `${isPass ? "Chỗ này ổn rồi nha! " : "Chỉ để bạn biết: "}${fy.like}`
+    : `Mình tóm tắt nhé: ${f.summary}`;
   const { askMatMat } = useMatMat();
   const glossary = mode === "beginner" ? glossaryFor(f.title, f.summary, f.remediation?.summary ?? "") : [];
   const effort = isFail ? EFFORT_LABEL[effortFor(f)] : null;
@@ -394,6 +396,18 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
           <Chevron />
         </summary>
 
+        {mode === "beginner" && (
+          <div className="border-t border-line px-4 py-5">
+            <MatMatSays active={opened} text={simpleText}>
+              <div className="flex flex-wrap items-center gap-2">
+                {isFail && <PromptButton text={buildFixPrompt(f, data.host, data.platforms)} />}
+                <button type="button" onClick={() => askMatMat(`Giải thích ${PLAIN_TITLES[f.ruleId] ?? f.title}`)} className="btn-ghost btn-sm">🐾 Hỏi thêm Mật Mật</button>
+              </div>
+              {isFail && <p className="mt-2.5 text-[13px] text-muted">Bấm “Copy prompt cho AI” rồi dán vào Cursor hoặc Claude Code, nó sẽ tự tìm chỗ cần sửa giúp bạn. Sửa xong thì quét lại nhé.</p>}
+            </MatMatSays>
+          </div>
+        )}
+        <Fold on={mode === "beginner"}>
         <div className="grid gap-x-8 gap-y-6 border-t border-line px-4 py-5 md:grid-cols-2">
           <div className="min-w-0 space-y-5">
             {fy && (
@@ -466,6 +480,7 @@ function FindingItem({ f, mode, data, i }: { f: Finding; mode: Mode; data: Repor
             )}
           </div>
         </div>
+        </Fold>
       </details>
     </li>
   );
@@ -487,5 +502,16 @@ function PromptButton({ text }: { text: string }) {
     <button type="button" className="btn-primary btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); } catch { /* clipboard bị chặn */ } }}>
       {ok ? "Đã copy prompt ✓" : "Copy prompt cho AI"}
     </button>
+  );
+}
+
+/** Ở chế độ Dễ hiểu, phần kỹ thuật được gấp lại để người mới không bị ngợp. */
+function Fold({ on, children }: { on: boolean; children: React.ReactNode }) {
+  if (!on) return <>{children}</>;
+  return (
+    <details className="border-t border-line">
+      <summary className="cursor-pointer px-4 py-3 text-[13px] text-muted hover:text-fg">▸ Xem chi tiết kỹ thuật (không bắt buộc)</summary>
+      {children}
+    </details>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
+import { MatMatSays } from "@/components/matmat/MatMatSays";
 import { ScanForm } from "@/components/ScanForm";
 import { ScanTable } from "@/components/ScanTable";
 import { Sparkline } from "@/components/Sparkline";
@@ -48,7 +49,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <section aria-labelledby="scan-h" className="reveal">
           <p className="eyebrow">xin chào, {name}</p>
           <h1 id="scan-h" className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Quét một website</h1>
-          <p className="mb-6 mt-2 text-sm text-muted">Kiểm tra thụ động, không phá hoại. Thường hoàn tất trong chưa đầy 30 giây.</p>
+          <MatMatSays className="mb-6 mt-4 max-w-2xl" text={completed.length ? `Chào ${name}! Dán địa chỉ website vào ô bên dưới, mình kiểm tra giúp bạn trong chưa đầy 30 giây nhé. Hôm nay bạn còn ${Math.max(0, quota - used)} lượt quét.` : `Chào ${name}, mình là Mật Mật! Bạn dán địa chỉ website vào ô bên dưới, mình sẽ đi xem thử như một người khách tò mò rồi giải thích cho bạn thật dễ hiểu.`} />
           <div className="max-w-3xl"><ScanForm authed initialUrl={prefill ?? ""} autoStart={!!prefill} /></div>
         </section>
 
@@ -68,7 +69,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <section className="mt-14" aria-labelledby="unresolved-h">
           <h2 id="unresolved-h" className="text-xl font-semibold tracking-tight">Vấn đề Cao &amp; Nghiêm trọng chưa xử lý</h2>
           {unresolved.length === 0 ? (
-            <p className="mt-3 flex items-center gap-2 text-sm text-muted">{completed.length ? <><span className="chip-ok">Ổn</span>Không có vấn đề nào trong các lượt quét gần nhất.</> : "Chưa có gì để hiển thị cho đến khi lượt quét đầu tiên hoàn tất."}</p>
+            <MatMatSays className="mt-4 max-w-xl" text={completed.length ? "Tuyệt vời! Mình chưa thấy việc nguy hiểm nào chưa xử lý trong các lần quét gần nhất." : "Chưa có gì ở đây hết. Sau lần quét đầu tiên, mình sẽ báo cho bạn những việc cần làm trước."} />
           ) : (
             <ul className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-line bg-white shadow-crisp">
               {unresolved.map((f, i) => (
