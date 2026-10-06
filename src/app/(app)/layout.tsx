@@ -29,9 +29,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     [supportUnread, adminUnread] = await Promise.all([repo.unreadAdminReplies(db, user.id), isAdmin ? repo.adminUnreadChats(db) : Promise.resolve(0)]);
   } catch { /* huy hiệu chỉ là phần phụ: lỗi D1 không được làm hỏng trang */ }
   return (
-    <div className="min-h-dvh bg-white lg:pl-64">
+    <div className="min-h-dvh bg-white lg:h-dvh lg:overflow-hidden lg:pl-64">
       <AppSidebar name={user.name} email={user.email} avatarUrl={user.avatar_url} isAdmin={isAdmin} supportUnread={supportUnread} adminUnread={adminUnread} />
-      <main id="main" className="min-w-0">{children}</main>
+      <main id="main" className="min-w-0 lg:h-full lg:overflow-y-auto">{children}</main>
     </div>
   );
 }
