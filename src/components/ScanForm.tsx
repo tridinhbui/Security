@@ -13,17 +13,18 @@ const ERRORS: Record<string, string> = {
   dns_failed: "Chúng tôi không tìm thấy tên miền này. Hãy kiểm tra lại chính tả.",
 };
 
-interface Props { authed: boolean; initialUrl?: string; autoStart?: boolean; size?: "lg" | "md"; label?: string }
+interface Props { authed: boolean; initialUrl?: string; autoStart?: boolean; size?: "lg" | "md"; label?: string; /** Cố định kiểu quét (ẩn ô chọn): "basic" = quét nhanh, "advanced" = quét đầy đủ. */ mode?: "basic" | "advanced" }
 
 /**
  * Ô nhập mục tiêu. Kiểm tra phía client chỉ để phản hồi nhanh; MỌI quy tắc an toàn (SSRF, cổng, giao thức)
  * được kiểm tra lại ở máy chủ và không bao giờ tin giá trị từ trình duyệt.
  */
-export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "lg", label = "Quét ngay" }: Props) {
+export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "lg", label = "Quét ngay", mode }: Props) {
   const router = useRouter();
   const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
-  const [quick, setQuick] = useState(false);
+  const [quickPick, setQuick] = useState(false);
+  const quick = mode ? mode === "basic" : quickPick;
   const [error, setError] = useState<string | null>(null);
   const started = useRef(false);
 
@@ -77,7 +78,7 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
           {busy ? <><span className="live-dot !bg-white" aria-hidden />Đang bắt đầu…</> : <>{label}<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></>}
         </button>
       </div>
-      {authed && (
+      {authed && !mode && (
         <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-muted">
           <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} disabled={busy} className="mt-0.5 size-4 accent-[var(--color-accent)]" />
           <span><span className="font-medium text-fg">Quét nhanh</span> — bỏ qua việc tải và phân tích file JavaScript (nhẹ hơn, ít sâu hơn). Bỏ chọn để quét đầy đủ.</span>

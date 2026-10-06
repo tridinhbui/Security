@@ -28,7 +28,7 @@ export function ScanTable({ scans }: { scans: ScanRow[] }) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="mono block truncate text-[14px] font-medium">{s.normalized_url.replace(/^https?:\/\//, "")}</span>
-              <span className="num mt-0.5 block text-xs text-muted" title={formatDate(s.created_at)}>{relativeTime(s.created_at)}</span>
+              <span className="num mt-0.5 flex items-center gap-2 text-xs text-muted" title={formatDate(s.created_at)}>{relativeTime(s.created_at)}<span className="chip-info !py-0">{s.mode === "quick" ? "cơ bản" : "nâng cao"}</span></span>
             </span>
             <Status s={s.status} />
             <svg viewBox="0 0 24 24" className="size-4 shrink-0 text-faint transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 6 6 6-6 6" /></svg>

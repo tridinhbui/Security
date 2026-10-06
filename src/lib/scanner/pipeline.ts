@@ -3,7 +3,7 @@ import type { ScanBudget } from "../ssrf/budget";
 import type { NormalizedTarget } from "../ssrf/url";
 import { attachFixCommands } from "./fixes";
 import { ENGINE_VERSION } from "./version";
-import { ALL_RULES } from "./rules";
+import { ALL_RULES, BASIC_RULES } from "./rules";
 import { evaluate } from "./evaluate";
 import { redactHeaders, type RedactedTarget, type ScanReport } from "./report";
 import { calculateScore, prioritize, SCORE_DISCLAIMER, topRisks } from "./score";
@@ -24,7 +24,8 @@ export function targetsFrom(obs: Observations): RedactedTarget[] {
 }
 
 export function buildReport(input: string, target: NormalizedTarget, obs: Observations, budget: ScanBudget, started: number, quick = false): ScanReport {
-  const { findings: raw, errors } = evaluate(obs);
+  const rules = quick ? BASIC_RULES : ALL_RULES;
+  const { findings: raw, errors } = evaluate(obs, rules);
   const findings = attachFixCommands(raw, { host: target.host, platforms: obs.platforms });
   const score = calculateScore(findings, { limitedCoverage: quick || obs.limits.hitLimit !== null });
   return {
@@ -39,7 +40,7 @@ export function buildReport(input: string, target: NormalizedTarget, obs: Observ
     platforms: obs.platforms,
     technologies: obs.technologies,
     targets: targetsFrom(obs),
-    stats: { requests: budget.used, hitLimit: obs.limits.hitLimit, rulesRun: ALL_RULES.length, ruleErrors: errors, ...(quick ? { quick: true } : {}) },
+    stats: { requests: budget.used, hitLimit: obs.limits.hitLimit, rulesRun: rules.length, ruleErrors: errors, ...(quick ? { quick: true } : {}) },
     disclaimer: SCORE_DISCLAIMER,
   };
 }

@@ -18,6 +18,8 @@ const ICONS: Record<string, string> = {
   admin: "M12 3 4.5 6v5.5c0 4.4 3 7.9 7.5 9.5 4.5-1.6 7.5-5.1 7.5-9.5V6L12 3Zm-2.5 9 2 2 3.5-4",
   book: "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Zm0 13a3 3 0 0 1 3-3h10",
   play: "M8 5v14l11-7L8 5Z",
+  bolt: "M13 3 5 13h6l-1 8 8-10h-6l1-8Z",
+  deep: "M12 3 3 8l9 5 9-5-9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5",
 };
 
 function Icon({ name }: { name: string }) {
@@ -44,6 +46,10 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [open]);
 
+  const scan: Item[] = [
+    { href: "/quet-co-ban", label: "Quét cơ bản", icon: "bolt" },
+    { href: "/quet-nang-cao", label: "Quét nâng cao", icon: "deep" },
+  ];
   const main: Item[] = [
     { href: "/dashboard", label: "Bảng điều khiển", icon: "dashboard", exact: true },
     { href: "/scans", label: "Lịch sử quét", icon: "history" },
@@ -84,13 +90,10 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
           <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9" /></svg>
         </button>
       </div>
-      <div className="px-3">
-        <Link href="/dashboard#quet" className="btn-primary w-full justify-start gap-2.5 !px-3">
-          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>Quét website mới
-        </Link>
-      </div>
       <nav aria-label="Điều hướng chính" className="mt-5 flex-1 overflow-y-auto px-3">
-        <p className="eyebrow px-3 pb-1.5">Khu vực làm việc</p>
+        <p className="eyebrow px-3 pb-1.5">Quét website</p>
+        <ul className="space-y-0.5">{scan.map(link)}</ul>
+        <p className="eyebrow px-3 pb-1.5 pt-5">Khu vực làm việc</p>
         <ul className="space-y-0.5">{main.map(link)}</ul>
         {admin.length > 0 && <><p className="eyebrow px-3 pb-1.5 pt-5">Quản trị</p><ul className="space-y-0.5">{admin.map(link)}</ul></>}
         <p className="eyebrow px-3 pb-1.5 pt-5">Tài nguyên</p>

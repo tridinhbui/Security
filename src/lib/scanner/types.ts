@@ -67,6 +67,8 @@ export interface Rule {
   id: string;
   title: string;
   category: Category;
+  /** Luật nâng cao: chỉ chạy ở chế độ quét đầy đủ (không chạy khi quét cơ bản). */
+  advanced?: boolean;
   /** Pure function of the observations: no I/O, deterministic. */
   run(obs: Observations): Finding[];
 }

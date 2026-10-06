@@ -3,6 +3,21 @@
  * logic phát hiện không phụ thuộc file này, và luật chưa có ở đây sẽ dùng chính tiêu đề của nó.
  */
 export const PLAIN_TITLES: Record<string, string> = {
+  "adv.csp-analysis": "Danh sách “được phép chạy mã” của website có đủ chặt không?",
+  "adv.shared-cache-leak": "Phiên đăng nhập có bị kho lưu đệm phát nhầm cho người khác không?",
+  "adv.cookie-scope": "Cookie đăng nhập có mở quá rộng hoặc sống quá lâu không?",
+  "adv.supply-chain": "Mã mượn từ bên ngoài có đáng tin và được cố định phiên bản không?",
+  "adv.dom-xss-flow": "Dữ liệu trên thanh địa chỉ có thể bị trang chạy nhầm như mã không?",
+  "adv.postmessage": "Trang có hỏi “bạn là ai” trước khi nhận tin nhắn từ trang khác không?",
+  "adv.web-storage-secrets": "Thẻ đăng nhập có bị cất ở chỗ ai cũng lấy được không?",
+  "adv.endpoint-map": "Những cửa phụ nào của website đang bị nhìn thấy từ bên ngoài?",
+  "adv.graphql-surface": "Danh mục chi tiết của kho dữ liệu có đang để ai cũng xem được không?",
+  "adv.redirect-chain": "Đường dẫn từ cửa cũ sang cửa chính có gọn và an toàn không?",
+  "adv.header-consistency": "Mọi trang, kể cả trang lỗi, có cùng mức bảo vệ không?",
+  "adv.spf-deep": "Danh sách người được gửi email thay tên miền có chặt không?",
+  "adv.dmarc-deep": "Email giả mạo tên miền có thực sự bị chặn không?",
+  "adv.certificate-hygiene": "Chứng chỉ ổ khoá có được quản lý gọn và đúng chuẩn không?",
+  "adv.form-method": "Mật khẩu có bị đưa lên thanh địa chỉ khi đăng nhập không?",
   "exposure.internal-references": "Website có vô tình để lộ địa chỉ mạng nội bộ không?",
   "exposure.html-comments": "Ghi chú của lập trình viên có bị lộ trong trang không?",
   "tls.hsts-preload": "Trình duyệt có bảo vệ ngay lần truy cập đầu tiên không?",

@@ -54,6 +54,21 @@ export const FEYNMAN: Record<string, Feynman> = {
   "privacy.permissions-policy": { like: "Như khoá sẵn phòng camera và micro, trừ khi thật sự cần.", todo: "Thêm một dòng cấu hình khoá camera, micro, vị trí nếu bạn không dùng." },
   "privacy.third-party-origins": { like: "Như có nhiều người lạ đứng trong tiệm quan sát khách của bạn.", todo: "Rà lại các dịch vụ bên ngoài, bỏ cái nào không còn cần." },
   "privacy.trackers": { like: "Như có người theo sau khách trong tiệm để ghi lại họ xem gì.", todo: "Nếu có theo dõi, hãy nói rõ trong chính sách riêng tư, hoặc gỡ bớt." },
+  "adv.csp-analysis": { like: "Như có danh sách khách mời nhưng ghi “ai cũng được vào”: có danh sách mà chẳng chặn được ai.", todo: "Siết lại danh sách: bỏ ‘unsafe-inline’, chỉ cho vài nguồn bạn tin. Thử ở chế độ chỉ-báo-cáo trước." },
+  "adv.shared-cache-leak": { like: "Như photo cả thẻ ra vào của khách này rồi phát cho khách tiếp theo. Họ vào được tài khoản người trước.", todo: "Thêm ‘Cache-Control: private, no-store’ cho các trang có đặt cookie." },
+  "adv.cookie-scope": { like: "Như chìa khoá phòng làm việc nhưng mở được cả mọi phòng khác trong toà nhà, và dùng được cả năm.", todo: "Thu hẹp phạm vi cookie về đúng website và cho nó hết hạn sớm hơn." },
+  "adv.supply-chain": { like: "Như nhập hàng từ nhà cung cấp không ghi rõ lô nào, hoặc từ nơi từng bán hàng giả. Một lô xấu là hỏng cả cửa hàng.", todo: "Ghim đúng phiên bản, thêm dấu niêm phong (SRI), hoặc tự lưu thư viện trên website của bạn." },
+  "adv.dom-xss-flow": { like: "Như nhân viên đọc to bất cứ mảnh giấy nào khách đưa, kể cả mảnh giấy có lệnh “mở két sắt”.", todo: "Dùng cách ghi chữ an toàn (textContent), hoặc làm sạch dữ liệu trước khi chèn vào trang." },
+  "adv.postmessage": { like: "Như nhận tin nhắn từ bất kỳ ai gõ cửa mà không hỏi họ là ai.", todo: "Luôn kiểm tra tin nhắn đến từ nơi mình tin, và chỉ gửi tới đúng địa chỉ." },
+  "adv.web-storage-secrets": { like: "Như để thẻ ra vào trong hộc bàn mở của lễ tân: ai đi qua cũng lấy được.", todo: "Giữ token trong cookie HttpOnly thay vì bộ nhớ trình duyệt." },
+  "adv.endpoint-map": { like: "Như dán sơ đồ các cửa phụ của cửa hàng lên cửa chính. Không phải lỗi, nhưng kẻ xấu đọc nó đầu tiên.", todo: "Không cần xoá, chỉ cần chắc mỗi cửa trong danh sách đều có khoá riêng phía máy chủ." },
+  "adv.graphql-surface": { like: "Như để sẵn cuốn danh mục chỉ rõ từng ngăn tủ trong kho, ai hỏi cũng đưa.", todo: "Tắt tính năng liệt kê cấu trúc (introspection) ở bản chạy thật." },
+  "adv.redirect-chain": { like: "Như chỉ đường cho khách qua năm ngã rẽ, có ngã còn đi ngang đường không có bảo vệ.", todo: "Chuyển thẳng khách từ cửa cũ sang cửa chính trong một bước." },
+  "adv.header-consistency": { like: "Như cửa chính có bảo vệ nhưng cửa sau và nhà kho thì không. Kẻ xấu đi cửa sau.", todo: "Áp dụng cùng một bộ cấu hình bảo vệ cho mọi trang, kể cả trang lỗi." },
+  "adv.spf-deep": { like: "Như danh sách người được ký thư thay mặt công ty, nhưng cuối danh sách ghi “và bất kỳ ai khác”.", todo: "Kết thúc bản ghi SPF bằng ‘-all’ và giữ danh sách ngắn gọn." },
+  "adv.dmarc-deep": { like: "Như báo cho bưu điện biết thư giả mạo nhưng dặn “cứ chuyển đi, chỉ ghi chú lại”.", todo: "Nâng chính sách DMARC lên quarantine rồi reject, và bật báo cáo." },
+  "adv.certificate-hygiene": { like: "Như giấy phép kinh doanh có hiệu lực quá lâu hoặc thiếu dấu của cơ quan trung gian. Có thể bị từ chối bất ngờ.", todo: "Dùng chứng chỉ ngắn hạn, đủ chuỗi, tự động gia hạn." },
+  "adv.form-method": { like: "Như viết mật khẩu lên phong bì thay vì bỏ vào trong thư.", todo: "Đổi form đăng nhập sang gửi bằng POST." },
 };
 
 /** Lời giải thích điểm số bằng ngôn ngữ thường. */

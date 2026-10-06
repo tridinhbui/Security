@@ -228,7 +228,7 @@ export const FIXES: Record<string, FixFn> = {
 };
 
 /** Luật chỉ mang tính thông tin hoặc không có lệnh khắc phục có ý nghĩa. Một luật mới phải thuộc FIXES hoặc nhóm này (test bắt buộc). */
-export const FIX_EXEMPT = new Set(["config.technology", "config.auth-surface", "privacy.third-party-origins", "privacy.trackers"]);
+export const FIX_EXEMPT = new Set(["config.technology", "config.auth-surface", "privacy.third-party-origins", "privacy.trackers", "adv.endpoint-map"]);
 
 const GENERIC_SUMMARY = "Làm theo các lệnh và cấu hình bên dưới, sau đó dùng lệnh “Kiểm tra” để xác nhận.";
 
@@ -251,3 +251,76 @@ export function attachFixCommands(findings: Finding[], base: { host: string; pla
     return { ...f, remediation: merged };
   });
 }
+
+// ------------------------------------------------------------------ luật nâng cao (adv.*)
+Object.assign(FIXES, {
+  "adv.csp-analysis": (c: FixCtx) => [
+    S("CSP chặt khởi điểm (thử ở chế độ chỉ-báo-cáo trước)", "text", "Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'nonce-{NONCE_NGẪU_NHIÊN_MỖI_REQUEST}' 'strict-dynamic'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"),
+    S("Next.js: sinh nonce mỗi request (middleware)", "ts", "// middleware.ts — mỗi request một nonce mới, đặt vào header CSP\nconst nonce = btoa(crypto.randomUUID());\nconst csp = `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; object-src 'none'; base-uri 'none'`;", "nextjs"),
+    S("Kiểm tra CSP hiện tại", "bash", curlHeader(c.host, "content-security-policy(-report-only)?")),
+    S("Công cụ chấm CSP của Google", "text", "Dán CSP vào https://csp-evaluator.withgoogle.com/ để xem điểm yếu còn lại."),
+  ],
+  "adv.shared-cache-leak": (c: FixCtx) => [
+    S("Header: cấm cache dùng chung với phản hồi có cookie", "text", "Cache-Control: private, no-store"),
+    S("Nginx", "nginx", "add_header Cache-Control \"private, no-store\" always;   # chỉ đặt cho các đường dẫn có đặt cookie", "nginx"),
+    S("Cloudflare", "text", "Caching → Cache Rules: tạo quy tắc “Bypass cache” cho các đường dẫn đặt cookie (đăng nhập, giỏ hàng).", "cloudflare"),
+    S("Kiểm tra", "bash", `curl -sI https://${c.host}/ | grep -iE "^(set-cookie|cache-control|age|x-cache|cf-cache-status|vary):"`),
+  ],
+  "adv.cookie-scope": (c: FixCtx) => [
+    S("Đặt cookie phiên chỉ cho đúng host (bỏ thuộc tính Domain)", "text", "Set-Cookie: session=<giá-trị>; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=28800"),
+    S("Express", "js", "res.cookie('session', value, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 8 * 3600 * 1000 }); // không đặt domain", "express"),
+    S("Kiểm tra cookie đang gửi", "bash", `curl -sI https://${c.host}/ | grep -i "^set-cookie:"`),
+  ],
+  "adv.supply-chain": (c: FixCtx) => [
+    S("Ghim phiên bản và thêm SRI cho script bên ngoài", "html", "<script src=\"https://cdn.example.com/lib@1.2.3/lib.min.js\"\n  integrity=\"sha384-{HASH_TẠO_Ở_LỆNH_DƯỚI}\" crossorigin=\"anonymous\"></script>"),
+    S("Tạo hash SRI cho một file", "bash", "curl -s https://cdn.example.com/lib@1.2.3/lib.min.js | openssl dgst -sha384 -binary | openssl base64 -A   # dán kết quả sau “sha384-”"),
+    S("Hoặc tự lưu bản sao thư viện trên chính tên miền của bạn", "text", "Tải thư viện về, đặt trong thư mục tĩnh của dự án và trỏ <script src=\"/vendor/lib.min.js\"> tới đó."),
+    S("Liệt kê script bên ngoài đang dùng", "bash", `curl -s https://${c.host}/ | grep -oE '<script[^>]+src="[^"]+"' | grep -v "${c.host}"`),
+  ],
+  "adv.dom-xss-flow": () => [
+    S("Dùng textContent thay vì innerHTML", "js", "// Trước (nguy hiểm):  el.innerHTML = location.hash.slice(1);\n// Sau (an toàn):\nel.textContent = location.hash.slice(1);"),
+    S("Nếu bắt buộc chèn HTML: làm sạch bằng DOMPurify", "js", "import DOMPurify from 'dompurify';\nel.innerHTML = DOMPurify.sanitize(untrustedHtml);"),
+    S("Bật Trusted Types (chặn ghi HTML không qua kiểm duyệt)", "text", "Content-Security-Policy: require-trusted-types-for 'script'"),
+  ],
+  "adv.postmessage": () => [
+    S("Luôn kiểm tra origin khi nhận", "js", "window.addEventListener('message', (e) => {\n  if (e.origin !== 'https://app.example.com') return; // chỉ tin origin đã biết\n  handle(e.data);\n});"),
+    S("Chỉ định origin đích khi gửi", "js", "target.postMessage(data, 'https://app.example.com'); // không dùng '*'"),
+  ],
+  "adv.web-storage-secrets": () => [
+    S("Lưu token trong cookie HttpOnly thay vì localStorage", "text", "Set-Cookie: access_token=<giá-trị>; Path=/; Secure; HttpOnly; SameSite=Lax"),
+    S("Phía trình duyệt: không đọc/ghi token bằng JavaScript", "js", "// Bỏ: localStorage.setItem('token', t)\n// Dùng: fetch('/api/me', { credentials: 'include' }) và để máy chủ đặt cookie HttpOnly"),
+  ],
+  "adv.graphql-surface": () => [
+    S("Tắt introspection ở môi trường chạy thật (Apollo Server)", "js", "new ApolloServer({ typeDefs, resolvers, introspection: process.env.NODE_ENV !== 'production' });"),
+    S("Giới hạn độ sâu truy vấn", "js", "import depthLimit from 'graphql-depth-limit';\nnew ApolloServer({ typeDefs, resolvers, validationRules: [depthLimit(8)] });"),
+  ],
+  "adv.redirect-chain": (c: FixCtx) => [
+    S("Chuyển thẳng HTTP→HTTPS một bước bằng 301", "nginx", `server {\n  listen 80;\n  server_name ${c.host};\n  return 301 https://${c.host}$request_uri;\n}`, "nginx"),
+    S("Kiểm tra số bước chuyển hướng", "bash", `curl -sIL -o /dev/null -w "%{num_redirects} bước, đích cuối: %{url_effective}\\n" http://${c.host}/`),
+  ],
+  "adv.header-consistency": (c: FixCtx) => [
+    S("Nginx: header phải có kể cả trên trang lỗi", "nginx", "add_header X-Content-Type-Options \"nosniff\" always;   # “always” để áp dụng cả với 404/500\nadd_header Referrer-Policy \"strict-origin-when-cross-origin\" always;\nadd_header Strict-Transport-Security \"max-age=63072000; includeSubDomains\" always;", "nginx"),
+    S("Kiểm tra trang lỗi và trang chủ", "bash", `for p in / /vibesec-khong-ton-tai; do echo "== $p"; curl -sI https://${c.host}$p | grep -iE "^(HTTP|strict-transport|x-content-type|referrer-policy|content-security)"; done`),
+  ],
+  "adv.spf-deep": (c: FixCtx) => {
+    const d = c.host.replace(/^www\./, "");
+    return [
+      S("Bản ghi SPF chặt (thay include bằng nhà cung cấp email của bạn)", "text", `${d}  TXT  "v=spf1 include:_spf.EXAMPLE-MAIL-PROVIDER.com -all"`),
+      S("Kiểm tra", "bash", `dig +short TXT ${d} | grep -i spf1`),
+    ];
+  },
+  "adv.dmarc-deep": (c: FixCtx) => {
+    const d = c.host.replace(/^www\./, "");
+    return [
+      S("Lộ trình DMARC an toàn: theo dõi → cách ly → từ chối", "text", `_dmarc.${d}  TXT  "v=DMARC1; p=quarantine; pct=100; rua=mailto:dmarc@${d}; adkim=s; aspf=s"\n# Sau vài tuần không có thư hợp lệ bị ảnh hưởng, đổi p=quarantine thành p=reject.`),
+      S("Kiểm tra", "bash", `dig +short TXT _dmarc.${d}`),
+    ];
+  },
+  "adv.certificate-hygiene": (c: FixCtx) => [
+    S("Cấp lại chứng chỉ ngắn hạn, đủ chuỗi (Let's Encrypt)", "bash", `sudo certbot certonly --nginx -d ${c.host}   # đổi --nginx thành --apache nếu cần`),
+    S("Xem thời hạn và độ dài chuỗi", "bash", `echo | openssl s_client -servername ${c.host} -connect ${c.host}:443 -showcerts 2>/dev/null | grep -cE "BEGIN CERTIFICATE"   # mong đợi ≥ 2`),
+  ],
+  "adv.form-method": () => [
+    S("Đổi form đăng nhập sang POST", "html", "<form method=\"post\" action=\"/login\" autocomplete=\"on\">\n  <input name=\"email\" type=\"email\">\n  <input name=\"password\" type=\"password\">\n</form>"),
+  ],
+} satisfies Record<string, FixFn>);

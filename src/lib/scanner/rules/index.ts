@@ -1,4 +1,5 @@
 import type { Rule } from "../types";
+import { advancedRules } from "./advanced";
 import { browserRules } from "./browser";
 import { configRules } from "./config";
 import { cookieRules } from "./cookies";
@@ -22,7 +23,11 @@ export const ALL_RULES: Rule[] = [
   ...configRules,
   ...privacyRules,
   ...hardeningRules,
+  ...advancedRules,
 ];
+
+/** Bộ luật của quét cơ bản: bỏ các luật nâng cao. */
+export const BASIC_RULES: Rule[] = ALL_RULES.filter((r) => !r.advanced);
 
 const ids = new Set<string>();
 for (const r of ALL_RULES) {

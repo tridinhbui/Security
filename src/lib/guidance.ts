@@ -17,6 +17,7 @@ export const EFFORT_LABEL: Record<Effort, { title: string; hint: string }> = {
 
 /** Mức công sức mặc định theo luật; luật không có trong bảng được coi là "medium". */
 export const EFFORT: Record<string, Effort> = {
+  "adv.csp-analysis": "planned", "adv.shared-cache-leak": "quick", "adv.cookie-scope": "medium", "adv.supply-chain": "medium", "adv.dom-xss-flow": "planned", "adv.postmessage": "medium", "adv.web-storage-secrets": "medium", "adv.endpoint-map": "planned", "adv.graphql-surface": "quick", "adv.redirect-chain": "quick", "adv.header-consistency": "quick", "adv.spf-deep": "quick", "adv.dmarc-deep": "medium", "adv.certificate-hygiene": "quick", "adv.form-method": "quick",
   "tls.https-available": "medium", "tls.certificate-expiry": "quick", "tls.certificate-strength": "medium", "tls.protocol-version": "quick",
   "tls.http2": "quick", "tls.http-to-https-redirect": "quick", "tls.www-consistency": "quick", "tls.hsts": "quick", "tls.insecure-login-form": "medium",
   "headers.csp": "planned", "headers.frame-protection": "quick", "headers.x-content-type-options": "quick", "headers.broken": "quick",
@@ -32,6 +33,7 @@ export const effortFor = (f: Pick<Finding, "ruleId">): Effort => EFFORT[f.ruleId
 
 /** Ánh xạ sang OWASP Top 10 (2021). */
 export const OWASP_MAP: Record<string, string[]> = {
+  "adv.csp-analysis": ["A03:2021 – Injection (giảm thiểu XSS)"], "adv.shared-cache-leak": ["A04:2021 – Thiết kế không an toàn"], "adv.cookie-scope": ["A07:2021 – Lỗi xác thực"], "adv.supply-chain": ["A08:2021 – Lỗi toàn vẹn phần mềm và dữ liệu"], "adv.dom-xss-flow": ["A03:2021 – Injection (giảm thiểu XSS)"], "adv.postmessage": ["A01:2021 – Kiểm soát truy cập bị hỏng"], "adv.web-storage-secrets": ["A02:2021 – Lỗi mật mã học"], "adv.graphql-surface": ["A05:2021 – Cấu hình bảo mật sai"], "adv.header-consistency": ["A05:2021 – Cấu hình bảo mật sai"], "adv.spf-deep": ["A05:2021 – Cấu hình bảo mật sai"], "adv.dmarc-deep": ["A05:2021 – Cấu hình bảo mật sai"], "adv.certificate-hygiene": ["A02:2021 – Lỗi mật mã học"], "adv.form-method": ["A07:2021 – Lỗi xác thực"],
   "tls.https-available": ["A02:2021 – Lỗi mật mã học"], "tls.certificate-expiry": ["A02:2021 – Lỗi mật mã học"], "tls.certificate-strength": ["A02:2021 – Lỗi mật mã học"],
   "tls.protocol-version": ["A02:2021 – Lỗi mật mã học"], "tls.http-to-https-redirect": ["A02:2021 – Lỗi mật mã học"], "tls.www-consistency": ["A02:2021 – Lỗi mật mã học"],
   "tls.hsts": ["A02:2021 – Lỗi mật mã học"], "tls.insecure-login-form": ["A02:2021 – Lỗi mật mã học", "A07:2021 – Lỗi xác thực"],
