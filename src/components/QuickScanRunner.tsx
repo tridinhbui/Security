@@ -118,12 +118,12 @@ function Thinking({ host, done }: { host: string; done: boolean }) {
  */
 export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authed: boolean; ruleCount: number }) {
   const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean }>({ kind: "loading" });
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [selected, setSelected] = useState(0);
   const host = (() => { try { return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname; } catch { return url; } })();
 
   useEffect(() => {
     setState({ kind: "loading" });
-    setOpenId(null);
+    setSelected(0);
     const ctl = new AbortController();
     const started = Date.now();
     // Kết quả đến nhanh (nhất là khi có cache) vẫn để Mật Mật “suy nghĩ” đủ lâu cho người dùng theo dõi kịp từng bước.
@@ -163,59 +163,62 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
         </div>
       )}
 
-      {state.kind === "ok" && (
-        <>
-          <MatMatSays className="mb-4" text={summaryText(state.r)} cps={85} />
-          {state.r.counts.warning + state.r.counts.fail > 0 && (
-            <div className="fade-in mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-accent/20 bg-accent-soft/60 px-4 py-3">
-              <CopyPrompt r={state.r} />
-              <span className="text-sm text-muted">Dán vào AI viết code, nó sẽ tự tìm chỗ cần sửa.</span>
-            </div>
-          )}
-          <div className="panel reveal p-5 sm:p-6">
-            <div className="grid items-center gap-5 sm:grid-cols-[auto_1fr]">
-              <ScoreRing score={state.r.score} grade={state.r.grade} size={132} />
-              <div>
-                <p className="mono text-sm text-muted">{state.r.host}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className="chip-ok">{state.r.counts.pass} Đạt</span>
-                  <span className="chip-med">{state.r.counts.warning} Cảnh báo</span>
-                  <span className="chip-crit">{state.r.counts.fail} Lỗi</span>
+      {state.kind === "ok" && (() => {
+        const r = state.r;
+        const hasIssue = r.counts.warning + r.counts.fail > 0;
+        const sel = r.items[Math.min(selected, r.items.length - 1)];
+        return (
+          <div className="space-y-4">
+            {/* hàng trên: tóm tắt + lời mời quét kỹ hơn nằm cạnh nhau */}
+            <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+              <div className="panel reveal p-5 sm:p-6">
+                <div className="grid items-center gap-5 sm:grid-cols-[auto_1fr]">
+                  <ScoreRing score={r.score} grade={r.grade} size={116} />
+                  <div className="min-w-0">
+                    <p className="mono truncate text-sm text-muted">{r.host}</p>
+                    <div className="mt-2 flex flex-wrap gap-2"><span className="chip-ok">{r.counts.pass} Đạt</span><span className="chip-med">{r.counts.warning} Cảnh báo</span><span className="chip-crit">{r.counts.fail} Lỗi</span></div>
+                    {hasIssue && <div className="mt-3"><CopyPrompt r={r} /></div>}
+                  </div>
                 </div>
-                <p className="mt-3 text-xs text-faint">Quét nhanh chỉ xem trang chủ nên điểm tối đa là 90.{state.r.cached ? " Kết quả được lưu tạm trong vài giờ." : ""}</p>
+                <MatMatSays className="mt-4" text={summaryText(r)} cps={85} />
+              </div>
+
+              <div className="panel reveal flex flex-col justify-between gap-4 bg-surface p-5 sm:p-6" style={{ ["--i" as string]: 2 }}>
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">Muốn kiểm tra kỹ hơn?</h2>
+                  <p className="mt-1 text-sm text-muted">{authed ? "Chạy" : "Đăng nhập để chạy"} {ruleCount}+ kiểm tra, xem hướng dẫn fix và lưu lịch sử.</p>
+                </div>
+                <div className="flex flex-col items-start gap-2">
+                  <Link href={cta} className="btn-primary">Quét đầy đủ miễn phí<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
+                  {!authed && <Link href={`/login?next=${encodeURIComponent(fullScanPath)}`} className="text-sm text-muted hover:text-fg">Đã có tài khoản? Đăng nhập</Link>}
+                  <p className="text-xs text-faint">Quét nhanh chỉ xem trang chủ nên điểm tối đa là 90.{r.cached ? " Kết quả lưu tạm vài giờ." : ""}</p>
+                </div>
               </div>
             </div>
-            <ul className="mt-5 divide-y divide-line border-t border-line">
-              {state.r.items.map((i, n) => {
-                const key = `${n}:${i.id}`;
-                const open = openId === key;
-                const like = LIKE[i.group ?? ""];
-                return (
-                  <li key={key} className="reveal py-3" style={{ ["--i" as string]: Math.min(n, 12) }}>
-                    <div className="flex items-start gap-3">
-                      <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
-                      <span className="min-w-0 flex-1 text-sm"><span className="block font-medium">{i.label}</span><span className="block text-muted">{i.text}</span></span>
-                      {like && <button type="button" aria-expanded={open} onClick={() => setOpenId(open ? null : key)} className="btn-ghost btn-sm shrink-0">🐾 <span className="hidden sm:inline">Mật Mật giải thích</span></button>}
-                    </div>
-                    {like && open && <MatMatSays className="mt-3 sm:ml-[6.5rem]" text={`${like}\n${TAIL[i.status]}`} cps={80} />}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
 
-          <div className="panel mt-6 flex flex-col gap-4 bg-surface p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Muốn kiểm tra kỹ hơn?</h2>
-              <p className="mt-1 text-sm text-muted">{authed ? "Chạy" : "Đăng nhập để chạy"} {ruleCount}+ kiểm tra, xem hướng dẫn fix và lưu lịch sử.</p>
-            </div>
-            <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-              <Link href={cta} className="btn-primary">Quét đầy đủ miễn phí<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
-              {!authed && <Link href={`/login?next=${encodeURIComponent(fullScanPath)}`} className="text-sm text-muted hover:text-fg">Đã có tài khoản? Đăng nhập</Link>}
+            {/* thẻ lớn: danh sách cuộn bên trong + khung xem trước chi tiết */}
+            <div className="panel reveal grid h-[26rem] overflow-hidden md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" style={{ ["--i" as string]: 3 }}>
+              <ul className="min-h-0 divide-y divide-line overflow-y-auto border-b border-line md:border-b-0 md:border-r" role="listbox" aria-label="Các mục kiểm tra">
+                {r.items.map((i, n) => (
+                  <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
+                    <button type="button" onClick={() => setSelected(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
+                      <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
+                      <span className="min-w-0 text-sm"><span className="block font-medium">{i.label}</span><span className="line-clamp-2 text-muted">{i.text}</span></span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {sel && (
+                <div className="min-h-0 overflow-y-auto bg-white p-5" aria-live="polite">
+                  <div className="flex items-center gap-2"><span className={CHIP[sel.status].cls}>{CHIP[sel.status].label}</span><h3 className="font-semibold">{sel.label}</h3></div>
+                  <p className="mt-3 text-[15px] leading-relaxed text-muted">{sel.text}</p>
+                  <MatMatSays key={`${selected}:${sel.id}`} className="mt-5" cps={85} text={`${LIKE[sel.group ?? ""] ?? "Đây là một chỗ trên website mình vừa kiểm tra."}\n${TAIL[sel.status]}`} />
+                </div>
+              )}
             </div>
           </div>
-        </>
-      )}
+        );
+      })()}
     </section>
   );
 }
