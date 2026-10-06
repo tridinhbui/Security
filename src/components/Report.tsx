@@ -8,6 +8,7 @@ import { buildRoadmap, buildSummary, CONFIDENCE_FACTOR, EFFORT_LABEL, effortFor,
 import { CATEGORY_LABEL, CONFIDENCE_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { CATEGORIES, SEVERITIES, type Finding, type Severity } from "@/lib/scanner/types";
 import { buildAllPrompt, buildFixPrompt } from "@/lib/ai-prompt";
+import { ASVS_URL, cweUrl, owaspCoverage, standardsFor, wstgUrl } from "@/lib/standards";
 import { FEYNMAN, plainScore, PLAIN_SEV } from "@/lib/feynman";
 import { CopyButton } from "./CopyButton";
 import { FeedbackModal } from "./matmat/FeedbackModal";
@@ -334,6 +335,15 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
           {beginner && showAll && filtered.length > LIMIT && <button onClick={() => setShowAll(false)} className="btn-ghost mt-4 w-full lg:hidden">Thu gọn</button>}
         </section>
 
+        {/* ---- độ phủ OWASP Top 10 */}
+        <section className="mt-14" aria-label="Độ phủ OWASP Top 10">
+          {beginner ? (
+            <details className="group"><summary className="flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-fg"><Chevron />Báo cáo này phủ những hạng mục nào của OWASP Top 10?</summary><OwaspCoverage findings={data.findings} /></details>
+          ) : (
+            <><h2 className="text-2xl font-semibold tracking-tight">Độ phủ OWASP Top 10 (2021)</h2><OwaspCoverage findings={data.findings} /></>
+          )}
+        </section>
+
         {/* ---- chi tiết kỹ thuật */}
         {mode === "technical" && (
           <section className="mt-16" aria-label="Chi tiết kỹ thuật">
@@ -495,6 +505,7 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
               <p className="mono break-all text-[13px]">{f.affectedUrl ?? CATEGORY_LABEL[f.category]}</p>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5"><Confidence level={f.confidence} />{mode === "technical" && owasp && <span className="text-xs text-muted">{owasp.join(" · ")}</span>}</div>
             </Section>
+            <Standards ruleId={f.ruleId} owasp={owasp} />
 
             {f.remediation && !isPass && (
               <>
@@ -613,5 +624,48 @@ function Fold({ on, children }: { on: boolean; children: React.ReactNode }) {
       </summary>
       {children}
     </details>
+  );
+}
+
+/** Chip chuẩn tham chiếu của một phát hiện: OWASP Top 10, CWE, ASVS, WSTG. Chỉ là ánh xạ gần nhất về ý nghĩa, không phải tuyên bố tuân thủ. */
+function Standards({ ruleId, owasp }: { ruleId: string; owasp?: string[] }) {
+  const st = standardsFor(ruleId);
+  if (!owasp?.length && !st.cwe.length && !st.asvs.length && !st.wstg.length) return null;
+  const chip = "chip-info !normal-case !tracking-normal";
+  return (
+    <Section title="Chuẩn tham chiếu">
+      <div className="flex flex-wrap gap-1.5">
+        {owasp?.map((o) => <a key={o} href="https://owasp.org/Top10/" target="_blank" rel="noopener noreferrer" className={chip} title="OWASP Top 10 (2021)">{o.split(" – ")[0]}<span className="hidden sm:inline"> · {o.split(" – ")[1]}</span></a>)}
+        {st.cwe.map((c) => <a key={c} href={cweUrl(c)} target="_blank" rel="noopener noreferrer" className={chip} title="MITRE CWE">CWE-{c}</a>)}
+        {st.asvs.map((a) => <a key={a} href={ASVS_URL} target="_blank" rel="noopener noreferrer" className={chip} title="OWASP ASVS 4.0.3">ASVS {a}</a>)}
+        {st.wstg.map((w) => <a key={w} href={wstgUrl(w)} target="_blank" rel="noopener noreferrer" className={chip} title="OWASP Web Security Testing Guide">{w}</a>)}
+      </div>
+    </Section>
+  );
+}
+
+/** Độ phủ OWASP Top 10 (2021): mỗi hạng mục có bao nhiêu kiểm tra, đang lỗi/đạt, và nói thẳng hạng mục nào quét thụ động không đánh giá được. */
+function OwaspCoverage({ findings }: { findings: Finding[] }) {
+  const rows = owaspCoverage(findings, OWASP_MAP);
+  const reach = { good: "Đánh giá tốt", partial: "Đánh giá một phần", none: "Không đánh giá được" } as const;
+  return (
+    <div className="mt-4">
+      <p className="max-w-3xl text-sm text-muted">Quét thụ động từ bên ngoài không thể chứng minh một hạng mục “an toàn”: ô trống nghĩa là chưa kiểm tra được, không phải đã đạt.</p>
+      <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {rows.map((r) => {
+          const tone = r.failing > 0 ? "border-crit/30 bg-crit/5" : r.checks > 0 ? "border-ok/30 bg-ok/5" : "border-line bg-surface";
+          return (
+            <li key={r.code} className={`rounded-xl border p-3.5 ${tone}`}>
+              <p className="mono text-[11px] font-semibold text-faint">{r.code}:2021</p>
+              <p className="mt-0.5 text-[14px] font-medium leading-snug">{r.name}</p>
+              <p className="mt-2 text-[13px]">
+                {r.checks === 0 ? <span className="text-faint">0 kiểm tra</span> : <><span className={r.failing ? "font-semibold text-crit" : "text-ok"}>{r.failing} lỗi</span> <span className="text-muted">· {r.passing} đạt</span></>}
+              </p>
+              <p className="mt-1 text-[11.5px] leading-snug text-faint"><b className="font-medium">{reach[r.reach]}.</b> {r.note}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

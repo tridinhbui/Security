@@ -1,4 +1,5 @@
 import { CATEGORY_LABEL, SEV_LABEL } from "./i18n";
+import { standardsFor } from "./standards";
 import { calculateScore, gradeFor, penalty, SEVERITY_WEIGHT, CONFIDENCE_FACTOR } from "./scanner/score";
 import { CATEGORIES, type Finding, type Severity } from "./scanner/types";
 
@@ -104,6 +105,9 @@ export function toMarkdown(a: { url: string; host: string; scannedAt: string; sc
   L.push("", `## Vấn đề cần xử lý (${fails.length})`, "");
   fails.forEach((f, i) => {
     L.push(`### ${i + 1}. [${SEV_LABEL[f.severity]}] ${f.title}`, "", `**Chúng tôi phát hiện:** ${f.summary}`, "", `**Vì sao quan trọng:** ${f.explanation}`, "");
+    const std = standardsFor(f.ruleId);
+    const refs = [...(OWASP_MAP[f.ruleId] ?? []).map((o) => o.split(" – ")[0]!), ...std.cwe.map((c) => `CWE-${c}`), ...std.asvs.map((x) => `ASVS ${x}`), ...std.wstg];
+    if (refs.length) L.push(`**Chuẩn tham chiếu:** ${refs.join(" · ")}`, "");
     if (f.evidence.length) L.push("**Bằng chứng:**", "", "```", ...f.evidence, "```", "");
     if (f.remediation) {
       L.push(`**Cách khắc phục:** ${f.remediation.summary}`, "");
