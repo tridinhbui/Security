@@ -2,13 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CopyButton } from "./CopyButton";
 import { MatMatSays } from "./matmat/MatMatSays";
 import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
 
 type Status = "pass" | "warning" | "fail";
-interface Item { id: string; group?: string; label: string; status: Status; text: string }
-interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean }
+interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" } }
+interface Item { id: string; group?: string; label: string; status: Status; text: string; tech?: Tech }
+interface Recon {
+  server: string | null; poweredBy: string | null; platforms: string[]; technologies: string[]; addresses: string[]; httpVersion: string | null;
+  tls: { protocol: string | null; cipher: string | null; issuer: string | null; subject: string | null; validTo: string | null; daysRemaining: number | null; keyType: string | null; keyBits: number | null; validityDays: number | null; sans: number | null } | null;
+  dns: { ns: string[]; mx: string[]; caa: string[]; spf: string | null; dmarc: string | null; dnssec: boolean | null; mtaSts: boolean | null } | null;
+  headers: { name: string; value: string | null }[]; cookies: { name: string; flags: string[] }[]; redirects: { status: number | null; url: string }[];
+}
+const URGENCY: Record<string, { label: string; cls: string }> = { now: { label: "Sửa ngay hôm nay", cls: "chip-crit" }, week: { label: "Sửa trong tuần này", cls: "chip-med" }, later: { label: "Sửa khi rảnh", cls: "chip-info" } };
+const SEV: Record<string, string> = { critical: "nghiêm trọng", high: "cao", medium: "trung bình", low: "thấp", info: "thông tin" };
+const CONF: Record<string, string> = { high: "cao", medium: "vừa", low: "thấp" };
+interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean; recon?: Recon }
 
 const CHIP: Record<Status, { cls: string; label: string }> = { pass: { cls: "chip-ok", label: "Đạt" }, warning: { cls: "chip-med", label: "Cảnh báo" }, fail: { cls: "chip-crit", label: "Lỗi" } };
 
@@ -116,9 +127,53 @@ function Thinking({ host, done }: { host: string; done: boolean }) {
  * Gọi /api/quick-scan (backend thật, không dữ liệu giả) rồi hiển thị: điểm 0–100, từng mục Đạt/Cảnh báo/Lỗi bằng tiếng Việt,
  * và lời mời quét đầy đủ. URL người dùng nhập được giữ nguyên trong liên kết đăng ký/đăng nhập để tự điền sau khi vào tài khoản.
  */
+/** Cột giải pháp: tóm tắt việc cần làm, các bước, rồi lệnh/cấu hình chép thẳng được. Mục đã đạt thì nói rõ không cần làm gì. */
+function Solution({ item, cta }: { item: Item; cta: string }) {
+  if (item.status === "pass") {
+    return (
+      <div className="mt-2 flex items-start gap-2.5 text-[15px] text-muted">
+        <svg viewBox="0 0 24 24" className="mt-1 size-4 shrink-0 text-ok" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+        <p>Không cần làm gì thêm cho mục này.</p>
+      </div>
+    );
+  }
+  const t = item.tech, fixes = t?.fix ?? [], steps = t?.fixSteps ?? [];
+  return (
+    <div className="mt-2 space-y-4">
+      <p className="text-[15px] font-medium leading-relaxed">{t?.fixSummary || "Sửa theo hướng dẫn bên dưới, rồi quét lại để xác nhận."}</p>
+      {steps.length > 0 && <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-muted">{steps.map((s, n) => <li key={n}>{s}</li>)}</ol>}
+      {fixes.map((f, n) => (
+        <div key={`${n}:${f.label}`}>
+          <div className="mb-1.5 flex items-center justify-between gap-2"><p className="text-xs font-medium text-muted">{f.label}</p><CopyButton text={f.code} /></div>
+          <pre className="mono max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-white p-3 text-[12px] leading-5 text-fg/90">{f.code}</pre>
+        </div>
+      ))}
+      {fixes.length === 0 && steps.length === 0 && <p className="text-sm text-muted">Dùng nút “Copy prompt cho AI” ở trên, hoặc đăng nhập để xem hướng dẫn sửa chi tiết.</p>}
+      {fixes.length === 0 && <Link href={cta} className="inline-block text-sm font-medium text-accent hover:underline">Xem hướng dẫn đầy đủ →</Link>}
+    </div>
+  );
+}
+
+/** Tab "Kỹ thuật": dấu vân tay, TLS, DNS, ma trận header, cookie (chỉ tên + cờ), chuỗi chuyển hướng. */
+function ReconView({ r }: { r: Recon }) {
+  const row = (k: string, v: string | number | boolean | null | undefined) => <div key={k} className="grid grid-cols-[8.5rem_1fr] gap-3 py-1.5 text-sm"><dt className="text-faint">{k}</dt><dd className="mono min-w-0 break-words text-[12.5px]">{v === null || v === undefined || v === "" ? <span className="text-faint">—</span> : String(v)}</dd></div>;
+  const card = (title: string, body: React.ReactNode) => <section className="rounded-xl border border-line p-4"><h4 className="eyebrow mb-1">{title}</h4>{body}</section>;
+  return (
+    <div className="grid gap-4 p-4 lg:grid-cols-2">
+      {card("dấu vân tay", <dl>{row("Server", r.server)}{row("X-Powered-By", r.poweredBy)}{row("Nền tảng", r.platforms.join(", "))}{row("Công nghệ", r.technologies.join(", "))}{row("IP", r.addresses.join(", "))}{row("HTTP", r.httpVersion)}</dl>)}
+      {card("tls (từ bộ nhớ đệm)", r.tls ? <dl>{row("Giao thức", r.tls.protocol)}{row("Bộ mã hoá", r.tls.cipher)}{row("Nhà cấp", r.tls.issuer)}{row("Khoá", r.tls.keyType ? `${r.tls.keyType} ${r.tls.keyBits ?? ""}` : null)}{row("Còn hạn", r.tls.daysRemaining !== null ? `${r.tls.daysRemaining} ngày` : null)}{row("Thời hạn", r.tls.validityDays !== null ? `${r.tls.validityDays} ngày` : null)}</dl> : <p className="py-2 text-sm text-faint">Chưa có dữ liệu chứng chỉ trong bộ nhớ đệm. Quét đầy đủ để xem.</p>)}
+      {card("dns", r.dns ? <dl>{row("NS", r.dns.ns.join(", "))}{row("MX", r.dns.mx.join(", "))}{row("SPF", r.dns.spf)}{row("DMARC", r.dns.dmarc)}{row("CAA", r.dns.caa.join(" | "))}{row("DNSSEC", r.dns.dnssec === null ? null : r.dns.dnssec ? "bật" : "tắt")}{row("MTA-STS", r.dns.mtaSts === null ? null : r.dns.mtaSts ? "có" : "chưa")}</dl> : <p className="py-2 text-sm text-faint">Không tra được DNS.</p>)}
+      {card("chuyển hướng http", r.redirects.length ? <ol className="space-y-1 py-1 text-[12.5px]">{r.redirects.map((h, n) => <li key={n} className="mono break-all"><span className="text-faint">{h.status}</span> {h.url}</li>)}</ol> : <p className="py-2 text-sm text-faint">Không có.</p>)}
+      <div className="lg:col-span-2">{card("ma trận header", <dl className="divide-y divide-line">{r.headers.map((h) => <div key={h.name} className="grid grid-cols-[13rem_1fr] gap-3 py-1.5 text-sm"><dt className="mono text-[12px] text-muted">{h.name}</dt><dd className="mono min-w-0 break-words text-[12px]">{h.value ?? <span className="text-crit">thiếu</span>}</dd></div>)}</dl>)}</div>
+      <div className="lg:col-span-2">{card("cookie (chỉ tên và cờ, không có giá trị)", r.cookies.length ? <ul className="space-y-1 py-1 text-[12.5px]">{r.cookies.map((c) => <li key={c.name} className="mono"><b className="font-semibold">{c.name}</b> <span className="text-muted">{c.flags.join("; ") || "không có cờ"}</span></li>)}</ul> : <p className="py-2 text-sm text-faint">Không đặt cookie khi truy cập ẩn danh.</p>)}</div>
+    </div>
+  );
+}
+
 export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authed: boolean; ruleCount: number }) {
   const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean }>({ kind: "loading" });
   const [selected, setSelected] = useState(0);
+  const [tab, setTab] = useState<"findings" | "recon">("findings");
   const host = (() => { try { return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname; } catch { return url; } })();
 
   useEffect(() => {
@@ -197,24 +252,55 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
             </div>
 
             {/* thẻ lớn: danh sách cuộn bên trong + khung xem trước chi tiết */}
-            <div className="panel reveal grid h-[26rem] overflow-hidden md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" style={{ ["--i" as string]: 3 }}>
-              <ul className="min-h-0 divide-y divide-line overflow-y-auto border-b border-line md:border-b-0 md:border-r" role="listbox" aria-label="Các mục kiểm tra">
-                {r.items.map((i, n) => (
-                  <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
-                    <button type="button" onClick={() => setSelected(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
-                      <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
-                      <span className="min-w-0 text-sm"><span className="block font-medium">{i.label}</span><span className="line-clamp-2 text-muted">{i.text}</span></span>
-                    </button>
-                  </li>
+            <div className="panel reveal overflow-hidden" style={{ ["--i" as string]: 3 }}>
+              <div role="tablist" aria-label="Kết quả" className="flex gap-1 border-b border-line bg-surface px-3 pt-2">
+                {([["findings", `Phát hiện (${r.items.length})`], ["recon", "Kỹ thuật"]] as const).map(([k, label]) => (
+                  <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} disabled={k === "recon" && !r.recon}
+                    className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${tab === k ? "bg-white text-fg shadow-crisp" : "text-muted hover:text-fg"}`}>{label}</button>
                 ))}
-              </ul>
-              {sel && (
-                <div className="min-h-0 overflow-y-auto bg-white p-5" aria-live="polite">
-                  <div className="flex items-center gap-2"><span className={CHIP[sel.status].cls}>{CHIP[sel.status].label}</span><h3 className="font-semibold">{sel.label}</h3></div>
-                  <p className="mt-3 text-[15px] leading-relaxed text-muted">{sel.text}</p>
-                  <MatMatSays key={`${selected}:${sel.id}`} className="mt-5" cps={85} text={`${LIKE[sel.group ?? ""] ?? "Đây là một chỗ trên website mình vừa kiểm tra."}\n${TAIL[sel.status]}`} />
-                </div>
-              )}
+              </div>
+              {tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
+              <div className="grid h-[34rem] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[30rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+                <ul className="min-h-0 divide-y divide-line overflow-y-auto border-b border-line md:border-b-0 md:border-r" role="listbox" aria-label="Các mục kiểm tra">
+                  {r.items.map((i, n) => (
+                    <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
+                      <button type="button" onClick={() => setSelected(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
+                        <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
+                        <span className="min-w-0 text-sm"><span className="block font-medium">{i.label}</span><span className="line-clamp-2 text-muted">{i.text}</span></span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {sel && (
+                  <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:col-span-2 lg:grid-cols-2 lg:grid-rows-1" aria-live="polite">
+                    {/* vấn đề */}
+                    <div className="min-h-0 overflow-y-auto bg-white p-5">
+                      <p className="eyebrow">vấn đề</p>
+                      <div className="mt-2 flex items-center gap-2"><span className={CHIP[sel.status].cls}>{CHIP[sel.status].label}</span><h3 className="font-semibold">{sel.label}</h3></div>
+                      <p className="mt-3 text-[15px] leading-relaxed text-muted">{sel.text}</p>
+                      {sel.tech?.impact && (
+                        <div className="mt-4 rounded-xl border border-line bg-surface p-3.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2"><p className="eyebrow">nếu để 1 ngày thì sao?</p><span className={`${URGENCY[sel.tech.impact.urgency]!.cls} !normal-case`}>{URGENCY[sel.tech.impact.urgency]!.label}</span></div>
+                          <dl className="mt-2 space-y-2 text-sm leading-relaxed">
+                            <div><dt className="text-xs font-medium text-faint">Trong 1 ngày</dt><dd>{sel.tech.impact.today}</dd></div>
+                            <div><dt className="text-xs font-medium text-faint">Trường hợp xấu nhất</dt><dd>{sel.tech.impact.worst}</dd></div>
+                            <div><dt className="text-xs font-medium text-faint">Ai khai thác được</dt><dd>{sel.tech.impact.who}</dd></div>
+                          </dl>
+                        </div>
+                      )}
+                      {sel.tech && <p className="mono mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-faint"><span>{sel.tech.ruleId}</span><span>mức: {SEV[sel.tech.severity] ?? sel.tech.severity}</span><span>tin cậy: {CONF[sel.tech.confidence] ?? sel.tech.confidence}</span></p>}
+                      {sel.tech && sel.tech.evidence.length > 0 && <div className="mt-4"><p className="eyebrow mb-1.5">bằng chứng</p><pre className="mono max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-[12px] leading-5">{sel.tech.evidence.join("\n")}</pre></div>}
+                      {sel.tech && sel.tech.owasp.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{sel.tech.owasp.map((o) => <span key={o} className="chip-info !normal-case">{o}</span>)}</div>}
+                      <MatMatSays key={`${selected}:${sel.id}`} className="mt-5" cps={85} text={`${LIKE[sel.group ?? ""] ?? "Đây là một chỗ trên website mình vừa kiểm tra."}\n${TAIL[sel.status]}`} />
+                    </div>
+                    {/* giải pháp: luôn hiện, song song với vấn đề */}
+                    <div className="min-h-0 overflow-y-auto border-t border-line bg-accent-soft/40 p-5 lg:border-l lg:border-t-0">
+                      <p className="eyebrow !text-accent">giải pháp</p>
+                      <Solution item={sel} cta={cta} />
+                    </div>
+                  </div>
+                )}
+              </div>)}
             </div>
           </div>
         );
