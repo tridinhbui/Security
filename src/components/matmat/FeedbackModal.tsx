@@ -7,6 +7,9 @@ import { Face } from "./MatMat";
 const FACES = [["😣", "Rất khó hiểu"], ["😕", "Hơi khó"], ["🙂", "Tạm được"], ["😀", "Dễ hiểu"], ["🤩", "Tuyệt vời"]] as const;
 const TAGS = [["easy", "Dễ hiểu"], ["confusing", "Có chỗ khó hiểu"], ["missing-guide", "Thiếu hướng dẫn"], ["hard-commands", "Lệnh khó dán"], ["slow", "Quét hơi lâu"], ["great", "Muốn thêm tính năng"]] as const;
 
+/** Cho người dùng đọc báo cáo một lúc trước khi hỏi (đếm từ lúc báo cáo mở). */
+const READ_DELAY_MS = 30_000;
+
 /**
  * Popup giữa màn hình: Mật Mật hỏi feedback ngay sau khi quét xong. BẮT BUỘC trả lời mới đóng được (không có nút đóng, Esc hay bấm nền
  * đều không tắt); chỉ khi gửi lỗi mới có lối thoát để không kẹt người dùng. Mỗi lượt quét hỏi một lần (localStorage + chặn trùng ở máy chủ).
@@ -23,7 +26,7 @@ export function FeedbackModal({ scanId }: { scanId: string }) {
     let seen = false;
     try { seen = localStorage.getItem(key) === "1"; } catch { /* bỏ qua */ }
     if (seen) return;
-    const t = setTimeout(() => setShow(true), 1800);
+    const t = setTimeout(() => setShow(true), READ_DELAY_MS);
     return () => clearTimeout(t);
   }, [key]);
 
