@@ -22,7 +22,8 @@ export function MatMatSays({ text, active = true, cps = 90, className = "", chil
     return () => io.disconnect();
   }, [seen]);
 
-  useEffect(() => { setDone(false); }, [text]);
+  // Gõ lại mỗi lần được kích hoạt lại (ví dụ mở lại một mục đã đóng); đóng lại thì ẩn nút để lần sau hiện đúng lúc gõ xong.
+  useEffect(() => { setDone(false); }, [text, active]);
 
   return (
     <div ref={ref} className={`flex items-start gap-3 ${className}`}>

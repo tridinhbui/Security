@@ -444,7 +444,7 @@ function FindingItem({ f, mode, data, i, open, onToggle }: { f: Finding; mode: M
 
         {mode === "beginner" && (
           <div className="border-t border-line px-4 py-5">
-            <MatMatSays active={opened} text={simpleText}>
+            <MatMatSays active={open} text={simpleText}>
               <div className="flex flex-wrap items-center gap-2">
                 {isFail && <PromptButton text={buildFixPrompt(f, data.host, data.platforms)} />}
                 <button type="button" onClick={() => askMatMat(`Giải thích ${PLAIN_TITLES[f.ruleId] ?? f.title}`)} className="btn-ghost btn-sm">🐾 Hỏi thêm Mật Mật</button>
@@ -561,8 +561,15 @@ function PromptButton({ text, label = "Copy prompt cho AI", big = false }: { tex
 function Fold({ on, children }: { on: boolean; children: React.ReactNode }) {
   if (!on) return <>{children}</>;
   return (
-    <details className="border-t border-line">
-      <summary className="cursor-pointer px-4 py-3 text-[13px] text-muted hover:text-fg">▸ Xem chi tiết kỹ thuật (không bắt buộc)</summary>
+    <details className="group/fold border-t border-line">
+      <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium text-accent transition-colors hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60">
+        <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent-soft px-3.5 py-1.5 shadow-crisp">
+          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></svg>
+          Xem chi tiết kỹ thuật
+          <span className="font-normal text-accent/70">(không bắt buộc)</span>
+        </span>
+        <svg viewBox="0 0 24 24" className="size-4 shrink-0 transition-transform duration-200 group-open/fold:rotate-180" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
+      </summary>
       {children}
     </details>
   );
