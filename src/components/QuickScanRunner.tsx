@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "./CopyButton";
 import { ExportButtons, headline, ProblemPane, TriageStrip } from "./QuickAnalyst";
+import { CoverageStrip, filterMatch, ScoreBreakdown, StatusFilterBar, TopActions, type StatusFilter } from "./QuickInsights";
 import { MatMatSays } from "./matmat/MatMatSays";
 import { ScanStage } from "./ScanStage";
 import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
 
 type Status = "pass" | "warning" | "fail";
-interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" }; statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null }
+interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" }; statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null; penalty?: number }
 interface Item { id: string; group?: string; label: string; status: Status; text: string; tech?: Tech }
 interface Recon {
   server: string | null; poweredBy: string | null; platforms: string[]; technologies: string[]; addresses: string[]; httpVersion: string | null;
@@ -21,7 +22,7 @@ interface Recon {
 const URGENCY: Record<string, { label: string; cls: string }> = { now: { label: "Sửa ngay hôm nay", cls: "chip-crit" }, week: { label: "Sửa trong tuần này", cls: "chip-med" }, later: { label: "Sửa khi rảnh", cls: "chip-info" } };
 const SEV: Record<string, string> = { critical: "nghiêm trọng", high: "cao", medium: "trung bình", low: "thấp", info: "thông tin" };
 const CONF: Record<string, string> = { high: "cao", medium: "vừa", low: "thấp" };
-interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean; recon?: Recon }
+interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean; recon?: Recon; ceiling?: number }
 
 const CHIP: Record<Status, { cls: string; label: string }> = { pass: { cls: "chip-ok", label: "Đạt" }, warning: { cls: "chip-med", label: "Cảnh báo" }, fail: { cls: "chip-crit", label: "Lỗi" } };
 
@@ -163,7 +164,8 @@ function ReconView({ r }: { r: Recon }) {
 export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authed: boolean; ruleCount: number }) {
   const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean }>({ kind: "loading" });
   const [selected, setSelected] = useState(0);
-  const [tab, setTab] = useState<"findings" | "recon">("findings");
+  const [tab, setTab] = useState<"findings" | "recon" | "score">("findings");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("issues");
   const host = (() => { try { return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname; } catch { return url; } })();
 
   useEffect(() => {
@@ -211,6 +213,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
       {state.kind === "ok" && (() => {
         const r = state.r;
         const hasIssue = r.counts.warning + r.counts.fail > 0;
+        const flt: StatusFilter = hasIssue ? statusFilter : "all";
         const sel = r.items[Math.min(selected, r.items.length - 1)];
         return (
           <div className="space-y-4">
@@ -226,6 +229,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   </div>
                 </div>
                 <MatMatSays className="mt-4" text={summaryText(r)} cps={85} />
+                <TopActions items={r.items} onPick={(n) => { setStatusFilter("issues"); setTab("findings"); setSelected(n); }} />
               </div>
 
               <div className="panel reveal flex flex-col justify-between gap-4 bg-surface p-5 sm:p-6" style={{ ["--i" as string]: 2 }}>
@@ -244,17 +248,28 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
             {/* thẻ lớn: danh sách cuộn bên trong + khung xem trước chi tiết */}
             <div className="panel reveal overflow-hidden" style={{ ["--i" as string]: 3 }}>
               <div role="tablist" aria-label="Kết quả" className="flex gap-1 border-b border-line bg-surface px-3 pt-2">
-                {([["findings", `Phát hiện (${r.items.length})`], ["recon", "Kỹ thuật"]] as const).map(([k, label]) => (
+                {([["findings", `Phát hiện (${r.items.length})`], ["score", "Điểm & phạm vi"], ["recon", "Kỹ thuật"]] as const).map(([k, label]) => (
                   <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} disabled={k === "recon" && !r.recon}
                     className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${tab === k ? "bg-white text-fg shadow-crisp" : "text-muted hover:text-fg"}`}>{label}</button>
                 ))}
                 <div className="ml-auto self-center pb-1"><ExportButtons result={r} /></div>
               </div>
               {tab === "findings" && <TriageStrip items={r.items} />}
-              {tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
+              {tab === "score" ? <div className="grid max-h-[40rem] gap-4 overflow-y-auto p-4 lg:grid-cols-2"><ScoreBreakdown items={r.items} score={r.score} ceiling={r.ceiling ?? 90} /><CoverageStrip cta={cta} /></div> : tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
               <div className="grid h-[44rem] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[36rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
-                <ul className="min-h-0 divide-y divide-line overflow-y-auto border-b border-line md:border-b-0 md:border-r" role="listbox" aria-label="Các mục kiểm tra">
-                  {r.items.map((i, n) => (
+                <div className="flex min-h-0 flex-col border-b border-line md:border-b-0 md:border-r">
+                <StatusFilterBar value={flt} onChange={(v) => { setStatusFilter(v); const first = r.items.findIndex((x) => filterMatch(v, x)); if (first >= 0) setSelected(first); }}
+                  counts={{ issues: r.items.filter((x) => filterMatch("issues", x)).length, pass: r.items.filter((x) => filterMatch("pass", x)).length, all: r.items.length }} />
+                <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto" role="listbox" aria-label="Các mục kiểm tra" tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                    e.preventDefault();
+                    const vis = r.items.map((x, n) => ({ x, n })).filter(({ x }) => filterMatch(flt, x)).map(({ n }) => n);
+                    const at = vis.indexOf(selected);
+                    const next = vis[Math.min(vis.length - 1, Math.max(0, (at < 0 ? 0 : at) + (e.key === "ArrowDown" ? 1 : -1)))];
+                    if (next !== undefined) setSelected(next);
+                  }}>
+                  {r.items.map((i, n) => ({ i, n })).filter(({ i }) => filterMatch(flt, i)).map(({ i, n }) => (
                     <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
                       <button type="button" onClick={() => setSelected(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
                         <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
@@ -263,6 +278,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                     </li>
                   ))}
                 </ul>
+                </div>
                 {sel && (
                   <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:col-span-2 lg:grid-cols-2 lg:grid-rows-1" aria-live="polite">
                     {/* vấn đề */}

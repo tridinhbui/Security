@@ -42,3 +42,20 @@ describe("mô tả hậu quả cho toàn bộ bộ luật (báo cáo đầy đ�
     expect(missing).toEqual([]);
   });
 });
+
+describe("điểm đến từ đâu", () => {
+  it("tổng điểm bị trừ của các mục khớp công thức chấm điểm; mục đạt không bị trừ", () => {
+    const base = { category: "Headers" as const, summary: "s", explanation: "e" };
+    const fs = [
+      makeFinding({ ruleId: "headers.csp", title: "Thiếu CSP", severity: "medium", confidence: "high", status: "fail", ...base }),
+      makeFinding({ ruleId: "privacy.referrer-policy", title: "Thiếu Referrer-Policy", severity: "low", confidence: "medium", status: "fail", ...base }),
+      makeFinding({ ruleId: "tls.hsts", title: "HSTS ổn", severity: "info", confidence: "high", status: "pass", ...base }),
+    ];
+    const items = toItems(attachFixCommands(fs, { host: "example.com", platforms: [] }), "example.com");
+    const pen = (s: string) => items.find((i) => i.status === s)!.tech!.penalty;
+    expect(items.filter((i) => i.status === "pass").every((i) => i.tech!.penalty === undefined)).toBe(true);
+    expect(items.map((i) => i.tech!.penalty ?? 0).reduce((a, b) => a + b, 0)).toBeCloseTo(7 + 3 * 0.7, 1);
+    expect(pen("fail")).toBe(7);
+    expect(pen("warning")).toBe(2.1);
+  });
+});

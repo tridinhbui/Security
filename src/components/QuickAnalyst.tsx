@@ -8,6 +8,7 @@ export type Urgency = "now" | "week" | "later";
 export interface ATech {
   ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string;
   impact?: { today: string; worst: string; who: string; urgency: Urgency };
+  penalty?: number;
   statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null;
   references?: { title: string; url: string }[];
 }

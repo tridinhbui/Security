@@ -6,7 +6,7 @@ import { collect } from "./collect-core";
 import { createDohDnsLookup } from "./dns-doh";
 import { evaluate } from "./evaluate";
 import { ALL_RULES } from "./rules";
-import { calculateScore, type Grade } from "./score";
+import { calculateScore, penalty, type Grade } from "./score";
 import type { TlsInfo } from "../ssrf/types";
 import type { Finding, Observations } from "./types";
 import { attachFixCommands } from "./fixes";
@@ -61,6 +61,8 @@ export interface QuickTech {
   references: { title: string; url: string }[];
   /** "Nếu để 1 ngày thì sao?" — chỉ có ở mục chưa đạt. */
   impact?: { today: string; worst: string; who: string; urgency: Urgency };
+  /** Số điểm bị trừ do phát hiện này (trọng số mức độ × hệ số tin cậy). */
+  penalty?: number;
   /** Góc nhìn analyst: câu khẳng định + câu phụ, nguồn gốc lỗi, và lệnh chỉ-đọc để tự tái hiện. */
   statement?: string; sub?: string; origin?: Origin; repro?: string | null;
 }
@@ -73,7 +75,7 @@ export interface QuickRecon {
   headers: { name: string; value: string | null }[]; cookies: { name: string; flags: string[] }[]; redirects: { status: number | null; url: string }[];
 }
 export interface QuickResult {
-  host: string; score: number; grade: Grade; scannedAt: string; counts: Record<QuickStatus, number>; items: QuickItem[]; recon?: QuickRecon;
+  host: string; score: number; grade: Grade; scannedAt: string; counts: Record<QuickStatus, number>; items: QuickItem[]; recon?: QuickRecon; /** Điểm tối đa của lượt quét này. */ ceiling?: number;
   /** Lượt quét nhanh có phạm vi giới hạn: điểm tối đa 90. */
   limited: true; requests: number;
 }
@@ -103,6 +105,7 @@ export function toItems(findings: Finding[], host = ""): QuickItem[] {
       fixSteps: bad ? (f.remediation?.steps ?? []).slice(0, 4).map((x) => clip(x, 220)) : [],
       fix: bad ? (f.remediation?.snippets ?? []).slice(0, 4).map((x) => ({ label: clip(x.label, 90), language: x.language, code: clip(x.code, 900) })) : [],
       references: f.references.slice(0, 3),
+      ...(bad ? { penalty: Math.round(penalty(f) * 10) / 10 } : {}),
       ...(bad && ANALYST[f.ruleId] ? { statement: ANALYST[f.ruleId]!.statement, sub: ANALYST[f.ruleId]!.sub, origin: originFor(f.ruleId, f.title), repro: host ? reproFor(f.ruleId, host) : null } : {}),
       ...(bad && IMPACT[f.ruleId] ? { impact: { today: IMPACT[f.ruleId]!.today, worst: IMPACT[f.ruleId]!.worst, who: IMPACT[f.ruleId]!.who, urgency: urgencyFor(f.ruleId, f.severity) } } : {}),
     };
@@ -169,5 +172,5 @@ export async function runQuickScan(input: string, deps: QuickDeps): Promise<Quic
     return { host: target.host, score: 0, grade: "F", scannedAt: obs.scannedAt, counts: { pass: 0, warning: 0, fail: 1 }, requests: budget.used, limited: true,
       items: [{ id: "unreachable", group: "https", label: GROUP_LABEL.https, status: "fail", text: "Không kết nối được tới website qua HTTPS lẫn HTTP. Hãy kiểm tra địa chỉ và chắc chắn website đang hoạt động." }] };
   }
-  return { host: target.host, score: score.score, grade: score.grade, scannedAt: obs.scannedAt, counts, items, limited: true, requests: budget.used, recon: buildRecon(obs) };
+  return { host: target.host, score: score.score, grade: score.grade, scannedAt: obs.scannedAt, counts, items, limited: true, requests: budget.used, recon: buildRecon(obs), ceiling: score.ceiling };
 }
