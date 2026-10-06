@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { HeroVisual } from "@/components/HeroVisual";
 import { HeroStage } from "@/components/landing/HeroStage";
 import { Reveal } from "@/components/landing/Reveal";
@@ -43,6 +44,7 @@ const STEPS = [
 
 export default async function Home() {
   const user = await getUser();
+  if (user) redirect("/dashboard"); // đã đăng nhập thì vào khu làm việc, không hiện trang giới thiệu lẫn trong sidebar
   const demo = demoBeforeReport();
   const risks = demo.findings.filter((f) => f.status === "fail" && f.severity !== "info").slice(0, 4);
 
