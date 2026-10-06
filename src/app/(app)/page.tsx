@@ -5,6 +5,7 @@ import { HeroStage } from "@/components/landing/HeroStage";
 import { Reveal } from "@/components/landing/Reveal";
 import { SplitText } from "@/components/landing/SplitText";
 import { TiltCard } from "@/components/landing/TiltCard";
+import { Commitments, CoverageTable, Faq, FinalCta, NumbersBand, ProjectScans, Provenance, StandardsStrip } from "@/components/landing/TrustSections";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { MatMatSays } from "@/components/matmat/MatMatSays";
 import { ScanForm } from "@/components/ScanForm";
@@ -75,6 +76,8 @@ export default async function Home() {
         </div>
       </HeroStage>
 
+      <StandardsStrip />
+
       {/* ---- cách hoạt động (dải ngắn) */}
       <section className="hairline" aria-labelledby="how">
         <div className="container-x py-10">
@@ -137,6 +140,14 @@ export default async function Home() {
           </Reveal>
         </div>
       </section>
+
+      <NumbersBand />
+      <ProjectScans />
+      <Provenance />
+      <CoverageTable />
+      <Commitments />
+      <Faq />
+      <FinalCta />
     </>
   );
 }
