@@ -3,8 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ScanStatus } from "@/lib/db-types";
 import { ALL_STEPS, progressFraction, STAGE_GROUPS, stepStates, type StepState } from "@/lib/scan-stages";
-import { MatMatSays } from "./matmat/MatMatSays";
-import { Typed } from "./motion/Typed";
+import { ScanStage } from "./ScanStage";
 
 const SAYS: Record<string, string> = {
   queued: "Mình xếp hàng cho bạn rồi, sắp tới lượt nè. Bạn cứ ngồi nghỉ một chút nhé ☕",
@@ -75,54 +74,18 @@ export function ScanProgress({ scanId, initialStatus, url }: { scanId: string; i
   const pct = Math.round(progressFraction(status) * 100);
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0"), ss = String(elapsed % 60).padStart(2, "0");
 
+  const host = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+  const steps = ALL_STEPS.map((x) => ({ label: x.label, state: (states[x.id] === "done" ? "done" : states[x.id] === "running" ? "run" : "wait") as "done" | "run" | "wait" }));
+
   return (
-    <div className="container-x max-w-3xl py-12 sm:py-16" aria-live="polite">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="container-x max-w-6xl py-8 sm:py-12" aria-live="polite">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <span className={status === "queued" ? "chip-info" : "chip-accent"}><span className="live-dot" aria-hidden />{status === "queued" ? "Đang chờ" : "Đang quét"}</span>
+        <h1 className="mono min-w-0 flex-1 truncate text-xl font-semibold tracking-tight sm:text-2xl">{url}</h1>
         <span className="mono num text-xs text-faint" aria-label="Thời gian đã trôi qua">{mm}:{ss}</span>
       </div>
-      <h1 className="mono mt-4 break-all text-2xl font-semibold tracking-tight sm:text-3xl">{url}</h1>
 
-      <div className="mt-8" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Tiến độ quét">
-        <div className="scanline h-1.5 overflow-hidden rounded-full bg-line">
-          <div className="h-full origin-left rounded-full bg-accent transition-[width] duration-700 ease-out" style={{ width: `${Math.max(pct, 4)}%` }} />
-        </div>
-        <div className="mono mt-2 flex justify-between text-[11px] text-faint"><span>{pct}%</span><span>Thường mất 10–30 giây</span></div>
-      </div>
-
-      <MatMatSays className="mt-8" text={SAYS[status] ?? SAYS.queued!} cps={80} />
-
-      <div className="mt-10 grid gap-8 md:grid-cols-[1.1fr_1fr]">
-        <ol className="space-y-1">
-          {ALL_STEPS.map((s, i) => {
-            const st = states[s.id] ?? "pending";
-            return (
-              <li key={s.id} className={`reveal flex items-start gap-3 rounded-lg px-2.5 py-2 transition-colors ${st === "running" ? "bg-accent-soft/70" : ""}`} style={{ ["--i" as string]: i }}>
-                <span className="mt-0.5"><StepIcon s={st} /></span>
-                <span className="min-w-0">
-                  <span className={`block text-[15px] ${st === "pending" ? "text-faint" : st === "running" ? "font-medium text-fg" : "text-muted"}`}>{s.label}</span>
-                  {st === "running" && <span className="fade-in block text-xs text-muted">{s.detail}</span>}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-
-        <div className="term h-fit self-start" role="log" aria-label="Nhật ký quét">
-          <div className="term-bar"><span className="term-dot" /><span className="term-dot" /><span className="term-dot" /><span className="ml-1">vibesec — nhật ký</span></div>
-          <div className="term-body max-h-72 space-y-0.5 overflow-y-auto">
-            {log.map((l, i) => (
-              <div key={i} className="flex gap-2">
-                <span className={`prompt shrink-0 ${l.tone === "ok" ? "!text-ok" : ""}`} aria-hidden>{i === 0 ? "$" : l.tone === "ok" ? "✓" : ">"}</span>
-                <span className={`min-w-0 break-words ${l.tone === "accent" ? "text-fg" : l.tone === "ok" ? "text-ok" : "text-muted"}`}>
-                  {i === log.length - 1 && status !== "completed" ? <Typed text={l.text} cps={90} /> : l.text}
-                </span>
-              </div>
-            ))}
-            {status !== "completed" && <div className="flex gap-2"><span className="prompt" aria-hidden>&gt;</span><span className="cursor" aria-hidden /></div>}
-          </div>
-        </div>
-      </div>
+      <ScanStage host={host} steps={steps} logs={log.map((l) => ({ text: l.text, tone: l.tone }))} pct={pct} say={SAYS[status] ?? SAYS.queued!} />
 
       <p className="mt-10 text-sm text-muted">Bạn có thể rời khỏi trang này — báo cáo sẽ nằm trong lịch sử quét của bạn.</p>
       {stale && <p role="status" className="mt-3 rounded-lg border border-med/30 bg-med/5 px-3.5 py-2.5 text-sm text-med">Lần này lâu hơn bình thường. Hệ thống có thể đang bận, nhưng lượt quét vẫn sẽ hoàn tất.</p>}

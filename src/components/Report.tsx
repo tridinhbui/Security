@@ -74,9 +74,14 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
   const filtered = filter === "issues" && sev !== "all" ? base.filter((f) => f.severity === sev) : base;
   const list = beginner && !showAll ? filtered.slice(0, LIMIT) : filtered;
   const hidden = filtered.length - list.length;
+  const selId = filtered.some((f) => f.fingerprint === openId) ? openId : filtered[0]?.fingerprint ?? null;
+  const selFinding = filtered.find((f) => f.fingerprint === selId) ?? null;
   function jumpTo(f: Finding) {
     setFilter("issues"); setSev("all"); setOpenId(f.fingerprint);
-    setTimeout(() => document.getElementById(`f-${slug(f.fingerprint)}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    setTimeout(() => {
+      const desktop = window.matchMedia("(min-width: 1024px)").matches;
+      document.getElementById(desktop ? "findings-split" : `f-${slug(f.fingerprint)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
   }
   const urgent = issues.filter((f) => f.severity === "critical" || f.severity === "high");
   const counts = SEVERITIES.filter((s) => s !== "info").map((s) => ({ s, n: data.severityCounts[s] ?? 0 }));
@@ -310,12 +315,23 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
               {filter === "issues" && <p className="mx-auto mt-1 max-w-md text-sm text-muted">Đây là tin tốt — nhưng hãy nhớ rằng chúng chỉ bao phủ những gì nhìn thấy được từ bên ngoài.</p>}
             </div>
           ) : (
-            <ul className="mt-5 space-y-2.5">
-              {list.map((f, i) => <FindingItem key={f.fingerprint} f={f} mode={mode} data={data} i={i} open={openId === f.fingerprint} onToggle={() => setOpenId((c) => (c === f.fingerprint ? null : f.fingerprint))} />)}
-            </ul>
+            <>
+              <ul className="mt-5 space-y-2.5 lg:hidden">
+                {list.map((f, i) => <FindingItem key={f.fingerprint} f={f} mode={mode} data={data} i={i} open={openId === f.fingerprint} onToggle={() => setOpenId((c) => (c === f.fingerprint ? null : f.fingerprint))} />)}
+              </ul>
+              {/* máy tính: chia đôi, trái là danh sách, phải là chi tiết của mục đang chọn */}
+              <div id="findings-split" className="mt-5 hidden h-[38rem] overflow-hidden rounded-2xl border border-line bg-white shadow-crisp lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+                <ul className="min-h-0 divide-y divide-line overflow-y-auto border-r border-line" aria-label="Danh sách phát hiện">
+                  {filtered.map((f, i) => <FindingItem key={f.fingerprint} f={f} mode={mode} data={data} i={i} layout="row" open={selId === f.fingerprint} onToggle={() => setOpenId(f.fingerprint)} />)}
+                </ul>
+                <div className="min-h-0 overflow-y-auto" aria-live="polite">
+                  {selFinding && <FindingItem key={selFinding.fingerprint} f={selFinding} mode={mode} data={data} i={0} layout="pane" open onToggle={() => undefined} />}
+                </div>
+              </div>
+            </>
           )}
-          {hidden > 0 && <button onClick={() => setShowAll(true)} className="btn-ghost mt-4 w-full">Xem thêm {hidden} mục</button>}
-          {beginner && showAll && filtered.length > LIMIT && <button onClick={() => setShowAll(false)} className="btn-ghost mt-4 w-full">Thu gọn</button>}
+          {hidden > 0 && <button onClick={() => setShowAll(true)} className="btn-ghost mt-4 w-full lg:hidden">Xem thêm {hidden} mục</button>}
+          {beginner && showAll && filtered.length > LIMIT && <button onClick={() => setShowAll(false)} className="btn-ghost mt-4 w-full lg:hidden">Thu gọn</button>}
         </section>
 
         {/* ---- chi tiết kỹ thuật */}
@@ -404,7 +420,7 @@ function Confidence({ level }: { level: Finding["confidence"] }) {
   );
 }
 
-function FindingItem({ f, mode, data, i, open, onToggle }: { f: Finding; mode: Mode; data: ReportData; i: number; open: boolean; onToggle: () => void }) {
+function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }: { f: Finding; mode: Mode; data: ReportData; i: number; open: boolean; onToggle: () => void; layout?: "accordion" | "row" | "pane" }) {
   const isPass = f.status === "pass";
   const isFail = f.status === "fail";
   const [opened, setOpened] = useState(false);
@@ -422,10 +438,7 @@ function FindingItem({ f, mode, data, i, open, onToggle }: { f: Finding; mode: M
   const steps = f.remediation?.steps ?? [];
   const fixText = f.remediation ? [f.remediation.summary, ...steps.map((s, k) => `${k + 1}. ${s}`)].join("\n") : "";
 
-  return (
-    <li id={`f-${slug(f.fingerprint)}`} className="reveal scroll-mt-24" style={stagger(i)}>
-      <details open={open} className={`group panel border-l-[3px] ${rail} transition-shadow open:shadow-pop`}>
-        <summary onClick={(e) => { e.preventDefault(); onToggle(); }} className="flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-surface/70 sm:items-center">
+  const head = (
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               {isFail ? <span className={SEV_CHIP[f.severity]}>{SEV_LABEL[f.severity]}</span> : isPass ? <span className="chip-ok">Đạt</span> : <span className="chip-info">{f.status === "unknown" ? "Chưa kiểm tra được" : "Ghi chú"}</span>}
@@ -438,10 +451,9 @@ function FindingItem({ f, mode, data, i, open, onToggle }: { f: Finding; mode: M
               {mode === "technical" && <span className="mono text-faint">· {f.ruleId}</span>}
             </span>
           </span>
-          <span className="hidden shrink-0 sm:block"><Confidence level={f.confidence} /></span>
-          <Chevron />
-        </summary>
-
+  );
+  const body = (
+    <>
         {mode === "beginner" && (
           <div className="border-t border-line px-4 py-5">
             <MatMatSays active={open} text={simpleText}>
@@ -527,6 +539,35 @@ function FindingItem({ f, mode, data, i, open, onToggle }: { f: Finding; mode: M
           </div>
         </div>
         </Fold>
+    </>
+  );
+
+  if (layout === "row") {
+    return (
+      <li>
+        <button type="button" onClick={onToggle} aria-current={open ? "true" : undefined} className={`flex w-full items-start gap-3 border-l-[3px] px-4 py-3 text-left transition-colors ${rail} ${open ? "bg-accent-soft/70" : "hover:bg-surface"}`}>{head}</button>
+      </li>
+    );
+  }
+  if (layout === "pane") {
+    return (
+      <div>
+        <div className={`border-b border-line border-l-[3px] px-5 py-4 ${rail}`}>{head}</div>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <li id={`f-${slug(f.fingerprint)}`} className="reveal scroll-mt-24" style={stagger(i)}>
+      <details open={open} className={`group panel border-l-[3px] ${rail} transition-shadow open:shadow-pop`}>
+        <summary onClick={(e) => { e.preventDefault(); onToggle(); }} className="flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-surface/70 sm:items-center">
+          {head}
+          <span className="hidden shrink-0 sm:block"><Confidence level={f.confidence} /></span>
+          <Chevron />
+        </summary>
+
+        {body}
       </details>
     </li>
   );

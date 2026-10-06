@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "./CopyButton";
 import { MatMatSays } from "./matmat/MatMatSays";
+import { ScanStage } from "./ScanStage";
 import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
 
@@ -83,44 +84,21 @@ function summaryText(r: Result): string {
   return `Xong rồi nè! ${r.host} được ${r.score}/100 điểm (hạng ${r.grade}). ${mood}\nMình thấy: ${bits}. Bấm “Mật Mật giải thích” ở từng mục để hiểu dễ hơn${r.counts.warning + r.counts.fail ? ", rồi copy prompt bên dưới đưa cho AI sửa giúp" : ""} nhé 🐾`;
 }
 
-/** Màn hình “đang suy nghĩ”: Mật Mật kể từng bước đang làm, danh sách bước tích dần và khung log như bên trong bộ quét. */
+/** Màn hình chia đôi: trái là các bước Mật Mật đang làm, phải là “màn hình trực tiếp” với nhật ký chạy. */
 function Thinking({ host, done }: { host: string; done: boolean }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setStep((v) => Math.min(v + 1, STEPS.length - 1)), STEP_MS);
     return () => clearInterval(t);
   }, []);
-  const cur = done ? STEPS.length - 1 : step;
-  const pct = Math.round(((done ? STEPS.length : cur + 0.5) / STEPS.length) * 100);
-  return (
-    <div className="panel p-5 sm:p-6" role="status" aria-label="Đang kiểm tra website">
-      <MatMatSays text={STEPS[cur]!.say} cps={70} />
-      <div className="scanline mt-5 h-1.5 overflow-hidden rounded-full bg-line"><div className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out" style={{ width: `${pct}%` }} /></div>
-      <div className="mt-5 grid gap-6 md:grid-cols-[1.1fr_1fr]">
-        <ol className="space-y-1">
-          {STEPS.map((x, i) => {
-            const st = i < cur || done ? "done" : i === cur ? "run" : "wait";
-            return (
-              <li key={x.label} className={`flex items-center gap-3 rounded-lg px-2.5 py-1.5 text-[14px] transition-colors ${st === "run" ? "bg-accent-soft/70 font-medium" : st === "wait" ? "text-faint" : "text-muted"}`}>
-                {st === "done" ? <span className="pop grid size-4 shrink-0 place-items-center rounded-full bg-ok text-white"><svg viewBox="0 0 24 24" className="size-2.5" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></span>
-                  : st === "run" ? <span className="spin-ring size-4 shrink-0 rounded-full border-[3px] border-accent/25 border-t-accent" /> : <span className="size-4 shrink-0 rounded-full border-2 border-line-strong" />}
-                {x.label}
-              </li>
-            );
-          })}
-        </ol>
-        <div className="term h-fit self-start" aria-hidden>
-          <div className="term-bar"><span className="term-dot" /><span className="term-dot" /><span className="term-dot" /><span className="ml-1">mật-mật ~ bên trong</span></div>
-          <div className="term-body space-y-0.5 text-[12.5px]">
-            {STEPS.slice(0, cur + 1).slice(-5).map((x, i, arr) => (
-              <div key={x.label} className="flex gap-2"><span className="prompt">{i === arr.length - 1 ? "$" : "✓"}</span><span className={i === arr.length - 1 ? "text-fg" : "text-muted"}>{i === arr.length - 1 ? <Typed text={x.log(host)} cps={60} /> : x.log(host)}</span></div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <p className="mt-4 text-xs text-faint">Mật Mật chỉ đọc những gì ai cũng thấy được, không thay đổi website của bạn.</p>
-    </div>
-  );
+  const cur = done ? STEPS.length : step;
+  const steps = STEPS.map((x, i) => ({ label: x.label, state: (i < cur ? "done" : i === cur ? "run" : "wait") as "done" | "run" | "wait" }));
+  const logs = [
+    { text: `mật-mật scan https://${host}/ --passive`, tone: "accent" as const },
+    ...STEPS.slice(0, Math.min(cur + 1, STEPS.length)).flatMap((x, i) => (i < cur ? [{ text: x.log(host), tone: "muted" as const }, { text: `✓ ${x.label}`, tone: "ok" as const }] : [{ text: x.log(host), tone: "muted" as const }])),
+    ...(done ? [{ text: "Hoàn tất. Đang mở kết quả…", tone: "ok" as const }] : []),
+  ];
+  return <ScanStage host={host} steps={steps} logs={logs} pct={Math.round((cur / STEPS.length) * 100)} say={STEPS[Math.min(cur, STEPS.length - 1)]!.say} footnote="Mật Mật chỉ đọc những gì ai cũng thấy được, không thay đổi website của bạn." />;
 }
 
 /**
