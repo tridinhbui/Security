@@ -31,7 +31,8 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
   async function submit(value: string) {
     if (!value.trim()) return setError("Hãy nhập địa chỉ website, ví dụ example.com");
     if (!authed) {
-      router.push(`/login?next=${encodeURIComponent(`/dashboard?scan=${encodeURIComponent(value.trim())}`)}`);
+      // Chưa đăng nhập: mở trang quét thử miễn phí (không cần tài khoản). URL được giữ nguyên để chuyển sang quét đầy đủ sau khi đăng nhập.
+      router.push(`/quet-thu?url=${encodeURIComponent(value.trim().slice(0, 2048))}`);
       return;
     }
     setBusy(true);

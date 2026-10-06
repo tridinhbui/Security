@@ -62,7 +62,7 @@ export default async function Home() {
             <p className="reveal mt-7 max-w-xl text-[17px] leading-[1.8] text-muted" style={{ ["--i" as string]: 2 }}>
               VibeSec tự động chạy {ALL_RULES.length} kiểm tra bảo mật, phân tích bề mặt tấn công công khai của bất kỳ website nào, và hướng dẫn cách khắc phục — đơn giản, rõ ràng, không cần kiến thức chuyên sâu.
             </p>
-            <div className="reveal mt-9 max-w-[640px]" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} /></div>
+            <div className="reveal mt-9 max-w-[640px]" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} label={user ? undefined : "Quét miễn phí"} /></div>
             <ul className="reveal mt-6 flex flex-wrap gap-3" style={{ ["--i" as string]: 4 }}>
               <li className="pill"><span className="size-2 rounded-full bg-ok" /><span><AnimatedNumber value={ALL_RULES.length} delay={700} /> kiểm tra bảo mật</span></li>
               <li className="pill"><span className="size-2 rounded-full bg-accent" />Chỉ thu thập thông tin công khai</li>
