@@ -1,3 +1,5 @@
+import { ANALYST, originFor, reproFor } from "./scanner/analyst";
+import { IMPACT, URGENCY_LABEL, urgencyFor } from "./scanner/impact";
 import { CATEGORY_LABEL, SEV_LABEL } from "./i18n";
 import { standardsFor } from "./standards";
 import { calculateScore, gradeFor, penalty, SEVERITY_WEIGHT, CONFIDENCE_FACTOR } from "./scanner/score";
@@ -104,7 +106,13 @@ export function toMarkdown(a: { url: string; host: string; scannedAt: string; sc
   const fails = open(a.findings);
   L.push("", `## Vấn đề cần xử lý (${fails.length})`, "");
   fails.forEach((f, i) => {
-    L.push(`### ${i + 1}. [${SEV_LABEL[f.severity]}] ${f.title}`, "", `**Chúng tôi phát hiện:** ${f.summary}`, "", `**Vì sao quan trọng:** ${f.explanation}`, "");
+    const an = ANALYST[f.ruleId], im = IMPACT[f.ruleId];
+    L.push(`### ${i + 1}. [${SEV_LABEL[f.severity]}] ${an?.statement ?? f.title}`, "");
+    if (an) L.push(`_${an.sub}_`, "", `- Nguồn gốc: **${originFor(f.ruleId, f.title).label}** — quy trình đang thiếu: ${originFor(f.ruleId, f.title).rootCause}`, `- Mức khẩn cấp: **${URGENCY_LABEL[urgencyFor(f.ruleId, f.severity)]}**`);
+    if (im) L.push(`- Trong 1 ngày: ${im.today}`, `- Trường hợp xấu nhất: ${im.worst}`, `- Ai khai thác được: ${im.who}`);
+    L.push("", `**Chúng tôi phát hiện:** ${f.summary}`, "", `**Vì sao quan trọng:** ${f.explanation}`, "");
+    const rp = an ? reproFor(f.ruleId, a.host) : null;
+    if (rp) L.push("**Tự tái hiện (chỉ đọc):**", "", "```bash", rp, "```", "");
     const std = standardsFor(f.ruleId);
     const refs = [...(OWASP_MAP[f.ruleId] ?? []).map((o) => o.split(" – ")[0]!), ...std.cwe.map((c) => `CWE-${c}`), ...std.asvs.map((x) => `ASVS ${x}`), ...std.wstg];
     if (refs.length) L.push(`**Chuẩn tham chiếu:** ${refs.join(" · ")}`, "");

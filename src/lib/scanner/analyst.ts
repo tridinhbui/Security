@@ -63,6 +63,20 @@ export const ANALYST: Record<string, Entry> = {
   "exposure.subdomain-takeover": { statement: "Một tên miền con đang trỏ vào tài nguyên không còn tồn tại", sub: "Người khác có thể đăng ký tài nguyên đó và chiếm tên miền con", origin: "lapse" },
   "exposure.outdated-libraries": { statement: "Website đang dùng thư viện đã có lỗ hổng công bố", sub: "Kẻ tấn công có thể dùng lỗ hổng đã biết của đúng phiên bản", origin: "lapse" },
   "exposure.robots-txt": { statement: "robots.txt tiết lộ đường dẫn nhạy cảm", sub: "Gợi ý cho kẻ tấn công nên đi đâu", origin: "exposure" },
+  "tls.certificate-strength": { statement: "Khoá của chứng chỉ chưa đủ mạnh theo chuẩn hiện tại", sub: "Khoá ngắn hoặc thời hạn quá dài làm giảm độ tin cậy của kết nối", origin: "misconfigured" },
+  "tls.protocol-version": { statement: "Máy chủ còn chấp nhận phiên bản TLS đã lỗi thời", sub: "Kết nối có thể bị hạ xuống phiên bản có điểm yếu đã biết", origin: "misconfigured" },
+  "tls.http2": { statement: "Máy chủ chưa dùng giao thức hiện đại HTTP/2", sub: "Tải trang chậm hơn và thiếu một số cải tiến bảo mật của giao thức mới", origin: "absent" },
+  "headers.charset": { statement: "Trang không khai báo bảng mã ký tự rõ ràng", sub: "Trình duyệt phải tự đoán bảng mã, mở đường cho một số kiểu chèn mã", origin: "absent" },
+  "cookies.cache-control-sensitive": { statement: "Trang đăng nhập có thể bị lưu lại trong bộ nhớ đệm", sub: "Người dùng sau trên cùng máy hoặc proxy có thể xem lại trang của người trước", origin: "misconfigured" },
+  "exposure.source-maps": { statement: "Mã nguồn gốc của website tải về được công khai", sub: "Source map giúp ai cũng đọc được mã nguồn, đường dẫn API và đôi khi cả bí mật", origin: "exposure" },
+  "config.http-methods": { statement: "Máy chủ công bố những thao tác không cần thiết", sub: "Phương thức như TRACE hoặc PUT được công bố ở trang công khai", origin: "misconfigured" },
+  "adv.dom-xss-flow": { statement: "Mã JavaScript đưa dữ liệu không tin cậy vào trang", sub: "Dữ liệu từ URL hoặc nguồn ngoài chảy tới nơi chèn HTML, có nguy cơ DOM XSS", origin: "misconfigured" },
+  "adv.postmessage": { statement: "Trang nhận tin nhắn từ website khác mà không kiểm tra nguồn", sub: "Website lạ có thể gửi dữ liệu điều khiển hành vi của trang", origin: "misconfigured" },
+  "adv.web-storage-secrets": { statement: "Token đăng nhập được lưu ở nơi mã JavaScript đọc được", sub: "Một lỗi XSS nhỏ đủ để đánh cắp phiên của người dùng", origin: "misconfigured" },
+  "adv.endpoint-map": { statement: "Danh sách API và đường dẫn quản trị lộ trong mã trang", sub: "Kẻ tấn công không cần dò tìm vẫn biết nên nhắm vào đâu", origin: "exposure" },
+  "adv.graphql-surface": { statement: "GraphQL cho phép xem toàn bộ cấu trúc dữ liệu", sub: "Introspection mở giúp kẻ tấn công liệt kê mọi truy vấn có thể gọi", origin: "misconfigured" },
+  "privacy.trackers": { statement: "Trang nạp trình theo dõi của bên thứ ba", sub: "Hành vi của khách được chia sẻ với các dịch vụ bên ngoài", origin: "absent" },
+  "privacy.third-party-origins": { statement: "Trang phụ thuộc nhiều dịch vụ bên thứ ba", sub: "Mỗi bên thứ ba thêm một điểm có thể bị xâm nhập hoặc làm lộ dữ liệu khách", origin: "absent" },
   "exposure.sitemap-xml": { statement: "Sơ đồ website liệt kê đường dẫn không định công khai", sub: "Kẻ tấn công biết thêm các điểm vào", origin: "exposure" },
 };
 
@@ -102,6 +116,16 @@ export function reproFor(ruleId: string, host: string): string | null {
     case "config.dns-email-security": case "adv.spf-deep": case "adv.dmarc-deep": return `dig +short TXT ${apex}; dig +short TXT _dmarc.${apex}; dig +short CAA ${apex}; dig +short DS ${apex}`;
     case "exposure.security-txt": return `curl -si https://${host}/.well-known/security.txt | head -5`;
     case "exposure.robots-txt": return `curl -s https://${host}/robots.txt | head -20`;
+    case "tls.certificate-strength": return `echo | openssl s_client -servername ${host} -connect ${host}:443 2>/dev/null | openssl x509 -noout -text | grep -E "Public-Key|Signature Algorithm|Not (Before|After)"`;
+    case "tls.protocol-version": return `for v in tls1 tls1_1 tls1_2 tls1_3; do printf "%s: " $v; echo | openssl s_client -connect ${host}:443 -servername ${host} -$v 2>&1 | grep -qE "BEGIN CERT|Cipher is" && echo chấp nhận || echo từ chối; done`;
+    case "tls.http2": return `curl -sI --http2 https://${host}/ | head -1`;
+    case "headers.charset": return `curl -sI https://${host}/ | grep -i "^content-type:"`;
+    case "cookies.cache-control-sensitive": return `curl -sI https://${host}/ | grep -iE "^(cache-control|pragma|set-cookie):"`;
+    case "exposure.source-maps": return `curl -s https://${host}/ | grep -oE "<script[^>]+src=[\"'][^\"']+" | head -10   # rồi: curl -sI <đường-dẫn-script>.map`;
+    case "config.http-methods": return `curl -si -X OPTIONS https://${host}/ | grep -iE "^(HTTP|allow):"`;
+    case "adv.dom-xss-flow": case "adv.postmessage": case "adv.web-storage-secrets": case "adv.endpoint-map": return `curl -s https://${host}/ | grep -oE "<script[^>]+src=[\"'][^\"']+" | head -20   # tải từng script rồi tìm mẫu liên quan`;
+    case "adv.graphql-surface": return `curl -s https://${host}/ | grep -ioE "graphql[^\"' ]{0,40}" | head`;
+    case "privacy.trackers": case "privacy.third-party-origins": return `curl -s https://${host}/ | grep -oE "(src|href)=[\"']https?://[^\"'/]+" | sort | uniq -c | sort -rn | head -15`;
     case "exposure.sitemap-xml": return `curl -sI https://${host}/sitemap.xml | head -3`;
     case "exposure.error-page-disclosure": return `curl -s https://${host}/khong-ton-tai-$RANDOM | head -20`;
     case "exposure.html-comments": return `curl -s https://${host}/ | grep -noE "<!--[^>]{0,160}-->" | head -20`;

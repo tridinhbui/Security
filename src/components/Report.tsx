@@ -41,6 +41,7 @@ export interface ReportData {
 }
 
 import type { Mode } from "./matmat/MatMatProvider";
+import { Insight, Repro, ReportJson, ReportTriage, statementOf } from "./ReportInsight";
 type Filter = "issues" | "notes" | "passed";
 
 const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
@@ -138,6 +139,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
             </div>
             <div className="flex flex-wrap items-start gap-2">
               {actions}
+              <ReportJson data={data} />
               <button onClick={download} className="btn-ghost btn-sm">Tải báo cáo (.md)</button>
             </div>
           </div>
@@ -309,6 +311,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
               })}
             </div>
           )}
+          {filter === "issues" && <ReportTriage findings={issues} />}
           {list.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-line-strong bg-surface px-6 py-14 text-center">
               <p className="pop mx-auto grid size-10 place-items-center rounded-full bg-ok/10 text-ok"><svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></p>
@@ -452,8 +455,9 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               {isFail ? <span className={SEV_CHIP[f.severity]}>{SEV_LABEL[f.severity]}</span> : isPass ? <span className="chip-ok">Đạt</span> : <span className="chip-info">{f.status === "unknown" ? "Chưa kiểm tra được" : "Ghi chú"}</span>}
-              <span className="font-medium leading-snug">{displayTitle(f, mode)}</span>
+              <span className="font-medium leading-snug">{isFail && statementOf(f) ? statementOf(f)!.title : displayTitle(f, mode)}</span>
             </span>
+            {isFail && statementOf(f) && <span className="mt-0.5 block text-[13px] leading-snug text-muted">{statementOf(f)!.sub}</span>}
             <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
               <span>{CATEGORY_LABEL[f.category]}</span>
               <span className="mono max-w-full truncate text-faint">{component}</span>
@@ -464,6 +468,7 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
   );
   const body = (
     <>
+        {isFail && <Insight f={f} />}
         {mode === "beginner" && (
           <div className="border-t border-line px-4 py-5">
             <MatMatSays active={open} text={simpleText}>
@@ -497,6 +502,7 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
                 <CodeBlock lines={f.evidence} />
               </Section>
             )}
+            {isFail && <Repro f={f} host={data.host} />}
             {mode === "technical" && f.technical && <Section title="Chi tiết kỹ thuật"><p className="mono whitespace-pre-wrap text-xs leading-relaxed text-muted">{f.technical}</p></Section>}
           </div>
 

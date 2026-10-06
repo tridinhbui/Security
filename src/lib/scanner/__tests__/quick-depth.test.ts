@@ -34,3 +34,11 @@ describe("quét nhanh chuyên sâu", () => {
     expect(pass.tech!.fix).toEqual([]);
   });
 });
+
+describe("mô tả hậu quả cho toàn bộ bộ luật (báo cáo đầy đủ)", () => {
+  it("mọi luật có thể báo lỗi đều có mô tả hậu quả", () => {
+    const INFO_ONLY = new Set(["config.technology", "config.auth-surface"]);
+    const missing = ALL_RULES.map((r) => r.id).filter((id) => !INFO_ONLY.has(id) && !IMPACT[id]);
+    expect(missing).toEqual([]);
+  });
+});

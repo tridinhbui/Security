@@ -3,10 +3,14 @@ import { ANALYST, ORIGINS, originFor, reproFor } from "../analyst";
 import { QUICK_RULES, toItems } from "../quick";
 import { attachFixCommands } from "../fixes";
 import { makeFinding } from "../util";
+import { ALL_RULES } from "../rules";
+
+/** Luật chỉ mang tính thông tin, không bao giờ báo lỗi. */
+const INFO_ONLY = new Set(["config.technology", "config.auth-surface"]);
 
 describe("góc nhìn analyst", () => {
   it("mọi luật trong quét nhanh có câu khẳng định + câu phụ (không phải câu hỏi) và nguồn gốc hợp lệ", () => {
-    for (const id of Object.keys(QUICK_RULES)) {
+    for (const id of Object.keys(QUICK_RULES).concat(ALL_RULES.map((r) => r.id).filter((x) => !INFO_ONLY.has(x)))) {
       const e = ANALYST[id];
       expect(e, `${id} thiếu câu khẳng định`).toBeTruthy();
       expect(e!.statement.endsWith("?"), `${id}: phải là câu khẳng định`).toBe(false);
@@ -32,7 +36,7 @@ describe("góc nhìn analyst", () => {
     for (const k of Object.keys(ORIGINS)) expect(ORIGINS[k as keyof typeof ORIGINS].rootCause.length).toBeGreaterThan(10);
   });
   it("lệnh tái hiện chỉ đọc, chèn host an toàn; host lạ → null", () => {
-    for (const id of Object.keys(QUICK_RULES)) {
+    for (const id of ALL_RULES.map((r) => r.id).filter((x) => !INFO_ONLY.has(x))) {
       const c = reproFor(id, "example.com");
       expect(c, id).toBeTruthy();
       expect(c).not.toMatch(/\brm\b|\bsed\s+-i|\bsudo\b|>\s*\/(?!dev\/null)|\|\s*(ba)?sh\b|-X\s+(POST|PUT|DELETE)/);
@@ -49,5 +53,17 @@ describe("góc nhìn analyst", () => {
     expect(f.tech!.repro).toContain("curl -sIL http://example.com/");
     expect(p.tech!.statement).toBeUndefined();
     expect(p.tech!.repro).toBeUndefined();
+  });
+});
+
+import { toMarkdown } from "@/lib/guidance";
+describe("báo cáo Markdown có góc nhìn analyst", () => {
+  it("chứa câu khẳng định, nguồn gốc, hậu quả và lệnh tái hiện", () => {
+    const f = makeFinding({ ruleId: "tls.http-to-https-redirect", title: "HTTP không chuyển hướng", category: "Transport Security", severity: "medium", confidence: "high", status: "fail", summary: "s", explanation: "e" });
+    const md = toMarkdown({ url: "https://example.com/", host: "example.com", scannedAt: "2026-01-01", score: 60, grade: "D", findings: [f], categoryScores: {}, disclaimer: "d" });
+    expect(md).toContain("Khách hàng chưa được đưa sang phiên bản an toàn");
+    expect(md).toContain("Chưa triển khai");
+    expect(md).toContain("Trong 1 ngày:");
+    expect(md).toContain("curl -sIL http://example.com/");
   });
 });
