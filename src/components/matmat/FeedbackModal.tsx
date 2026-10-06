@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Typed } from "../motion/Typed";
 import { Face } from "./MatMat";
 
 const FACES = [["😣", "Rất khó hiểu"], ["😕", "Hơi khó"], ["🙂", "Tạm được"], ["😀", "Dễ hiểu"], ["🤩", "Tuyệt vời"]] as const;
 const TAGS = [["easy", "Dễ hiểu"], ["confusing", "Có chỗ khó hiểu"], ["missing-guide", "Thiếu hướng dẫn"], ["hard-commands", "Lệnh khó dán"], ["slow", "Quét hơi lâu"], ["great", "Muốn thêm tính năng"]] as const;
 
-/** Popup Mật Mật hỏi feedback ngay sau khi quét xong. Mỗi lượt quét chỉ hỏi một lần (nhớ bằng localStorage + chặn trùng ở máy chủ). */
+/**
+ * Popup giữa màn hình: Mật Mật hỏi feedback ngay sau khi quét xong. BẮT BUỘC trả lời mới đóng được (không có nút đóng, Esc hay bấm nền
+ * đều không tắt); chỉ khi gửi lỗi mới có lối thoát để không kẹt người dùng. Mỗi lượt quét hỏi một lần (localStorage + chặn trùng ở máy chủ).
+ */
 export function FeedbackModal({ scanId }: { scanId: string }) {
   const key = `vibesec-fb-${scanId}`;
   const [show, setShow] = useState(false);
@@ -19,7 +23,7 @@ export function FeedbackModal({ scanId }: { scanId: string }) {
     let seen = false;
     try { seen = localStorage.getItem(key) === "1"; } catch { /* bỏ qua */ }
     if (seen) return;
-    const t = setTimeout(() => setShow(true), 2500);
+    const t = setTimeout(() => setShow(true), 1800);
     return () => clearTimeout(t);
   }, [key]);
 
@@ -38,7 +42,7 @@ export function FeedbackModal({ scanId }: { scanId: string }) {
 
   if (!show) return null;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-end bg-fg/25 p-3 backdrop-blur-[2px] sm:place-items-center print:hidden" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
+    <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-fg/40 p-3 backdrop-blur-[3px] print:hidden">
       <div role="dialog" aria-modal="true" aria-labelledby="fb-h" className="pop w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-card">
         {state === "done" ? (
           <div className="py-6 text-center"><Face className="mx-auto size-14" /><p className="mt-3 text-lg font-semibold">Cảm ơn bạn nhiều nha! 💙</p><p className="mt-1 text-sm text-muted">Mật Mật sẽ làm cho dễ hiểu hơn nữa.</p></div>
@@ -46,8 +50,7 @@ export function FeedbackModal({ scanId }: { scanId: string }) {
           <>
             <div className="flex items-start gap-3">
               <Face className="size-11 shrink-0" />
-              <div className="min-w-0 flex-1"><h2 id="fb-h" className="text-[17px] font-semibold leading-snug">Quét xong rồi! Báo cáo có dễ hiểu không?</h2><p className="mt-1 text-sm text-muted">Mật Mật muốn biết để giải thích tốt hơn.</p></div>
-              <button onClick={close} aria-label="Để sau" className="grid size-8 place-items-center rounded-lg text-muted hover:bg-raised"><svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+              <div className="min-w-0 flex-1"><h2 id="fb-h" className="text-[17px] font-semibold leading-snug"><Typed text="Quét xong rồi nè! Mật Mật hỏi nhỏ: báo cáo có dễ hiểu không?" cps={55} cursor={false} /></h2><p className="mt-1 text-sm text-muted">Bạn trả lời giúp mình một chút rồi tiếp tục dùng nhé 🐾</p></div>
             </div>
             <div role="radiogroup" aria-label="Đánh giá" className="mt-5 flex justify-between gap-1">
               {FACES.map(([e, label], i) => (
@@ -68,7 +71,7 @@ export function FeedbackModal({ scanId }: { scanId: string }) {
             )}
             {state === "error" && <p role="alert" className="mt-3 text-sm text-crit">Chưa gửi được, bạn thử lại nhé.</p>}
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={close} className="btn-ghost btn-sm">Để sau</button>
+              {state === "error" && <button onClick={close} className="btn-ghost btn-sm">Bỏ qua lần này</button>}
               <button onClick={() => void submit()} disabled={!rating || state === "sending"} className="btn-primary btn-sm">{state === "sending" ? "Đang gửi…" : "Gửi cho Mật Mật"}</button>
             </div>
           </>
