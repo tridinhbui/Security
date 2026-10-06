@@ -53,14 +53,10 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
   const main: Item[] = [
     { href: "/dashboard", label: "Bảng điều khiển", icon: "dashboard", exact: true },
     { href: "/scans", label: "Lịch sử quét", icon: "history" },
-    { href: "/ho-tro", label: "Hỗ trợ trực tiếp", icon: "support", badge: supportUnread },
+    ...(supportUnread > 0 ? [{ href: "/ho-tro", label: "Hỗ trợ trực tiếp", icon: "support", badge: supportUnread }] : []),
     { href: "/settings", label: "Cài đặt", icon: "settings" },
   ];
   const admin: Item[] = isAdmin ? [{ href: "/admin", label: "Quản trị", icon: "admin", badge: adminUnread }] : [];
-  const more: Item[] = [
-    { href: "/phuong-phap", label: "Phương pháp", icon: "book" },
-    { href: "/demo", label: "Bản demo", icon: "play" },
-  ];
 
   const active = (i: Item) => (i.exact ? pathname === i.href : pathname === i.href || pathname.startsWith(`${i.href}/`));
   const link = (i: Item) => {
@@ -96,8 +92,6 @@ export function AppSidebar({ name, email, avatarUrl, isAdmin, supportUnread, adm
         <p className="eyebrow px-3 pb-1.5 pt-5">Khu vực làm việc</p>
         <ul className="space-y-0.5">{main.map(link)}</ul>
         {admin.length > 0 && <><p className="eyebrow px-3 pb-1.5 pt-5">Quản trị</p><ul className="space-y-0.5">{admin.map(link)}</ul></>}
-        <p className="eyebrow px-3 pb-1.5 pt-5">Tài nguyên</p>
-        <ul className="space-y-0.5">{more.map(link)}</ul>
       </nav>
       <div className="border-t border-line p-3">
         <div className="px-1 pb-2"><p className="eyebrow pb-1.5 pl-2">Chế độ hiển thị</p><ModeToggle className="flex w-full [&>button]:flex-1" /></div>

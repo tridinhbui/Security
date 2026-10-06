@@ -9,9 +9,9 @@ import * as repo from "@/lib/db/repo";
 const COPY = {
   basic: {
     path: "/quet-co-ban", eyebrow: "quét cơ bản", title: "Quét cơ bản", mode: "quick" as const,
-    say: "Quét cơ bản giống như đi một vòng quanh nhà xem cửa chính đã khoá chưa. Nhanh, nhẹ, chỉ mất khoảng 10 giây 🚪",
-    covers: ["Ổ khoá HTTPS và chứng chỉ", "Các “biển báo an toàn” (HTTP header)", "Cookie, DNS và cấu hình email", "Bỏ qua việc tải và đọc file JavaScript"],
-    when: "Phù hợp khi bạn muốn kiểm tra nhanh, hoặc quét lại sau khi sửa một cấu hình nhỏ.",
+    say: "Dán URL → kiểm tra nhanh các cấu hình bảo mật phổ biến trong ~10 giây.",
+    covers: ["Ổ khoá HTTPS có hoạt động không", "Các thiết lập bảo vệ trang web", "Cookie và email giả mạo", "Kết quả kèm cách sửa dễ hiểu"],
+    when: "",
   },
   advanced: {
     path: "/quet-nang-cao", eyebrow: "quét nâng cao", title: "Quét nâng cao", mode: "full" as const,
@@ -32,17 +32,18 @@ export async function ScanModePage({ kind, prefill }: { kind: "basic" | "advance
     <div className="container-x max-w-4xl py-10 sm:py-14">
       <p className="eyebrow reveal">{c.eyebrow}</p>
       <h1 className="reveal mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{c.title}</h1>
-      <MatMatSays className="mt-5 max-w-2xl" text={c.say} />
+      {kind === "basic" ? <p className="mt-3 max-w-2xl text-[16px] leading-relaxed text-muted">{c.say}</p> : <MatMatSays className="mt-5 max-w-2xl" text={c.say} />}
       <div className="mt-6 max-w-3xl"><ScanForm authed mode={kind} initialUrl={prefill ?? ""} label={kind === "basic" ? "Quét cơ bản" : "Quét nâng cao"} /></div>
-      <section className="panel mt-8 p-5" aria-label="Kiểu quét này làm gì">
+      <p className="mt-3 text-[13px] text-faint">Quét thụ động · Không đăng nhập · Không thay đổi website</p>
+      <section className="mt-8" aria-label="Kiểu quét này làm gì">
         <h2 className="eyebrow">gồm những gì</h2>
-        <ul className="mt-3 grid gap-2 text-[15px] text-muted">{c.covers.map((t) => <li key={t} className="flex gap-2.5"><span className="mt-1 text-ok" aria-hidden>✓</span>{t}</li>)}</ul>
-        <p className="mt-4 text-sm text-muted">{c.when}</p>
+        <ul className={`mt-3 grid gap-2 text-[15px] text-muted ${kind === "basic" ? "sm:grid-cols-2" : ""}`}>{c.covers.map((t) => <li key={t} className="flex gap-2.5"><span className="mt-1 text-ok" aria-hidden>✓</span>{t}</li>)}</ul>
+        {c.when && <p className="mt-4 text-sm text-muted">{c.when}</p>}
       </section>
-      <section className="mt-10" aria-label="Lượt quét gần đây">
+      {scans.length > 0 && <section className="mt-10" aria-label="Lượt quét gần đây">
         <h2 className="text-xl font-semibold tracking-tight">Lượt {kind === "basic" ? "quét cơ bản" : "quét nâng cao"} gần đây</h2>
         <ScanTable scans={scans} />
-      </section>
+      </section>}
     </div>
   );
 }
