@@ -42,8 +42,10 @@ const STEPS: Step[] = [
   { label: "Đọc security.txt và robots.txt", say: "Mình tìm số đường dây nóng bảo mật của website 📞", lines: (h) => [`GET https://${h}/.well-known/security.txt`, `GET https://${h}/robots.txt`, "kiểm tra có là file thật hay trang SPA trả về"] },
   { label: "Chấm điểm và viết nhận xét", say: "Sắp xong rồi! Mình đang chấm điểm và viết nhận xét cho bạn ✍️", lines: () => ["trọng số mức độ × độ tin cậy", "áp trần điểm cho quét nhanh (tối đa 90)", "soạn lời giải thích dễ hiểu cho từng mục"] },
 ];
-const TICK_MS = 430;
+/** Quét miễn phí luôn kéo dài ít nhất ~1 phút để người dùng theo dõi từng bước; nhịp được chia đều theo số bước. */
+const MIN_SCAN_MS = 62_000;
 const TICKS_PER_STEP = 4;
+const TICK_MS = Math.ceil(MIN_SCAN_MS / (STEPS.length * TICKS_PER_STEP));
 const MIN_LOADING_MS = STEPS.length * TICKS_PER_STEP * TICK_MS;
 
 const LIKE: Record<string, string> = {
@@ -111,7 +113,7 @@ function Thinking({ host, done }: { host: string; done: boolean }) {
   });
   if (done) logs.push({ text: "Hoàn tất. Đang mở kết quả…", tone: "ok" });
   const frac = done ? 1 : (cur + into / TICKS_PER_STEP) / STEPS.length;
-  return <ScanStage host={host} steps={steps} logs={logs} pct={Math.round(frac * 100)} say={STEPS[Math.min(cur, STEPS.length - 1)]!.say} footnote="Mật Mật chỉ đọc những gì ai cũng thấy được, không thay đổi website của bạn." />;
+  return <ScanStage host={host} steps={steps} logs={logs} pct={Math.round(frac * 100)} say={STEPS[Math.min(cur, STEPS.length - 1)]!.say} footnote="Quét miễn phí mất khoảng 1 phút. Mật Mật chỉ đọc những gì ai cũng thấy được, không thay đổi website của bạn." />;
 }
 
 /**
@@ -186,7 +188,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
       try {
         const res = await fetch("/api/quick-scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }), signal: ctl.signal });
         const body = await res.json().catch(() => ({}));
-        if (!res.ok) return void (await settle(() => setState({ kind: "error", message: body.message ?? "Không thể quét lúc này. Vui lòng thử lại sau.", limited: res.status === 429 })));
+        if (!res.ok) return void setState({ kind: "error", message: body.message ?? "Không thể quét lúc này. Vui lòng thử lại sau.", limited: res.status === 429 }); // lỗi hiện ngay, không bắt chờ
         await settle(() => setState({ kind: "ok", r: body as Result }));
       } catch (e) {
         if ((e as Error).name !== "AbortError") setState({ kind: "error", message: "Lỗi mạng. Vui lòng thử lại.", limited: false });
