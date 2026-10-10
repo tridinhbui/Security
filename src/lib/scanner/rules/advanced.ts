@@ -57,7 +57,7 @@ const cspAnalysis = adv({
     const objectSrc = d.get("object-src") ?? d.get("default-src");
     if (!objectSrc || !objectSrc.map((x) => x.toLowerCase()).includes("'none'")) issues.push({ text: "Thiếu object-src 'none' (plugin/flash cũ có thể chạy mã).", sev: "low" });
     if (!d.has("base-uri")) issues.push({ text: "Thiếu base-uri: kẻ tấn công chèn thẻ <base> có thể đổi đích của mọi đường dẫn tương đối.", sev: "low" });
-    if (!d.has("frame-ancestors")) issues.push({ text: "Thiếu frame-ancestors: không chặn được việc nhúng trang vào khung của website khác.", sev: "low" });
+    // frame-ancestors do luật headers.frame-protection quản (tránh tính điểm hai lần cho cùng một lỗi clickjacking).
     const refs = [MDN("Web/HTTP/Guides/CSP", "MDN: Content Security Policy"), { title: "Google CSP Evaluator", url: "https://csp-evaluator.withgoogle.com/" }];
     if (!issues.length) return [pass({ ruleId: this.id, title: this.title, category: this.category, affectedUrl: p.finalUrl, summary: "CSP chặt: không unsafe-inline/eval, nguồn hẹp, có object-src, base-uri, frame-ancestors, form-action.", explanation: "Chính sách này thực sự thu hẹp được những gì trình duyệt cho phép chạy.", evidence: [truncate(raw, 200)], references: refs })];
     const worst = issues.some((i) => i.sev === "medium") ? "medium" : "low";

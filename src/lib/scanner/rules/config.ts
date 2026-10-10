@@ -11,7 +11,7 @@ const serverDisclosure: Rule = {
   run(obs) {
     const p = livePage(obs);
     if (!p) return [];
-    const names = ["server", "x-powered-by", "x-aspnet-version", "x-aspnetmvc-version", "x-generator", "x-drupal-cache", "x-runtime"];
+    const names = ["server", "x-powered-by", "x-aspnet-version", "x-aspnetmvc-version", "x-generator", "x-drupal-cache"]; // x-runtime là số đo thời gian (không phải phiên bản): thuộc luật config.debug-headers
     const present = names.filter((n) => header(p.headers, n) !== undefined);
     const versioned = present.filter((n) => /\d+\.\d+/.test(header(p.headers, n)!));
     const refs = [{ title: "OWASP WSTG: Fingerprint Web Server", url: "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/02-Fingerprint_Web_Server" }];
