@@ -21,6 +21,7 @@ export default async function Admin() {
   return (
     <div className="container-x py-10 sm:py-14">
       <h1 className="reveal text-3xl font-semibold tracking-tight">Quản trị</h1>
+      <Link href="/admin/giai-thich" className="btn-ghost btn-sm mt-3 mr-2 inline-flex">Độ rõ của giải thích</Link>
       <Link href="/admin/yeu-cau" className="btn-ghost btn-sm mt-3 inline-flex">Yêu cầu nhờ chuyên gia{helpNew > 0 && <span className="chip-accent">{helpNew} mới</span>}</Link>
       <section className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6" aria-label="Tổng quan">
         {stats.map(([k, v], i) => (

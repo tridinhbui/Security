@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CopyButton } from "./CopyButton";
+import { ClarityVote } from "./ClarityVote";
 import { EvidenceNotes, ExplainSections, type ExplainData } from "./ExplainView";
 
 /** Các thành phần góc nhìn analyst cho kết quả quét nhanh: nguồn gốc lỗi, hậu quả, tái hiện, phân loại ưu tiên, xuất dữ liệu. */
@@ -42,6 +43,7 @@ export function ProblemPane({ item, host, onAsk }: { item: AItem; host?: string;
         {item.status !== "pass" && e ? <ExplainSections e={e} /> : <p className="text-[15px] leading-relaxed text-muted">{h.sub}</p>}
       </div>
       {onAsk && item.status !== "pass" && <button type="button" onClick={() => onAsk()} className="btn-ghost btn-sm mt-3">🐾 Hỏi Mật Mật về mục này</button>}
+      {item.status !== "pass" && t?.explain && <ClarityVote ruleId={t.ruleId} variant={item.id.split("|")[1] ?? ""} source="quick" />}
       {item.status !== "pass" && t?.origin && (
         <div className="mt-4 rounded-xl border border-line p-3.5">
           <div className="flex flex-wrap items-center gap-2"><p className="eyebrow">nguồn gốc</p><span className={`${ORIGIN_CLS[t.origin.kind] ?? "chip-info"} !normal-case`}>{t.origin.label}</span></div>

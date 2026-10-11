@@ -43,6 +43,7 @@ export interface ReportData {
 
 import type { Mode } from "./matmat/MatMatProvider";
 import { Insight, Repro, ReportJson, ReportTriage, statementOf } from "./ReportInsight";
+import { ClarityVote } from "./ClarityVote";
 import { EvidenceNotes, ExplainSections, StepsView } from "./ExplainView";
 import { explain } from "@/lib/scanner/explain";
 type Filter = "issues" | "notes" | "passed";
@@ -480,6 +481,7 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
           <div className="border-t border-line px-4 py-5">
             <p className="eyebrow mb-3">giải thích cho website của bạn</p>
             <ExplainSections e={ex} />
+            <ClarityVote ruleId={f.ruleId} variant={f.fingerprint.split("|")[1] ?? ""} source="full" />
           </div>
         )}
         {mode === "beginner" && (
