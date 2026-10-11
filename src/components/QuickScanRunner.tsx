@@ -6,6 +6,8 @@ import { CopyButton } from "./CopyButton";
 import { ExportButtons, headline, ProblemPane, TriageStrip } from "./QuickAnalyst";
 import { CoverageStrip, filterMatch, ScoreBreakdown, StatusFilterBar, TopActions, type StatusFilter } from "./QuickInsights";
 import { MatMatSays } from "./matmat/MatMatSays";
+import { useMatMat } from "./matmat/MatMatProvider";
+import type { Finding } from "@/lib/scanner/types";
 import { ScanStage } from "./ScanStage";
 import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
@@ -163,11 +165,28 @@ function ReconView({ r }: { r: Recon }) {
   );
 }
 
+/** Chuyển kết quả quét nhanh thành danh sách phát hiện để chatbot có ngữ cảnh (cùng định dạng báo cáo đầy đủ). */
+function toFindings(r: { items: Item[] }): Finding[] {
+  return r.items.filter((i) => i.status !== "pass").map((i) => ({
+    ruleId: i.tech?.ruleId ?? i.id.split("|")[0]!, title: i.tech?.statement ?? i.label, category: "Configuration" as const,
+    severity: (i.tech?.severity ?? (i.status === "fail" ? "medium" : "low")) as Finding["severity"], confidence: (i.tech?.confidence ?? "medium") as Finding["confidence"],
+    status: "fail" as const, summary: i.text, explanation: i.tech?.impact?.worst ?? i.text, evidence: i.tech?.evidence ?? [], affectedUrl: null, references: i.tech?.references ?? [],
+    remediation: i.tech ? { summary: i.tech.fixSummary, steps: i.tech.fixSteps, snippets: i.tech.fix.map((f) => ({ platform: "generic" as const, label: f.label, language: f.language, code: f.code })) } : null,
+    fingerprint: i.id,
+  }));
+}
+
 export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authed: boolean; ruleCount: number }) {
   const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean }>({ kind: "loading" });
   const [selected, setSelected] = useState(0);
   const [tab, setTab] = useState<"findings" | "recon" | "score">("findings");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("issues");
+  const { setReport } = useMatMat();
+  useEffect(() => {
+    if (state.kind !== "ok") return;
+    setReport({ host: state.r.host, score: state.r.score, grade: state.r.grade, platforms: [], issues: toFindings(state.r) });
+    return () => setReport(null);
+  }, [state, setReport]);
   const host = (() => { try { return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname; } catch { return url; } })();
 
   useEffect(() => {

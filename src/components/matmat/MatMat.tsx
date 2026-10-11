@@ -6,6 +6,9 @@ import { ChatBox } from "../ChatBox";
 import { Typed } from "../motion/Typed";
 import { useMatMat } from "./MatMatProvider";
 
+/** Độ dài tối đa một tin nhắn (đủ để dán nguyên một đoạn kết quả kèm ngữ cảnh). */
+const MAX_LEN = 2000;
+
 interface Msg { from: "bot" | "me"; text: string; chips?: string[]; copy?: BotReply["copy"]; typing?: boolean }
 
 export function Face({ className = "size-9" }: { className?: string }) {
@@ -31,9 +34,12 @@ export function MatMat({ authed }: { authed: boolean }) {
   const [copied, setCopied] = useState<number | null>(null);
   const [nudge, setNudge] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  // Ô nhập tự giãn theo số dòng (tối đa ~8 dòng rồi cuộn trong ô)
+  useEffect(() => { const el = taRef.current; if (!el) return; el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 168)}px`; }, [text, open]);
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [msgs, human, open]);
   // Đổi sang báo cáo khác thì gợi ý đổi theo
   useEffect(() => {
@@ -118,8 +124,14 @@ export function MatMat({ authed }: { authed: boolean }) {
                 )}
                 <div ref={endRef} />
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex gap-2 border-t border-line p-3">
-                <input className="input !h-10" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} placeholder="Hỏi Mật Mật bất cứ điều gì…" aria-label="Câu hỏi cho Mật Mật" />
+              <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex items-end gap-2 border-t border-line p-3">
+                <div className="min-w-0 flex-1">
+                  <textarea ref={taRef} rows={1} value={text} maxLength={MAX_LEN} onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }}
+                    placeholder="Hỏi Mật Mật bất cứ điều gì… (Shift+Enter để xuống dòng)" aria-label="Câu hỏi cho Mật Mật"
+                    className="input !h-auto max-h-44 min-h-10 resize-none py-2.5 leading-relaxed" />
+                  {text.length > 1500 && <p className="mt-1 text-right text-[11px] text-faint" aria-live="polite">{text.length}/{MAX_LEN}</p>}
+                </div>
                 <button className="btn-primary !h-10" disabled={busy || !text.trim()}>Gửi</button>
               </form>
             </>
