@@ -26,7 +26,7 @@ export function Face({ className = "size-9" }: { className?: string }) {
 
 /** Mật Mật: trợ lý nổi, trả lời bằng nội dung viết sẵn (không dùng AI) với hiệu ứng gõ chữ. */
 export function MatMat({ authed }: { authed: boolean }) {
-  const { open, setOpen, report, ask, clearAsk } = useMatMat();
+  const { open, setOpen, report, ask, clearAsk, focus, setFocus } = useMatMat();
   const [msgs, setMsgs] = useState<Msg[]>([{ from: "bot", text: GREETING, chips: chipsFor(null) }]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,7 +59,7 @@ export function MatMat({ authed }: { authed: boolean }) {
     setText("");
     setMsgs((m) => [...m.map((x) => ({ ...x, chips: undefined })), { from: "me", text: q }]);
     setBusy(true);
-    const r = reply(q, report);
+    const r = reply(q, report, focus);
     // "đang nghĩ…" ngắn rồi mới gõ chữ, cho cảm giác như đang trò chuyện
     timers.current.push(setTimeout(() => {
       setMsgs((m) => [...m, { from: "bot", text: r.text, chips: r.chips, copy: r.copy, typing: true }]);
@@ -124,6 +124,12 @@ export function MatMat({ authed }: { authed: boolean }) {
                 )}
                 <div ref={endRef} />
               </div>
+              {focus && (
+                <div className="flex items-start gap-2 border-t border-line bg-accent-soft/50 px-3 py-2 text-[12.5px]" aria-live="polite">
+                  <span className="min-w-0 flex-1 leading-snug"><span className="font-medium text-accent">Đang hỏi về:</span> {focus.finding.title}{focus.line && <span className="mono mt-0.5 block truncate text-[11.5px] text-muted">{focus.line}</span>}</span>
+                  <button type="button" onClick={() => setFocus(null)} aria-label="Bỏ mục đang hỏi" className="grid size-6 shrink-0 place-items-center rounded-md text-muted hover:bg-white hover:text-fg">✕</button>
+                </div>
+              )}
               <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex items-end gap-2 border-t border-line p-3">
                 <div className="min-w-0 flex-1">
                   <textarea ref={taRef} rows={1} value={text} maxLength={MAX_LEN} onChange={(e) => setText(e.target.value)}

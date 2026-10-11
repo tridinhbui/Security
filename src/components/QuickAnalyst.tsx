@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CopyButton } from "./CopyButton";
+import { EvidenceNotes, ExplainSections, type ExplainData } from "./ExplainView";
 
 /** Các thành phần góc nhìn analyst cho kết quả quét nhanh: nguồn gốc lỗi, hậu quả, tái hiện, phân loại ưu tiên, xuất dữ liệu. */
 export type Urgency = "now" | "week" | "later";
@@ -11,6 +12,7 @@ export interface ATech {
   penalty?: number;
   statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null;
   references?: { title: string; url: string }[];
+  title?: string; explain?: ExplainData;
 }
 export interface AItem { id: string; label: string; status: "pass" | "warning" | "fail"; text: string; tech?: ATech }
 
@@ -21,19 +23,25 @@ const ORIGIN_CLS: Record<string, string> = { absent: "chip-info", misconfigured:
 
 /** Tiêu đề một mục ở dạng KHẲNG ĐỊNH: đọc lướt là hiểu issue ngay. Mục đã đạt dùng câu tóm tắt của luật. */
 export function headline(i: AItem): { title: string; sub: string } {
+  if (i.status !== "pass" && i.tech?.title) return { title: i.tech.title, sub: i.tech.explain?.saw ?? i.tech.sub ?? i.text };
   if (i.status !== "pass" && i.tech?.statement) return { title: i.tech.statement, sub: i.tech.sub ?? i.text };
   return { title: i.label, sub: i.text };
 }
 
 /** Khối bên cột "Vấn đề": câu khẳng định, nguồn gốc, hậu quả, bằng chứng, tái hiện, phân loại. */
-export function ProblemPane({ item }: { item: AItem }) {
+export function ProblemPane({ item, host, onAsk }: { item: AItem; host?: string; onAsk?: (line?: string) => void }) {
   const t = item.tech;
   const h = headline(item);
+  const e = t?.explain;
   return (
     <>
       <p className="eyebrow">vấn đề · {item.label}</p>
       <h3 className="mt-2 text-[17px] font-semibold leading-snug">{h.title}</h3>
-      <p className="mt-1.5 text-[15px] leading-relaxed text-muted">{h.sub}</p>
+      {item.status !== "pass" && t?.statement && <p className="mt-1 text-[13px] leading-snug text-faint">{t.statement}</p>}
+      <div className="mt-3">
+        {item.status !== "pass" && e ? <ExplainSections e={e} /> : <p className="text-[15px] leading-relaxed text-muted">{h.sub}</p>}
+      </div>
+      {onAsk && item.status !== "pass" && <button type="button" onClick={() => onAsk()} className="btn-ghost btn-sm mt-3">🐾 Hỏi Mật Mật về mục này</button>}
       {item.status !== "pass" && t?.origin && (
         <div className="mt-4 rounded-xl border border-line p-3.5">
           <div className="flex flex-wrap items-center gap-2"><p className="eyebrow">nguồn gốc</p><span className={`${ORIGIN_CLS[t.origin.kind] ?? "chip-info"} !normal-case`}>{t.origin.label}</span></div>
@@ -52,7 +60,12 @@ export function ProblemPane({ item }: { item: AItem }) {
         </div>
       )}
       {t && <p className="mono mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-faint"><span>{t.ruleId}</span><span>mức: {SEV[t.severity] ?? t.severity}</span><span>tin cậy: {CONF[t.confidence] ?? t.confidence}</span></p>}
-      {t && t.evidence.length > 0 && <div className="mt-3"><p className="eyebrow mb-1.5">bằng chứng</p><pre className="mono max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-[12px] leading-5">{t.evidence.join("\n")}</pre></div>}
+      {t && t.evidence.length > 0 && (
+        <div className="mt-3">
+          <p className="eyebrow mb-1.5">bằng chứng và cách đọc</p>
+          {e && e.notes.length > 0 ? <EvidenceNotes notes={e.notes} onAsk={onAsk ? (line) => onAsk(line) : undefined} /> : <pre className="mono max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-[12px] leading-5">{t.evidence.join("\n")}</pre>}
+        </div>
+      )}
       {item.status !== "pass" && t?.repro && (
         <div className="mt-3">
           <div className="mb-1.5 flex items-center justify-between gap-2"><p className="eyebrow">tự tái hiện (chỉ đọc)</p><CopyButton text={t.repro} /></div>
@@ -60,6 +73,7 @@ export function ProblemPane({ item }: { item: AItem }) {
         </div>
       )}
       {t && t.owasp.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{t.owasp.map((o) => <span key={o} className="chip-info !normal-case">{o}</span>)}</div>}
+      {host ? null : null}
     </>
   );
 }

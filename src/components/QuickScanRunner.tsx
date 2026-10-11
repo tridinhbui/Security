@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "./CopyButton";
 import { ExportButtons, headline, ProblemPane, TriageStrip } from "./QuickAnalyst";
+import { StepsView, type ExplainData } from "./ExplainView";
 import { CoverageStrip, filterMatch, ScoreBreakdown, StatusFilterBar, TopActions, type StatusFilter } from "./QuickInsights";
 import { MatMatSays } from "./matmat/MatMatSays";
 import { useMatMat } from "./matmat/MatMatProvider";
@@ -13,7 +14,7 @@ import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
 
 type Status = "pass" | "warning" | "fail";
-interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" }; statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null; penalty?: number }
+interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" }; statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null; penalty?: number; title?: string; summary?: string; explain?: ExplainData }
 interface Item { id: string; group?: string; label: string; status: Status; text: string; tech?: Tech }
 interface Recon {
   server: string | null; poweredBy: string | null; platforms: string[]; technologies: string[]; addresses: string[]; httpVersion: string | null;
@@ -136,14 +137,16 @@ function Solution({ item, cta }: { item: Item; cta: string }) {
   return (
     <div className="mt-2 space-y-4">
       <p className="text-[15px] font-medium leading-relaxed">{t?.fixSummary || "Sửa theo hướng dẫn bên dưới, rồi quét lại để xác nhận."}</p>
-      {steps.length > 0 && <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-muted">{steps.map((s, n) => <li key={n}>{s}</li>)}</ol>}
+      {t?.explain && t.explain.steps.length > 0
+        ? <StepsView steps={t.explain.steps} expect={t.explain.expect} />
+        : steps.length > 0 && <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-muted">{steps.map((s, n) => <li key={n}>{s}</li>)}</ol>}
       {fixes.map((f, n) => (
         <div key={`${n}:${f.label}`}>
           <div className="mb-1.5 flex items-center justify-between gap-2"><p className="text-xs font-medium text-muted">{f.label}</p><CopyButton text={f.code} /></div>
           <pre className="mono max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-white p-3 text-[12px] leading-5 text-fg/90">{f.code}</pre>
         </div>
       ))}
-      {fixes.length === 0 && steps.length === 0 && <p className="text-sm text-muted">Dùng nút “Copy prompt cho AI” ở trên, hoặc đăng nhập để xem hướng dẫn sửa chi tiết.</p>}
+      {fixes.length === 0 && steps.length === 0 && !t?.explain && <p className="text-sm text-muted">Dùng nút “Copy prompt cho AI” ở trên, hoặc đăng nhập để xem hướng dẫn sửa chi tiết.</p>}
       {fixes.length === 0 && <Link href={cta} className="inline-block text-sm font-medium text-accent hover:underline">Xem hướng dẫn đầy đủ →</Link>}
     </div>
   );
@@ -166,22 +169,24 @@ function ReconView({ r }: { r: Recon }) {
 }
 
 /** Chuyển kết quả quét nhanh thành danh sách phát hiện để chatbot có ngữ cảnh (cùng định dạng báo cáo đầy đủ). */
-function toFindings(r: { items: Item[] }): Finding[] {
-  return r.items.filter((i) => i.status !== "pass").map((i) => ({
-    ruleId: i.tech?.ruleId ?? i.id.split("|")[0]!, title: i.tech?.statement ?? i.label, category: "Configuration" as const,
+function toFinding(i: Item): Finding {
+  return {
+    ruleId: i.tech?.ruleId ?? i.id.split("|")[0]!, title: i.tech?.title ?? i.tech?.statement ?? i.label, category: "Configuration" as const,
     severity: (i.tech?.severity ?? (i.status === "fail" ? "medium" : "low")) as Finding["severity"], confidence: (i.tech?.confidence ?? "medium") as Finding["confidence"],
-    status: "fail" as const, summary: i.text, explanation: i.tech?.impact?.worst ?? i.text, evidence: i.tech?.evidence ?? [], affectedUrl: null, references: i.tech?.references ?? [],
+    status: "fail" as const, summary: i.tech?.summary ?? i.text, explanation: i.tech?.impact?.worst ?? i.text, evidence: i.tech?.evidence ?? [], affectedUrl: null, references: i.tech?.references ?? [],
     remediation: i.tech ? { summary: i.tech.fixSummary, steps: i.tech.fixSteps, snippets: i.tech.fix.map((f) => ({ platform: "generic" as const, label: f.label, language: f.language, code: f.code })) } : null,
     fingerprint: i.id,
-  }));
+  };
 }
+const toFindings = (r: { items: Item[] }): Finding[] => r.items.filter((i) => i.status !== "pass").map(toFinding);
 
 export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authed: boolean; ruleCount: number }) {
   const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean }>({ kind: "loading" });
   const [selected, setSelected] = useState(0);
   const [tab, setTab] = useState<"findings" | "recon" | "score">("findings");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("issues");
-  const { setReport } = useMatMat();
+  const { setReport, askAbout: askFocus } = useMatMat();
+  const askAbout = (item: Item, host: string, line?: string) => askFocus({ finding: toFinding(item), host, line });
   useEffect(() => {
     if (state.kind !== "ok") return;
     setReport({ host: state.r.host, score: state.r.score, grade: state.r.grade, platforms: [], issues: toFindings(state.r) });
@@ -304,7 +309,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:col-span-2 lg:grid-cols-2 lg:grid-rows-1" aria-live="polite">
                     {/* vấn đề */}
                     <div className="min-h-0 overflow-y-auto bg-white p-5">
-                      <ProblemPane item={sel} />
+                      <ProblemPane item={sel} host={r.host} onAsk={(line) => askAbout(sel, r.host, line)} />
                       <MatMatSays key={`${selected}:${sel.id}`} className="mt-4" cps={85} text={`${LIKE[sel.group ?? ""] ?? "Đây là một chỗ trên website mình vừa kiểm tra."}\n${TAIL[sel.status]}`} />
                     </div>
                     {/* giải pháp: luôn hiện, song song với vấn đề */}

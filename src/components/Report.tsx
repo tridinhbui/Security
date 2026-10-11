@@ -43,6 +43,8 @@ export interface ReportData {
 
 import type { Mode } from "./matmat/MatMatProvider";
 import { Insight, Repro, ReportJson, ReportTriage, statementOf } from "./ReportInsight";
+import { EvidenceNotes, ExplainSections, StepsView } from "./ExplainView";
+import { explain } from "@/lib/scanner/explain";
 type Filter = "issues" | "notes" | "passed";
 
 const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
@@ -440,13 +442,14 @@ function Confidence({ level }: { level: Finding["confidence"] }) {
 function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }: { f: Finding; mode: Mode; data: ReportData; i: number; open: boolean; onToggle: () => void; layout?: "accordion" | "row" | "pane" }) {
   const isPass = f.status === "pass";
   const isFail = f.status === "fail";
+  const ex = explain(f, data.host);
   const [opened, setOpened] = useState(false);
   useEffect(() => { if (open) setOpened(true); }, [open]);
   const fy = mode === "beginner" ? FEYNMAN[f.ruleId] : undefined;
   const simpleText = fy
     ? isFail ? `Mình giải thích nhé! ${fy.like}\n\nViệc bạn cần làm: ${fy.todo}` : `${isPass ? "Chỗ này ổn rồi nha! " : "Chỉ để bạn biết: "}${fy.like}`
     : `Mình tóm tắt nhé: ${f.summary}`;
-  const { askMatMat } = useMatMat();
+  const { askAbout: askFocus } = useMatMat();
   const glossary = mode === "beginner" ? glossaryFor(f.title, f.summary, f.remediation?.summary ?? "") : [];
   const effort = isFail ? EFFORT_LABEL[effortFor(f)] : null;
   const owasp = OWASP_MAP[f.ruleId];
@@ -473,12 +476,18 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
   const body = (
     <>
         {isFail && <Insight f={f} />}
+        {isFail && (
+          <div className="border-t border-line px-4 py-5">
+            <p className="eyebrow mb-3">giải thích cho website của bạn</p>
+            <ExplainSections e={ex} />
+          </div>
+        )}
         {mode === "beginner" && (
           <div className="border-t border-line px-4 py-5">
             <MatMatSays active={open} text={simpleText}>
               <div className="flex flex-wrap items-center gap-2">
                 {isFail && <PromptButton text={buildFixPrompt(f, data.host, data.platforms)} />}
-                <button type="button" onClick={() => askMatMat(`Giải thích ${PLAIN_TITLES[f.ruleId] ?? f.title}`)} className="btn-ghost btn-sm">🐾 Hỏi thêm Mật Mật</button>
+                <button type="button" onClick={() => askFocus({ finding: f, host: data.host })} className="btn-ghost btn-sm">🐾 Hỏi thêm Mật Mật</button>
               </div>
               {isFail && <p className="mt-2.5 text-[13px] text-muted">Bấm “Copy prompt cho AI” rồi dán vào Cursor hoặc Claude Code, nó sẽ tự tìm chỗ cần sửa giúp bạn. Sửa xong thì quét lại nhé.</p>}
             </MatMatSays>
@@ -494,16 +503,16 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
                 {isFail && <p className="mt-2 text-xs text-muted">Mức độ: {PLAIN_SEV[f.severity]}</p>}
               </div>
             )}
-            <Section title={mode === "beginner" ? "Chuyện gì đang xảy ra" : "Chúng tôi phát hiện"}><p className="text-[15px] leading-relaxed">{f.summary}</p></Section>
-            <Section title={mode === "beginner" ? "Vì sao nên quan tâm" : "Tác động tiềm ẩn"}><p className="text-[15px] leading-relaxed text-muted">{f.explanation}</p></Section>
+            {!isFail && <Section title={mode === "beginner" ? "Chuyện gì đang xảy ra" : "Chúng tôi phát hiện"}><p className="text-[15px] leading-relaxed">{f.summary}</p></Section>}
+            {!isFail && <Section title={mode === "beginner" ? "Vì sao nên quan tâm" : "Tác động tiềm ẩn"}><p className="text-[15px] leading-relaxed text-muted">{f.explanation}</p></Section>}
             {glossary.length > 0 && (
               <div className="space-y-1.5 rounded-lg border border-accent/15 bg-accent-soft/60 px-3.5 py-3 text-sm">
                 {glossary.map((g) => <p key={g.term}><strong className="font-medium text-fg">{g.term}:</strong> <span className="text-muted">{g.meaning}</span></p>)}
               </div>
             )}
             {f.evidence.length > 0 && (
-              <Section title="Bằng chứng">
-                <CodeBlock lines={f.evidence} />
+              <Section title={isFail ? "Bằng chứng và cách đọc" : "Bằng chứng"}>
+                {isFail ? <EvidenceNotes notes={ex.notes} onAsk={(line) => askFocus({ finding: f, host: data.host, line })} /> : <CodeBlock lines={f.evidence} />}
               </Section>
             )}
             {isFail && <Repro f={f} host={data.host} />}
@@ -520,12 +529,13 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
             {f.remediation && !isPass && (
               <>
                 <Section title={mode === "beginner" ? "Bạn cần làm gì" : "Cách khắc phục"}>
+                  {ex.steps.length > 0 && <div className="mb-4"><StepsView steps={ex.steps} expect={ex.expect} /></div>}
                   {fy && <p className="mb-3 rounded-lg bg-surface px-3.5 py-2.5 text-[15px] leading-relaxed">{fy.todo}</p>}
                   <div className="mb-3 flex flex-wrap gap-2">
                     <PromptButton text={buildFixPrompt(f, data.host, data.platforms)} />
-                    <button type="button" onClick={() => askMatMat(`Giải thích ${PLAIN_TITLES[f.ruleId] ?? f.title}`)} className="btn-ghost btn-sm">🐾 Hỏi Mật Mật</button>
+                    <button type="button" onClick={() => askFocus({ finding: f, host: data.host })} className="btn-ghost btn-sm">🐾 Hỏi Mật Mật</button>
                   </div>
-                  {mode === "technical" || !fy ? <div className="term">
+                  {ex.specific ? null : mode === "technical" || !fy ? <div className="term">
                     <div className="term-body whitespace-pre-wrap break-words text-[13px] leading-6">
                       <span className="prompt" aria-hidden>→ </span>
                       <Typed text={fixText} play={opened} cps={260} />

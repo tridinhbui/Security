@@ -15,6 +15,7 @@ import { collectCookies } from "./rules/cookies";
 import { header } from "./util";
 import { IMPACT, urgencyFor, type Urgency } from "./impact";
 import { ANALYST, originFor, reproFor, type Origin } from "./analyst";
+import { explain, type Explanation } from "./explain";
 
 /**
  * QUÉT NHANH MIỄN PHÍ (không cần tài khoản). Chạy hoàn toàn trong Worker, thụ động và rất nhẹ:
@@ -65,6 +66,12 @@ export interface QuickTech {
   penalty?: number;
   /** Góc nhìn analyst: câu khẳng định + câu phụ, nguồn gốc lỗi, và lệnh chỉ-đọc để tự tái hiện. */
   statement?: string; sub?: string; origin?: Origin; repro?: string | null;
+  /** Tiêu đề CỤ THỂ của phát hiện này (không phải câu chung của luật). */
+  title?: string;
+  /** Câu tóm tắt gốc của phát hiện (không kèm tiêu đề). */
+  summary?: string;
+  /** Giải thích theo từng trường hợp: thấy gì, vì sao, hệ quả, bước làm, lời đọc từng dòng bằng chứng. */
+  explain?: Omit<Explanation, "specific">;
 }
 export interface QuickItem { id: string; group: QuickGroup; label: string; status: QuickStatus; text: string; tech?: QuickTech }
 /** Dấu vân tay + bề mặt tấn công quan sát được (từ dữ liệu đã thu, không request thêm). */
@@ -105,7 +112,7 @@ export function toItems(findings: Finding[], host = ""): QuickItem[] {
       fixSteps: bad ? (f.remediation?.steps ?? []).slice(0, 4).map((x) => clip(x, 220)) : [],
       fix: bad ? (f.remediation?.snippets ?? []).slice(0, 4).map((x) => ({ label: clip(x.label, 90), language: x.language, code: clip(x.code, 900) })) : [],
       references: f.references.slice(0, 3),
-      ...(bad ? { penalty: Math.round(penalty(f) * 10) / 10 } : {}),
+      ...(bad ? { penalty: Math.round(penalty(f) * 10) / 10, title: f.title, summary: f.summary, explain: (({ specific: _s, ...e }) => e)(explain(f, host || "example.com")) } : {}),
       ...(bad && ANALYST[f.ruleId] ? { statement: ANALYST[f.ruleId]!.statement, sub: ANALYST[f.ruleId]!.sub, origin: originFor(f.ruleId, f.title), repro: host ? reproFor(f.ruleId, host) : null } : {}),
       ...(bad && IMPACT[f.ruleId] ? { impact: { today: IMPACT[f.ruleId]!.today, worst: IMPACT[f.ruleId]!.worst, who: IMPACT[f.ruleId]!.who, urgency: urgencyFor(f.ruleId, f.severity) } } : {}),
     };
