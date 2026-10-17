@@ -30,11 +30,13 @@ export function chipsFor(ctx: BotContext | null): string[] {
 function explainIssue(f: Finding, ctx: BotContext): BotReply {
   const fy = FEYNMAN[f.ruleId];
   const title = PLAIN_TITLES[f.ruleId] ?? f.title;
+  const ec = explain(f, ctx.host);
   const text = [
     `🔎 ${title}`,
     fy ? `Hình dung nhé: ${fy.like}` : f.summary,
     fy ? `Việc cần làm: ${fy.todo}` : "",
     `Mức độ: ${PLAIN_SEV[f.severity] ?? f.severity}.`,
+    ec.certainty === "confirmed" ? "" : `Lưu ý: ${ec.caveat}`,
     "Mình soạn sẵn prompt bên dưới, bạn dán vào Cursor / Claude Code là nó tự tìm và sửa giúp bạn.",
   ].filter(Boolean).join("\n");
   return { text, chips: ["Nên sửa gì trước?", "Cho mình prompt cho tất cả"], copy: { label: "Copy prompt cho AI", text: buildFixPrompt(f, ctx.host, ctx.platforms) } };
@@ -58,9 +60,10 @@ export function answerFocused(input: string, focus: Focus): BotReply {
     return { text: `${head}\n\nMức độ: ${PLAIN_SEV[f.severity] ?? f.severity} · ${u}.${impact ? `\n\nTrong 1 ngày: ${impact.today}\nXấu nhất: ${impact.worst}\nAi khai thác được: ${impact.who}` : `\n\n${e.consequence}`}`, chips };
   }
   if (has(q, "lam gi", "sua", "khac phuc", "fix", "lam sao", "cach", "phai lam")) return { text: `${head}\n\nCác bước:\n${steps}\n\nSửa đúng thì: ${e.expect}`, chips, copy: prompt };
-  if (has(q, "bao nham", "co dung khong", "chac chan", "tin cay", "sai khong")) {
+  if (has(q, "bao nham", "co dung khong", "co chac", "chac la dung", "chac chan", "tin cay", "sai khong")) {
     const repro = reproFor(f.ruleId, focus.host);
-    return { text: `${head}\n\nĐộ tin cậy của phát hiện này: ${f.confidence === "high" ? "cao" : f.confidence === "medium" ? "vừa" : "thấp"}.\n${repro ? `Bạn có thể tự kiểm chứng bằng lệnh chỉ-đọc này:\n${repro}\n\n` : ""}Nếu kết quả khác với bằng chứng ở trên thì báo cho mình để kiểm tra lại.`, chips };
+    const CERT = { confirmed: "đã xác nhận được điều được nêu", potential: "rủi ro tiềm năng, chưa chứng minh được có bị lợi dụng", inconclusive: "chưa đủ dữ liệu để kết luận" } as const;
+    return { text: `${head}\n\nMức chắc chắn: ${CERT[e.certainty]}. ${e.caveat}\nĐộ tin cậy của phát hiện này: ${f.confidence === "high" ? "cao" : f.confidence === "medium" ? "vừa" : "thấp"}.\n${repro ? `Bạn có thể tự kiểm chứng bằng lệnh chỉ-đọc này:\n${repro}\n\n` : ""}Nếu kết quả khác với bằng chứng ở trên thì báo cho mình để kiểm tra lại.`, chips };
   }
   if (has(q, "kiem tra lai", "xac minh", "verify", "tai hien")) {
     const repro = reproFor(f.ruleId, focus.host);

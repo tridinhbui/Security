@@ -142,3 +142,28 @@ describe("false positive: cấu hình hợp lệ nhưng ít phổ biến", () =>
     expect(run(o).filter((f) => f.ruleId.startsWith("tls.certificate") && f.status === "fail")).toEqual([]);
   });
 });
+
+describe("audit nội dung: không biến điểm cao hoặc cấu hình thành lời bảo chứng", () => {
+  it("lời giải thích điểm không bao giờ nói “an toàn tuyệt đối”, kể cả khi 0 vấn đề", async () => {
+    const { plainScore } = await import("@/lib/feynman");
+    for (const [score, issues, urgent] of [[100, 0, 0], [95, 0, 0], [85, 3, 0], [65, 6, 0], [30, 12, 2]] as const) {
+      const t = plainScore(score, issues, urgent);
+      expect(t).not.toMatch(/(?<!không có nghĩa là website )an toàn tuyệt đối|hoàn toàn an toàn|không thể bị hack/i);
+    }
+    expect(plainScore(100, 0, 0)).toMatch(/không có nghĩa là website an toàn tuyệt đối/);
+    expect(plainScore(85, 3, 0)).toMatch(/không phải bảo chứng/);
+  });
+  it("chatbot trả lời “có chắc không?” bằng mức chắc chắn + giới hạn bằng chứng", async () => {
+    const { answerFocused } = await import("@/lib/matmat");
+    const f = mk("adv.dom-xss-flow", "", "fail", "location.hash → innerHTML", "low");
+    const r = answerFocused("Có chắc là đúng không?", { finding: f, host: "example.com" });
+    expect(r.text).toMatch(/rủi ro tiềm năng/); expect(r.text).toMatch(/phân tích tĩnh/);
+  });
+  it("mọi giải thích ‘tiềm năng’ phải có caveat nêu giới hạn và không dùng từ khẳng định tuyệt đối", () => {
+    const absolute = /\b(chắc chắn (bị|sẽ)|luôn luôn bị|100% (an toàn|bị)|không thể (bị )?(hack|tấn công))/i;
+    for (const r of ALL_RULES) for (const key of VARIANTS[r.id] ?? [""]) {
+      const e = explain(mk(r.id, key, "fail", "Một mô tả cụ thể của phát hiện này."), "example.com");
+      expect(`${e.saw} ${e.why} ${e.consequence} ${e.caveat}`, `${r.id}|${key}`).not.toMatch(absolute);
+    }
+  });
+});

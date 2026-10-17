@@ -74,8 +74,8 @@ export const FEYNMAN: Record<string, Feynman> = {
 /** Lời giải thích điểm số bằng ngôn ngữ thường. */
 export function plainScore(score: number, issues: number, urgent: number): string {
   if (urgent > 0) return `Điểm ${score}/100. Có ${urgent} việc nên làm ngay, giống như cửa nhà còn hở. Xử lý chúng trước.`;
-  if (issues === 0) return `Điểm ${score}/100. Chưa thấy điểm yếu nào đáng kể từ bên ngoài. Tốt lắm, nhưng hãy quét lại định kỳ.`;
-  if (score >= 80) return `Điểm ${score}/100. Khá ổn. Còn ${issues} chỗ nhỏ có thể làm chắc thêm, không gấp.`;
+  if (issues === 0) return `Điểm ${score}/100. Chưa thấy điểm yếu nào đáng kể ở những mục đã kiểm tra. Tốt lắm, nhưng điều này không có nghĩa là website an toàn tuyệt đối: quét chỉ thấy được một phần, nên hãy quét lại định kỳ.`;
+  if (score >= 80) return `Điểm ${score}/100. Khá ổn. Còn ${issues} chỗ nhỏ có thể làm chắc thêm, không gấp. Điểm cao không phải bảo chứng an toàn.`;
   if (score >= 60) return `Điểm ${score}/100. Tạm ổn nhưng còn ${issues} chỗ yếu. Nên sửa dần trong tuần này.`;
   return `Điểm ${score}/100. Còn khá nhiều chỗ yếu (${issues}). Hãy làm từ việc đầu danh sách trở xuống.`;
 }
