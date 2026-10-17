@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { cleanComment, cleanVariant, clarityByRule, recentUnclearComments, saveVote, VOTES_PER_HOUR } from "../explain-feedback";
+import { cleanComment, cleanVariant, clarityByRule, clarityLevel, unclearLowerBound, recentUnclearComments, saveVote, VOTES_PER_HOUR } from "../explain-feedback";
 import { createTestD1 } from "./test-d1";
 
 let db: ReturnType<typeof createTestD1>;
@@ -40,7 +40,49 @@ describe("phiếu “giải thích có rõ không?”", () => {
     expect(cleanVariant("hsts-no-maxage")).toBe("hsts-no-maxage");
     for (const bad of ["/", "x:thu-ba.example.net", "https://a.com/x", "a b", "A", "", 5, null]) expect(cleanVariant(bad)).toBe("");
     expect(cleanComment("  nhiều   khoảng   trắng \n xuống dòng ")).toBe("nhiều khoảng trắng xuống dòng");
-    expect(cleanComment("x".repeat(1000))).toHaveLength(300);
+    expect(cleanComment("chữ ".repeat(500))).toHaveLength(300);
+    expect(cleanComment("x".repeat(1000))).toBe("[đã ẩn]"); // chuỗi dài liền mạch giống token
     expect(cleanComment(undefined)).toBe("");
+  });
+});
+
+describe("riêng tư của nhận xét tự do", () => {
+  it.each([
+    ["trang https://shop-cua-toi.vn/admin?token=abc bị lỗi", /shop-cua-toi|token=abc/],
+    ["liên hệ tri@gmail.com giúp mình", /tri@gmail/],
+    ["site của mình là khachhang.com.vn", /khachhang/],
+    ["server 203.0.113.42 báo lỗi", /203\.0\.113/],
+    ["khoá sk_live_51HabcdEFGhijkl của mình", /sk_live/],
+    ["token ghp_abcdefghijklmnopqrstuvwxyz0123456789", /ghp_/],
+    ["gọi 0912 345 678 nhé", /0912/],
+    ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abc", /eyJhbG/],
+  ])("ẩn dữ liệu nhận dạng: %s", (input, leak) => {
+    const out = cleanComment(input);
+    expect(out).not.toMatch(leak);
+    expect(out).toContain("[đã ẩn]");
+  });
+  it("giữ nguyên câu hỏi bình thường và bỏ ký tự điều khiển / đảo chiều chữ", () => {
+    expect(cleanComment("Mình không hiểu “clickjacking” nghĩa là gì")).toBe("Mình không hiểu “clickjacking” nghĩa là gì");
+    expect(cleanComment("a\u202eb\u0000c\u200bd")).toBe("a b c d");
+    expect(cleanComment("<script>alert(1)</script>")).toBe("<script>alert(1)</script>"); // lưu dạng văn bản; giao diện luôn escape (xem test XSS)
+  });
+  it("nhận xét lưu trong DB đã được lọc khi đi qua đường lưu phiếu", async () => {
+    await vote("a", { verdict: "unclear", comment: cleanComment("lỗi ở example.org và me@x.com") });
+    const [c] = await recentUnclearComments(db);
+    expect(c!.comment).not.toMatch(/example\.org|me@x/);
+  });
+});
+
+describe("không kết luận từ mẫu nhỏ", () => {
+  it("dưới 10 phiếu luôn là insufficient, kể cả khi 100% chưa rõ", () => {
+    expect(clarityLevel(2, 2)).toBe("insufficient");
+    expect(clarityLevel(9, 9)).toBe("insufficient");
+  });
+  it("đủ phiếu: ưu tiên chỉ khi cận dưới Wilson ≥ 30%", () => {
+    expect(clarityLevel(10, 10)).toBe("priority");
+    expect(clarityLevel(5, 10)).toBe("watch");     // 50% nhưng cận dưới ~24% → chưa chắc
+    expect(clarityLevel(1, 20)).toBe("ok");
+    expect(unclearLowerBound(5, 10)).toBeLessThan(0.3);
+    expect(unclearLowerBound(0, 0)).toBe(0);
   });
 });

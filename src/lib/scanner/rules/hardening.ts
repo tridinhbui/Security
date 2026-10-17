@@ -168,7 +168,7 @@ const cookiePrefix: Rule = {
   title: "Cookie phiên dùng tiền tố __Host-/__Secure-",
   category: "Cookies & Sessions",
   run(obs) {
-    const session = collectCookies(obs).filter((c) => SESSION_NAME.test(c.name));
+    const session = collectCookies(obs).filter((c) => SESSION_NAME.test(c.name) && !/csrf|xsrf/i.test(c.name)); // cookie CSRF cố ý cho JavaScript đọc, không phải cookie phiên
     if (session.length === 0) return [];
     const bare = session.filter((c) => !/^__(Host|Secure)-/.test(c.name));
     const refs = [MDN("Web/HTTP/Guides/Cookies#cookie_prefixes", "MDN: Cookie prefixes")];

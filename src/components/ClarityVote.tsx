@@ -46,6 +46,7 @@ export function ClarityVote({ ruleId, variant, source }: { ruleId: string; varia
     return (
       <div className="mt-4 rounded-xl border border-line bg-surface p-3.5">
         <label htmlFor={`clr-${ruleId}`} className="text-sm font-medium">Chỗ nào chưa rõ? <span className="font-normal text-faint">(không bắt buộc)</span></label>
+        <p className="mt-0.5 text-xs text-faint">Đừng ghi tên miền, email, mật khẩu hay khoá API. Những thứ giống vậy sẽ bị tự động ẩn.</p>
         <textarea id={`clr-${ruleId}`} rows={2} maxLength={300} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ví dụ: mình không hiểu “clickjacking” nghĩa là gì…" className="input mt-2 !h-auto resize-none py-2 text-sm" />
         {error && <p role="alert" className="mt-1.5 text-xs text-crit">{error}</p>}
         <div className="mt-2.5 flex gap-2">

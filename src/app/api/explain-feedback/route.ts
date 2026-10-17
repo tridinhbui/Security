@@ -15,6 +15,7 @@ const RULE_IDS = new Set(ALL_RULES.map((r) => r.id));
  */
 export async function POST(req: NextRequest) {
   if (!sameOrigin(req)) return json({ error: "forbidden" }, 403);
+  if (Number(req.headers.get("content-length") ?? 0) > 4096) return json({ error: "too_large", message: "Dữ liệu quá lớn." }, 413);
   const b = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const ruleId = String(b?.ruleId ?? "");
   const verdict = b?.verdict === "clear" || b?.verdict === "unclear" ? b.verdict : null;

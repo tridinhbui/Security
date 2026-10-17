@@ -1,6 +1,7 @@
 import type { Finding } from "./types";
 import { IMPACT } from "./impact";
 import { reproFor } from "./analyst";
+import { T2, type Certainty } from "./explain-more";
 
 /**
  * GIẢI THÍCH THEO TỪNG TRƯỜNG HỢP CỤ THỂ (không AI, không văn bản chung theo nhóm).
@@ -20,6 +21,12 @@ export interface Explanation {
   notes: { line: string; note: string }[];
   /** true nếu dùng mẫu viết riêng cho luật/biến thể này; false = dựng từ dữ liệu của phát hiện. */
   specific: boolean;
+  /** Mức chắc chắn của kết luận: confirmed = đã quan sát đúng điều nêu; potential = rủi ro tuỳ ngữ cảnh/suy ra; inconclusive = thiếu dữ liệu. */
+  certainty: Certainty;
+  /** Giới hạn của bằng chứng (vd. chỉ là cấu hình, chưa chứng minh khai thác được). */
+  caveat: string;
+  /** Lệnh CHỈ ĐỌC để kiểm tra lại sau khi sửa. */
+  verify: string;
 }
 
 const q = (s: string) => `“${s}”`;
@@ -127,7 +134,8 @@ function genericNote(line: string): string {
 const ROLE_BY_CATEGORY: Record<string, Role> = { "Transport Security": "host", Headers: "host", "Browser Security": "dev", "Cookies & Sessions": "dev", Exposure: "dev", Configuration: "host", Privacy: "host" };
 
 export function explain(f: Finding, host: string): Explanation {
-  const t = T[f.ruleId]?.(f, host) ?? null;
+  const t2 = T2[f.ruleId]?.(f, host) ?? null;
+  const t = (t2 as ReturnType<Tpl> | null) ?? T[f.ruleId]?.(f, host) ?? null;
   const specific = !!t;
   const notesFor = (l: string) => t?.note?.(l) ?? genericNote(l);
   const impact = IMPACT[f.ruleId];
@@ -142,5 +150,8 @@ export function explain(f: Finding, host: string): Explanation {
     expect: t?.expect ?? (repro ? "Chạy lại lệnh tái hiện: mục này không còn xuất hiện, hoặc quét lại để xác nhận." : "Quét lại để xác nhận mục này đã hết."),
     notes: f.evidence.map((line) => ({ line, note: notesFor(line) })),
     specific,
+    certainty: t2?.certainty ?? (f.status === "unknown" ? "inconclusive" : f.status === "info" || f.confidence === "low" ? "potential" : "confirmed"),
+    caveat: t2?.caveat ?? (f.status === "unknown" ? "Chưa đủ dữ liệu để kết luận; đừng hiểu là an toàn hay có lỗi." : "Đây là bằng chứng về cấu hình quan sát được; chúng tôi không thử khai thác nên chưa thể nói có bị lợi dụng hay không."),
+    verify: (t2?.verify ?? (repro ? "Chạy lại lệnh tái hiện ở mục “Tái hiện”." : "")).replace(/\bHOST\b/g, host),
   };
 }

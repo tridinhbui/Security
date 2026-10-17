@@ -531,7 +531,7 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
             {f.remediation && !isPass && (
               <>
                 <Section title={mode === "beginner" ? "Bạn cần làm gì" : "Cách khắc phục"}>
-                  {ex.steps.length > 0 && <div className="mb-4"><StepsView steps={ex.steps} expect={ex.expect} /></div>}
+                  {ex.steps.length > 0 && <div className="mb-4"><StepsView steps={ex.steps} expect={ex.expect} verify={ex.verify} /></div>}
                   {fy && <p className="mb-3 rounded-lg bg-surface px-3.5 py-2.5 text-[15px] leading-relaxed">{fy.todo}</p>}
                   <div className="mb-3 flex flex-wrap gap-2">
                     <PromptButton text={buildFixPrompt(f, data.host, data.platforms)} />

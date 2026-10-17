@@ -51,7 +51,8 @@ const cspAnalysis = adv({
     const issues: { text: string; sev: "medium" | "low" }[] = [];
     if (low.includes("'unsafe-inline'") && !(hasNonce || strictDyn)) issues.push({ text: "script-src cho phép 'unsafe-inline' (không có nonce/hash): CSP gần như không chặn được XSS.", sev: "medium" });
     if (low.includes("'unsafe-eval'")) issues.push({ text: "script-src cho phép 'unsafe-eval' (eval/new Function).", sev: "low" });
-    if (low.includes("*") || low.some((x) => x === "https:" || x === "http:" || x === "data:")) issues.push({ text: `script-src dùng nguồn quá rộng (${scriptSrc.filter((x) => ["*", "https:", "http:", "data:"].includes(x.toLowerCase())).join(", ")}): kẻ tấn công chỉ cần một nguồn bất kỳ.`, sev: "medium" });
+    // Với 'strict-dynamic' hoặc nonce/hash, trình duyệt CSP3 bỏ qua https:/http:/* (chỉ là phương án dự phòng cho trình duyệt cũ) — mẫu “strict CSP” của Google, không phải điểm yếu.
+    if (!strictDyn && (low.includes("*") || low.some((x) => x === "https:" || x === "http:" || x === "data:"))) issues.push({ text: `script-src dùng nguồn quá rộng (${scriptSrc.filter((x) => ["*", "https:", "http:", "data:"].includes(x.toLowerCase())).join(", ")}): kẻ tấn công chỉ cần một nguồn bất kỳ.`, sev: "medium" });
     const bypass = low.filter((x) => BYPASS_HOSTS.some((h) => x.replace(/^https?:\/\//, "").replace(/^\*\./, "").startsWith(h) || x.includes(h)));
     if (bypass.length && !strictDyn) issues.push({ text: `script-src tin cậy cả nguồn lưu trữ dùng chung (${bypass.join(", ")}): thường có thể lợi dụng JSONP/thư viện có sẵn để vượt qua CSP.`, sev: "low" });
     const objectSrc = d.get("object-src") ?? d.get("default-src");

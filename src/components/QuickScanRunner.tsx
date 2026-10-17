@@ -138,7 +138,7 @@ function Solution({ item, cta }: { item: Item; cta: string }) {
     <div className="mt-2 space-y-4">
       <p className="text-[15px] font-medium leading-relaxed">{t?.fixSummary || "Sửa theo hướng dẫn bên dưới, rồi quét lại để xác nhận."}</p>
       {t?.explain && t.explain.steps.length > 0
-        ? <StepsView steps={t.explain.steps} expect={t.explain.expect} />
+        ? <StepsView steps={t.explain.steps} expect={t.explain.expect} verify={t.explain.verify} />
         : steps.length > 0 && <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-muted">{steps.map((s, n) => <li key={n}>{s}</li>)}</ol>}
       {fixes.map((f, n) => (
         <div key={`${n}:${f.label}`}>

@@ -8,7 +8,15 @@ export interface ExplainData {
   saw: string; why: string; consequence: string;
   steps: { who: Role; text: string }[]; expect: string;
   notes: { line: string; note: string }[];
+  certainty?: "confirmed" | "potential" | "inconclusive";
+  caveat?: string;
+  verify?: string;
 }
+const CERTAINTY: Record<NonNullable<ExplainData["certainty"]>, { label: string; cls: string }> = {
+  confirmed: { label: "Đã xác nhận được", cls: "text-ok" },
+  potential: { label: "Rủi ro tiềm năng", cls: "text-med" },
+  inconclusive: { label: "Chưa đủ dữ liệu để kết luận", cls: "text-muted" },
+};
 export const ROLE_LABEL: Record<Role, string> = { dev: "Lập trình viên", host: "Quản trị hosting / CDN", dns: "Quản lý tên miền (DNS)", owner: "Chủ website" };
 
 /** Ba câu trả lời: thấy gì, vì sao là vấn đề, hệ quả với website này. */
@@ -19,12 +27,18 @@ export function ExplainSections({ e }: { e: ExplainData }) {
       {rows.filter(([, v]) => v).map(([k, v]) => (
         <div key={k}><dt className="eyebrow">{k}</dt><dd className="mt-1 text-[15px] leading-relaxed">{v}</dd></div>
       ))}
+      {e.certainty && (
+        <div>
+          <dt className="eyebrow">Mức chắc chắn</dt>
+          <dd className="mt-1 text-sm leading-relaxed"><span className={`font-medium ${CERTAINTY[e.certainty].cls}`}>{CERTAINTY[e.certainty].label}.</span>{e.caveat ? <span className="text-muted"> {e.caveat}</span> : null}</dd>
+        </div>
+      )}
     </dl>
   );
 }
 
 /** Các bước: ai làm gì; cuối cùng là "kết quả đúng trông thế nào". */
-export function StepsView({ steps, expect }: { steps: ExplainData["steps"]; expect: string }) {
+export function StepsView({ steps, expect, verify }: { steps: ExplainData["steps"]; expect: string; verify?: string }) {
   return (
     <div>
       <ol className="space-y-2.5">
@@ -36,6 +50,7 @@ export function StepsView({ steps, expect }: { steps: ExplainData["steps"]; expe
         ))}
       </ol>
       {expect && <p className="mt-3 rounded-lg border border-ok/25 bg-ok/5 px-3 py-2 text-sm leading-relaxed"><span className="font-medium text-ok">Sửa đúng thì: </span>{expect}</p>}
+      {verify && <p className="mt-2 text-[13px] text-muted">Tự kiểm tra lại: <code className="mono break-all text-[12px]">{verify}</code></p>}
     </div>
   );
 }

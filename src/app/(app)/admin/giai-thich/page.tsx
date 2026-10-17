@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAdmin } from "@/lib/auth/admin";
 import { getDb } from "@/lib/cf";
-import { clarityByRule, recentUnclearComments } from "@/lib/db/explain-feedback";
+import { clarityByRule, clarityLevel, MIN_VOTES, recentUnclearComments, unclearLowerBound } from "@/lib/db/explain-feedback";
 import { formatDate } from "@/lib/format";
 import { ALL_RULES } from "@/lib/scanner/rules";
 
@@ -20,7 +20,7 @@ export default async function ExplainClarityAdmin() {
     <div className="container-x py-10 sm:py-14">
       <Link href="/admin" className="text-sm text-muted hover:text-fg">← Quản trị</Link>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Độ rõ của giải thích</h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted">Phiếu “Giải thích này có rõ không?” từ người dùng. Mục nào có tỉ lệ “Chưa” cao là mục cần viết lại trước. Không lưu tên miền, URL hay IP.</p>
+      <p className="mt-2 max-w-2xl text-sm text-muted">{`Phiếu “Giải thích này có rõ không?” từ người dùng. Chỉ mục có ít nhất ${MIN_VOTES} phiếu và cận dưới (Wilson 95%) của tỉ lệ “Chưa” ≥ 30% mới được đánh dấu ưu tiên; mẫu nhỏ chỉ hiển thị số liệu, không kết luận. Không lưu tên miền, URL hay IP.`}</p>
       <p className="num mt-4 text-sm">{total} phiếu · <span className="text-crit">{unclear} chưa rõ</span> ({total ? Math.round((unclear / total) * 100) : 0}%)</p>
 
       <div className="panel mt-4 overflow-x-auto">
@@ -29,13 +29,17 @@ export default async function ExplainClarityAdmin() {
           <tbody>
             {rows.map((r) => {
               const pct = Math.round((r.unclear / r.total) * 100);
+              const level = clarityLevel(r.unclear, r.total);
+              const lb = Math.round(unclearLowerBound(r.unclear, r.total) * 100);
               return (
                 <tr key={`${r.rule_id}|${r.variant}`} className="border-b border-line last:border-0">
                   <td className="p-3"><span className="font-medium">{title.get(r.rule_id) ?? r.rule_id}</span><div className="mono text-xs text-faint">{r.rule_id}</div></td>
                   <td className="mono p-3 text-xs text-muted">{r.variant || "—"}</td>
                   <td className="num p-3">{r.clear}</td>
                   <td className="num p-3">{r.unclear}</td>
-                  <td className="p-3"><span className={pct >= 50 && r.total >= 3 ? "chip-crit" : pct >= 25 ? "chip-med" : "chip-ok"}>{pct}%</span></td>
+                  <td className="p-3">{level === "insufficient"
+                    ? <span className="chip-info" title={`Mới ${r.total}/${MIN_VOTES} phiếu — chưa đủ để kết luận`}>{pct}% · mẫu nhỏ (n={r.total})</span>
+                    : <span className={level === "priority" ? "chip-crit" : level === "watch" ? "chip-med" : "chip-ok"} title={`Cận dưới 95%: ${lb}%`}>{pct}% · {level === "priority" ? "ưu tiên viết lại" : level === "watch" ? "theo dõi" : "ổn"}</span>}</td>
                 </tr>
               );
             })}
