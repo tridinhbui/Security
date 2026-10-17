@@ -161,3 +161,11 @@ Về yêu cầu “không tự xếp hạng 5 giải thích khó hiểu nhất k
 ## 8. Không ảnh hưởng production
 
 Không thay đổi: logic phát hiện (`rules/*` chỉ đổi chuỗi văn bản ở 2 chỗ, không đổi điều kiện/mức độ), điểm số, quét, API feedback, admin. Phần thêm vào UI là một khối `<details>` thu gọn trong `Report.tsx`.
+
+## 9. Phụ lục Phase 4 (cập nhật 2026-10-17)
+
+- **Trùng lặp với PR #2:** một phiên khác đã tự sửa độc lập F1 (Referrer-Policy) và một phần F3 (hạn chứng chỉ) trong `phase-3.2-release-ready`. Khi xếp chồng PR #3 lên PR #2, giữ nguyên văn bản của #2 cho Referrer-Policy; giữ bản của #3 cho `long-validity` vì sửa đủ cả mục “Sửa đúng thì” (≤ 200 ngày) và giải thích CA riêng. Chi tiết: `PHASE4-RELEASE-READINESS.md` §1.
+- **Sửa thêm sau khi đối chiếu tài liệu nền tảng:** CSP của Next.js cần `'unsafe-eval'` chỉ khi chạy dev; Vercel chỉ hỗ trợ TLS 1.2/1.3 và chuyển HTTP→HTTPS bằng 308; Supabase có khoá mới `sb_publishable_…` / `sb_secret_…` bên cạnh `anon` / `service_role`; bỏ lời khẳng định chưa kiểm chứng “Vercel đã tắt TLS 1.0/1.1 ở biên”.
+- **O5 (liên kết WSTG):** trang gốc trả 200 nhưng các neo `#wstg-…` không phải thuộc tính `id` trên trang đó, nên liên kết đưa người đọc tới trang chỉ mục chứ không tới đúng bài kiểm tra. Đề xuất dùng URL riêng của từng bài kiểm tra.
+- **59/59 URL nguồn** trong tầng đào sâu trả HTTP 200 (kiểm tra sự tồn tại, không kiểm tra nội dung khớp).
+- **Số liệu tác động điểm số** của O3/O4 và kết quả xác thực snippet: xem `PHASE4-RELEASE-READINESS.md` §3–§4.

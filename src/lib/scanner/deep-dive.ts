@@ -89,9 +89,10 @@ const CSP_DIVE: DeepDive = {
       "",
       "export function proxy(request: NextRequest) {",
       "  const nonce = Buffer.from(crypto.randomUUID()).toString(\"base64\");",
+      "  const isDev = process.env.NODE_ENV === \"development\"; // React cần eval khi chạy dev; production thì không",
       "  const csp = [",
       "    \"default-src 'self'\",",
-      "    \"script-src 'self' 'nonce-\" + nonce + \"' 'strict-dynamic'\",",
+      "    \"script-src 'self' 'nonce-\" + nonce + \"' 'strict-dynamic'\" + (isDev ? \" 'unsafe-eval'\" : \"\"),",
       "    \"style-src 'self' 'nonce-\" + nonce + \"'\",",
       "    \"object-src 'none'\", \"base-uri 'self'\", \"form-action 'self'\", \"frame-ancestors 'none'\",",
       "  ].join(\"; \");",
@@ -113,6 +114,7 @@ const CSP_DIVE: DeepDive = {
     "Đặt CSP trong thẻ <meta>: frame-ancestors, report-uri và sandbox bị bỏ qua; nên dùng HTTP header.",
     "Nonce dùng lại giữa các request (hoặc nonce tĩnh trong HTML đã build/cache): kẻ tấn công đọc được nonce thì vô dụng. Nonce phải ngẫu nhiên MỖI request, nên trang không được cache tĩnh.",
     "Quên các nguồn thật sự cần (analytics, font, thanh toán) rồi gỡ CSP khi có sự cố thay vì thêm đúng nguồn.",
+    "Next.js: chạy `next dev` với CSP không có 'unsafe-eval' thì trang dev hỏng (React dùng eval để dựng stack lỗi); chỉ thêm 'unsafe-eval' khi NODE_ENV là development, không thêm ở production.",
   ],
   tradeoffs: [
     "Nonce buộc render động ở Next.js nên mất cache tĩnh/CDN cho các trang đó; nếu cần tĩnh hoàn toàn, dùng hash hoặc bỏ 'unsafe-inline' bằng cách chuyển script nội tuyến ra tệp.",
@@ -169,7 +171,7 @@ export const DEEP_DIVE: Record<string, DeepDive> = {
     },
     frameworks: [
       S("cloudflare", "Cloudflare CDN", "text", "SSL/TLS → Edge Certificates → Always Use HTTPS = On. Dùng chế độ mã hoá Full (strict), không dùng Flexible."),
-      S("vercel", "Vercel", "text", "Vercel tự chuyển HTTP sang HTTPS cho tên miền đã gắn; nếu vẫn thấy 200 trên http://, kiểm tra tên miền có đi qua proxy/CDN khác phía trước không."),
+      S("vercel", "Vercel", "text", "Vercel tự chuyển HTTP sang HTTPS bằng mã 308 và không cho tắt (theo tài liệu Vercel); nếu vẫn thấy 200 trên http://, kiểm tra tên miền có đi qua proxy/CDN khác phía trước không."),
       S("nginx", "Nginx", "nginx", L("server {", "  listen 80;", "  server_name example.com www.example.com;", "  return 301 https://example.com$request_uri;", "}")),
     ],
     mistakes: [
@@ -188,7 +190,7 @@ export const DEEP_DIVE: Record<string, DeepDive> = {
     frameworks: [
       S("cloudflare", "Cloudflare CDN", "text", "SSL/TLS → Edge Certificates → Minimum TLS Version = TLS 1.2 (hoặc cao hơn)."),
       S("nginx", "Nginx", "nginx", "ssl_protocols TLSv1.2 TLSv1.3;"),
-      S("vercel", "Vercel", "text", "Vercel đã tắt TLS 1.0/1.1 ở biên; nếu quét vẫn thấy, kiểm tra có lớp proxy/CDN khác đứng trước không."),
+      S("vercel", "Vercel", "text", "Vercel chỉ hỗ trợ TLS 1.2 và 1.3 (theo tài liệu Vercel) và không cho tắt riêng từng phiên bản; nếu quét vẫn thấy TLS 1.0/1.1, kiểm tra có lớp proxy/CDN khác đứng trước không."),
     ],
     mistakes: ["Tắt TLS 1.2 vì “chỉ cần 1.3”: nhiều client doanh nghiệp/IoT vẫn cần 1.2.", "Chỉnh ssl_protocols ở một server block nhưng block mặc định (default_server) vẫn bật bản cũ."],
     tradeoffs: ["Client rất cũ (Android < 5, Windows XP, một số thiết bị thanh toán/IoT) sẽ không kết nối được sau khi tắt TLS 1.0/1.1. Kiểm tra nhật ký truy cập trước nếu khách của bạn có thiết bị cũ."],
@@ -200,7 +202,7 @@ export const DEEP_DIVE: Record<string, DeepDive> = {
     kind: "misconfiguration",
     mechanism: "Chứng chỉ có ngày hết hạn cố định. Khi hết hạn, trình duyệt chặn trang bằng cảnh báo toàn màn hình và các API gọi vào bị lỗi. Chứng chỉ công khai ngày càng ngắn (200 ngày từ 15/3/2026, 100 ngày từ 3/2027, 47 ngày từ 3/2029), nên việc gia hạn thủ công không bền; phải tự động.",
     frameworks: [
-      S("vercel", "Vercel / Cloudflare / Supabase", "text", "Các nền tảng này tự cấp và gia hạn chứng chỉ cho tên miền đã gắn; nếu chứng chỉ sắp hết hạn, nguyên nhân thường là DNS bị đổi, bản ghi CAA chặn CA, hoặc tên miền không còn trỏ về nền tảng."),
+      S("vercel", "Vercel / Cloudflare / Supabase", "text", "Các nền tảng này thường tự cấp và gia hạn chứng chỉ cho tên miền đã gắn; nếu chứng chỉ sắp hết hạn, nguyên nhân thường là DNS bị đổi, bản ghi CAA chặn CA, hoặc tên miền không còn trỏ về nền tảng."),
       S("nginx", "Máy chủ tự quản (certbot)", "bash", L("sudo certbot renew --dry-run   # thử gia hạn không thay đổi gì", "systemctl list-timers | grep certbot   # phải có timer tự gia hạn")),
     ],
     mistakes: ["Tưởng tự gia hạn đang chạy nhưng thử thách HTTP-01 bị chặn bởi chuyển hướng/tường lửa/WAF.", "Gia hạn xong nhưng chưa tải lại (reload) máy chủ nên vẫn phục vụ chứng chỉ cũ.", "Bản ghi CAA chỉ cho phép CA khác với CA đang dùng."],
@@ -354,7 +356,7 @@ export const DEEP_DIVE: Record<string, DeepDive> = {
 
   "exposure.secrets": {
     kind: "needs-evidence",
-    mechanism: "Mã JavaScript gửi tới trình duyệt là công khai: bất kỳ khoá nào nằm trong đó, ai cũng đọc được. Trong Next.js, mọi biến môi trường có tiền tố NEXT_PUBLIC_ được NHÚNG vào mã phía khách lúc build. Quét thụ động chỉ khớp mẫu; một số khoá là công khai theo thiết kế (Stripe publishable key, Supabase anon key, khoá Firebase web). Khoá bí mật (Stripe sk_live, Supabase service_role, khoá cơ sở dữ liệu, AWS secret) mà lộ phải coi là đã bị lộ vĩnh viễn.",
+    mechanism: "Mã JavaScript gửi tới trình duyệt là công khai: bất kỳ khoá nào nằm trong đó, ai cũng đọc được. Trong Next.js, mọi biến môi trường có tiền tố NEXT_PUBLIC_ được NHÚNG vào mã phía khách lúc build. Quét thụ động chỉ khớp mẫu; một số khoá là công khai theo thiết kế (Stripe publishable key, Supabase anon/publishable key, khoá Firebase web). Khoá bí mật (Stripe sk_live, Supabase service_role hoặc sb_secret_, khoá cơ sở dữ liệu, AWS secret) mà lộ phải coi là đã bị lộ vĩnh viễn.",
     exchange: {
       before: L("GET /_next/static/chunks/app.js", "", "…const supabase=createClient(url,\"eyJ…service_role…\")…"),
       after: L("GET /_next/static/chunks/app.js", "", "…fetch(\"/api/orders\")…   // khoá bí mật chỉ nằm ở máy chủ"),
@@ -363,7 +365,7 @@ export const DEEP_DIVE: Record<string, DeepDive> = {
       S("nextjs", "Next.js: chỉ máy chủ mới đọc được khoá bí mật", "ts", L("// KHÔNG đặt NEXT_PUBLIC_ cho khoá bí mật", "// app/api/orders/route.ts (chạy trên máy chủ)", "const key = process.env.STRIPE_SECRET_KEY; // không có tiền tố NEXT_PUBLIC_")),
       S("cloudflare", "Cloudflare Workers: lưu bí mật bằng secret, không đặt trong mã", "bash", L("npx wrangler secret put STRIPE_SECRET_KEY", "# trong Worker: env.STRIPE_SECRET_KEY")),
       S("vercel", "Vercel", "text", "Project → Settings → Environment Variables: đặt biến bí mật (không có tiền tố NEXT_PUBLIC_), đánh dấu Sensitive nếu có tuỳ chọn."),
-      S("supabase", "Supabase", "text", "Trong trình duyệt chỉ dùng anon/publishable key. service_role (hoặc secret key) chỉ dùng ở máy chủ; nó bỏ qua toàn bộ RLS. Nếu service_role đã lộ: tạo lại (rotate) khoá trong Project Settings → API."),
+      S("supabase", "Supabase", "text", "Trong trình duyệt chỉ dùng khoá công khai: anon (kiểu cũ) hoặc publishable `sb_publishable_…` (kiểu mới). service_role (kiểu cũ) hoặc secret `sb_secret_…` (kiểu mới) chỉ dùng ở máy chủ; nó bỏ qua toàn bộ RLS. Nếu khoá bí mật đã lộ: xoay (rotate) khoá trong mục API Keys của dự án (vị trí menu có thể khác theo phiên bản bảng điều khiển)."),
     ],
     mistakes: [
       "Xoá khoá khỏi mã rồi cho rằng xong: khoá vẫn nằm trong lịch sử git, bản build cũ, cache CDN. Phải XOAY (đổi) khoá ở nhà cung cấp.",
