@@ -45,7 +45,7 @@ export const FIXES: Record<string, FixFn> = {
     S("Nginx", "nginx", "ssl_protocols TLSv1.2 TLSv1.3;\n# sau đó: sudo nginx -t && sudo systemctl reload nginx", "nginx"),
     S("Apache", "apache", "SSLProtocol -all +TLSv1.2 +TLSv1.3\n# sau đó: sudo apachectl configtest && sudo systemctl reload apache2", "apache"),
     S("Cloudflare", "text", "SSL/TLS → Edge Certificates → Minimum TLS Version → chọn “TLS 1.2”.", "cloudflare"),
-    S("Kiểm tra: kết nối TLS 1.1 phải THẤT BẠI", "bash", `openssl s_client -connect ${c.host}:443 -servername ${c.host} -tls1_1 </dev/null 2>&1 | grep -iE "alert|handshake failure|no protocols|Protocol *:"`),
+    S("Kiểm tra: kết nối TLS 1.1 phải THẤT BẠI. Nếu thấy “no protocols available” thì openssl trên máy bạn không hỗ trợ giao thức cũ — đó KHÔNG phải server từ chối; dùng nmap --script ssl-enum-ciphers -p 443 hoặc testssl.sh để chắc chắn", "bash", `openssl s_client -connect ${c.host}:443 -servername ${c.host} -tls1_1 </dev/null 2>&1 | grep -iE "alert|handshake failure|no protocols|Protocol *:"`),
   ],
   "tls.http2": (c) => [
     S("Nginx (1.25.1+)", "nginx", "listen 443 ssl;\nhttp2 on;", "nginx"),
@@ -105,7 +105,8 @@ export const FIXES: Record<string, FixFn> = {
 
   // ---- header
   "headers.csp": (c) => [
-    S("Triển khai thử ở chế độ chỉ báo cáo trước (không chặn gì, chỉ ghi nhận vi phạm)", "http", `Content-Security-Policy-Report-Only: ${RECOMMENDED.csp}`),
+    S("Triển khai thử ở chế độ chỉ báo cáo trước (không chặn gì). Muốn THU được báo cáo cần thêm report-to/report-uri và nơi nhận; nếu chưa có thì mở DevTools → Console trên từng trang quan trọng để xem vi phạm", "http", `Content-Security-Policy-Report-Only: ${RECOMMENDED.csp}`),
+    S("CHỈ bật bản chính thức dưới đây sau khi Report-Only không còn vi phạm. Chính sách mẫu này chặn script/style nội tuyến và tài nguyên từ host khác nên có thể làm hỏng trang (Next.js cần nonce: script-src 'self' 'nonce-…' 'strict-dynamic'; GTM/CDN/font cần được liệt kê)", "text", "Đọc kỹ ghi chú này trước khi dán snippet bên dưới."),
     ...hdr("Content-Security-Policy", RECOMMENDED.csp, c),
     S("Kiểm tra", "bash", curlHeader(c.host, "content-security-policy|content-security-policy-report-only")),
   ],
@@ -168,7 +169,7 @@ export const FIXES: Record<string, FixFn> = {
     S("Webpack", "js", "// webpack.config.js\nmodule.exports = { devtool: false };"),
     S("Kiểm tra: phải trả về 404/403", "bash", `curl -sI https://${c.host}/PATH/TO/main.js.map | head -1   # thay bằng đường dẫn .map thật`),
   ],
-  "exposure.robots-txt": (c) => [S("robots.txt tối giản (đừng liệt kê đường dẫn nhạy cảm — ai cũng đọc được)", "text", `User-agent: *\nAllow: /\nSitemap: https://${c.host}/sitemap.xml`), S("Kiểm tra", "bash", `curl -s https://${c.host}/robots.txt | head -20`)],
+  "exposure.robots-txt": (c) => [S("Chỉ xoá các dòng Disallow làm lộ đường dẫn nhạy cảm (ai cũng đọc được robots.txt), GIỮ các luật khác; bảo vệ trang đó bằng đăng nhập và X-Robots-Tag: noindex. Ví dụ tối giản nếu chưa có gì cần giữ", "text", `User-agent: *\nAllow: /\nSitemap: https://${c.host}/sitemap.xml`), S("Kiểm tra", "bash", `curl -s https://${c.host}/robots.txt | head -20`)],
   "exposure.sitemap-xml": (c) => [S("sitemap.xml tối giản", "xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://${c.host}/</loc></url>\n</urlset>`), S("Kiểm tra", "bash", `curl -sI https://${c.host}/sitemap.xml | head -3`)],
   "exposure.security-txt": (c) => {
     const expires = new Date(c.now.getTime() + 365 * 86_400_000).toISOString().replace(/\.\d+Z$/, "Z");
@@ -219,7 +220,7 @@ export const FIXES: Record<string, FixFn> = {
     const d = c.host.replace(/^www\./, "");
     return [
       S("SPF (TXT tại gốc tên miền) — chọn MỘT: nếu tên miền KHÔNG gửi email", "text", `Tên: ${d}\nLoại: TXT\nGiá trị: v=spf1 -all`),
-      S("SPF — nếu có gửi email: thay include bằng nhà cung cấp của bạn", "text", `Tên: ${d}\nLoại: TXT\nGiá trị: v=spf1 include:_spf.google.com ~all   # ví dụ Google Workspace; chỉ MỘT bản ghi SPF cho mỗi tên miền`),
+      S("SPF — nếu có gửi email: thay include bằng nhà cung cấp của bạn", "text", `Tên: ${d}\nLoại: TXT\nGiá trị: v=spf1 include:_spf.google.com ~all\n(Ví dụ cho Google Workspace — thay include bằng nhà cung cấp của bạn. Chỉ MỘT bản ghi SPF cho mỗi tên miền. Chỉ dán dòng “Giá trị”, không dán phần chú thích.)`),
       S("DMARC (bắt đầu ở chế độ theo dõi, sau đó siết dần lên quarantine → reject)", "text", `Tên: _dmarc.${d}\nLoại: TXT\nGiá trị: v=DMARC1; p=none; rua=mailto:dmarc@${d}`),
       S("CAA — chỉ cho phép nhà cấp chứng chỉ bạn dùng", "text", `Tên: ${d}\nLoại: CAA\nGiá trị: 0 issue "letsencrypt.org"`),
       S("Kiểm tra bản ghi đã có hiệu lực", "bash", `dig +short TXT ${d}\ndig +short TXT _dmarc.${d}\ndig +short CAA ${d}\ndig +short DS ${d}   # trống nghĩa là chưa bật DNSSEC`),
@@ -312,7 +313,7 @@ Object.assign(FIXES, {
   "adv.dmarc-deep": (c: FixCtx) => {
     const d = c.host.replace(/^www\./, "");
     return [
-      S("Lộ trình DMARC an toàn: theo dõi → cách ly → từ chối", "text", `_dmarc.${d}  TXT  "v=DMARC1; p=quarantine; pct=100; rua=mailto:dmarc@${d}; adkim=s; aspf=s"\n# Sau vài tuần không có thư hợp lệ bị ảnh hưởng, đổi p=quarantine thành p=reject.`),
+      S("Lộ trình DMARC an toàn: theo dõi → cách ly → từ chối", "text", `_dmarc.${d}  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@${d}"\n# Bước 1 (bây giờ): p=none, chỉ thu báo cáo. Sau 2–4 tuần xem báo cáo, xác nhận mọi nguồn gửi hợp lệ (SPF/DKIM) đều đạt.\n# Bước 2: p=quarantine; pct=25, tăng dần lên 100. Bước 3: p=reject.\n# Chỉ thêm adkim=s; aspf=s khi chắc chắn mọi nguồn gửi dùng đúng tên miền chính; nếu không thư hợp lệ từ tên miền con/bên thứ ba sẽ bị đẩy vào spam.`),
       S("Kiểm tra", "bash", `dig +short TXT _dmarc.${d}`),
     ];
   },

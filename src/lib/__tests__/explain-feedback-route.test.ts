@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ALL_RULES } from "@/lib/scanner/rules";
 import { createTestD1 } from "@/lib/db/__tests__/test-d1";
 
 /**
@@ -102,10 +103,10 @@ describe("chống bình chọn trùng và lạm dụng", () => {
     expect(rows()).toHaveLength(2);
   });
   it("giới hạn 60 phiếu/giờ/người → 429; người khác không bị ảnh hưởng", async () => {
-    const ids = ["headers.csp", "headers.broken", "tls.hsts", "cookies.flags", "browser.cors", "privacy.referrer-policy"];
+    const ids = ALL_RULES.slice(0, 13).map((r) => r.id);
     let sent = 0;
-    for (const id of ids) for (let i = 0; i < 10 && sent < 60; i++, sent++) expect((await POST(req({ ...good, ruleId: id, variant: `v${i}` }, { ip: "172.16.0.9" }))).status).toBe(201);
-    const over = await POST(req({ ...good, ruleId: "headers.csp", variant: "vuot" }, { ip: "172.16.0.9" }));
+    for (const id of ids.slice(0, 12)) for (let i = 0; i < 5 && sent < 60; i++, sent++) expect((await POST(req({ ...good, ruleId: id, variant: `v${i}` }, { ip: "172.16.0.9" }))).status).toBe(201);
+    const over = await POST(req({ ...good, ruleId: ids[12]!, variant: "vuot" }, { ip: "172.16.0.9" }));
     expect(over.status).toBe(429);
     expect((await POST(req({ ...good, variant: "vuot" }, { ip: "172.16.0.10" }))).status).toBe(201);
   });
@@ -160,5 +161,22 @@ describe("tăng cường (Phase 3.2 release-ready)", () => {
     expect(voterNet("2001:db8:1:2::1")).not.toBe(voterNet("2001:db8:1:3::1"));
     expect(voterNet("203.0.113.5")).toBe("203.0.113.5");
     expect(voterNet(null)).toBe("unknown");
+  });
+  it("P0: một người không thể tự tạo nhiều phiếu cho một luật bằng cách bịa biến thể (tối đa 5)", async () => {
+    let last = 201;
+    for (let i = 0; i < 20; i++) last = (await POST(req({ ...good, variant: `v${i}` }))).status;
+    expect(last).toBe(429);
+    expect(rows()).toHaveLength(5);
+    // luật khác vẫn bình chọn được; biến thể đã có vẫn đổi được phiếu
+    expect((await POST(req({ ...good, ruleId: "headers.frame-protection" }))).status).toBe(201);
+    expect((await POST(req({ ...good, variant: "v0", verdict: "unclear" }))).status).toBe(201);
+    expect(rows().filter((r) => r.rule_id === "headers.csp")).toHaveLength(5);
+  });
+  it("P0: gửi lại y hệt (replay) không ghi thêm và không đổi updated_at", async () => {
+    await POST(req(good));
+    const before = JSON.stringify(rows());
+    await new Promise((r) => setTimeout(r, 5));
+    for (let i = 0; i < 5; i++) expect((await POST(req(good))).status).toBe(201);
+    expect(JSON.stringify(rows())).toBe(before);
   });
 });

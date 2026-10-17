@@ -27,15 +27,30 @@ export const cleanComment = (c: unknown): string => {
   return t.replace(/\s+/g, " ").trim().slice(0, 300);
 };
 export const VOTES_PER_HOUR = 60;
+/**
+ * Một người chỉ được có tối đa chừng này biến thể khác nhau cho CÙNG một luật. Nếu không, vì khoá biến thể là chuỗi tuỳ ý
+ * (`[a-z0-9-]{1,32}`), một người tạo được tới 60 "phiếu" cho một luật mỗi giờ và tự mình vượt MIN_VOTES.
+ */
+export const MAX_VARIANTS_PER_RULE = 5;
 
 /** Lưu (hoặc đổi) một phiếu. Trả false nếu vượt giới hạn tốc độ. */
 export async function saveVote(db: D1Like, v: VoteInput): Promise<boolean> {
   const recent = (await db.prepare("SELECT COUNT(*) c FROM explain_feedback WHERE voter_hash = ? AND updated_at > ?").bind(v.voter, isoAgo(3_600_000)).first<{ c: number }>())?.c ?? 0;
   if (recent >= VOTES_PER_HOUR) return false;
+  const same = await db.prepare("SELECT verdict, comment, source, mode FROM explain_feedback WHERE voter_hash = ? AND rule_id = ? AND variant = ?").bind(v.voter, v.ruleId, v.variant)
+    .first<{ verdict: string; comment: string; source: string; mode: string }>();
+  const comment = v.verdict === "unclear" ? v.comment : "";
+  if (same) {
+    // Gửi lại y hệt (replay/bấm đúp): không ghi gì, tránh khuếch đại số lần ghi D1.
+    if (same.verdict === v.verdict && same.comment === comment && same.source === v.source && same.mode === v.mode.slice(0, 12)) return true;
+  } else {
+    const distinct = (await db.prepare("SELECT COUNT(*) c FROM explain_feedback WHERE voter_hash = ? AND rule_id = ?").bind(v.voter, v.ruleId).first<{ c: number }>())?.c ?? 0;
+    if (distinct >= MAX_VARIANTS_PER_RULE) return false;
+  }
   const now = nowIso();
   await db.prepare(`INSERT INTO explain_feedback (id,rule_id,variant,verdict,source,mode,comment,voter_hash,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(voter_hash, rule_id, variant) DO UPDATE SET verdict=excluded.verdict, comment=excluded.comment, source=excluded.source, mode=excluded.mode, updated_at=excluded.updated_at`)
-    .bind(newId(), v.ruleId, v.variant, v.verdict, v.source, v.mode.slice(0, 12), v.verdict === "unclear" ? v.comment : "", v.voter, now, now).run();
+    .bind(newId(), v.ruleId, v.variant, v.verdict, v.source, v.mode.slice(0, 12), comment, v.voter, now, now).run();
   return true;
 }
 

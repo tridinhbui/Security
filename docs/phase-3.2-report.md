@@ -2,7 +2,30 @@
 
 **Trạng thái: CHƯA HOÀN TẤT — chờ buổi thử nghiệm với người thật.** Phần kỹ thuật đã xác minh; phần cần người tham gia (mục 4–8 của yêu cầu) **chưa thực hiện** và **không có số liệu nào được bịa**.
 
-Cập nhật: `2026-10-17T23:06Z` (Phase 3.3). Nhánh review: `phase-3.2-release-ready` (tách từ `a1b6fa4`, chỉ chứa thay đổi Phase 3.2). **Chưa merge, chưa deploy, chưa thay đổi D1 production.**
+Cập nhật: `2026-10-17T23:26Z` (Phase 3.4). Nhánh review: `phase-3.2-release-ready` (tách từ `a1b6fa4`, chỉ chứa thay đổi Phase 3.2). **Chưa merge, chưa deploy, chưa thay đổi D1 production.**
+
+## Phase 3.4 — Giải quyết blocker & kiểm chứng cuối (cập nhật mới nhất)
+
+**Vẫn NO-GO production.** PR #2 vẫn Draft. Không merge, không deploy, không ghi D1 production.
+
+| # | Mục | Trạng thái | Chi tiết |
+|---|---|---|---|
+| 1 | Workers Builds failure | **BLOCKED** | Build của đầu PR (`f0943bfb-6eb4-42c4-af5e-6016849e43be`) và của nhánh trước (`cd3d2a81-…`) cũng failure, không tải phiên bản mới. Công cụ Cloudflare Builds chưa được uỷ quyền; không có cách đọc log ngoài dashboard. Hướng dẫn lấy log ở checklist cuối. Không đoán nguyên nhân, không đổi cấu hình. |
+| 2 | Docker dry-run | **PASS** | Docker chạy được (CLI ở `/Applications/Docker.app/Contents/Resources/bin`, chưa nằm trong PATH). `wrangler deploy --dry-run` trên nhánh PR thành công: image `vibesec-scannercontainer` dựng được, các binding (D1, Queue, DO, `CF_VERSION_METADATA`, biến môi trường) hợp lệ; `Total Upload: 14556 KiB / gzip: 3400 KiB` (< 64 MiB). Không deploy. Việc này cho thấy cấu hình Worker/Container hợp lệ khi dựng cục bộ; **không** chứng minh Workers Builds sẽ thành công. |
+| 3 | Admin QA | **NEEDS HUMAN VALIDATION** | Checklist E2E mới: `docs/admin-qa-checklist.md` (4 trường hợp quyền, trạng thái 0 dữ liệu, thống kê, mobile). Tôi không đăng nhập admin production và không tạo phiếu. |
+| 4 | Bảo mật phiếu | **PASS** (P0) / rủi ro còn lại được ghi | Chứng minh được và đã chặn: một người tự tạo tới 60 “phiếu” cho một luật bằng cách bịa `variant` → giới hạn 5 biến thể/luật/người; gửi lại y hệt không ghi thêm. IP xoay vòng/IP dùng chung: không có biện pháp P0 không phá UX/riêng tư — xem §16. |
+| 5 | Quy trình user testing | **Hoàn thiện, chưa thực hiện** | Thêm kế hoạch phân tích đăng ký trước (`docs/user-testing/README.md` §8): đơn vị, ngưỡng “đủ để quyết định”, điều kiện xếp hạng, dừng sớm. Chưa có người tham gia; **không có feedback hay xếp hạng**. |
+| 6 | Content QA | **PARTIAL — NEEDS HUMAN VALIDATION** | Audit độc lập (một agent đọc lại cả 63 luật; con số “39” trong yêu cầu không khớp mã nguồn, có **63** luật) tìm 35 mục. Tôi kiểm chứng và **đã sửa 9 nhóm** (xem §17); phần còn lại chưa áp dụng và nằm trong danh sách mở. Nguồn chuẩn tôi không tự đọc được trong lượt này nên một số điểm cần người có chuyên môn xác nhận. |
+| 7 | Final gate | **PASS** | typecheck sạch · **979 test pass / 0 fail / 0 skip** (44 file) · `npm run build` OK · dry-run OK. Regression trình duyệt: UI không đổi so với lượt đo trước, không đo lại. |
+
+### Checklist chủ repo (cập nhật)
+- [ ] **Lấy log Workers Builds** (BLOCKED): dashboard Cloudflare → Workers & Pages → `security` → *Deployments/Builds* → mở Build ID `f0943bfb-6eb4-42c4-af5e-6016849e43be` (và `79927e71-bbb5-4c00-af46-d89a4543cdd0`, `cd3d2a81-9af9-4d49-b94f-74bae064716e`) → chép **tên bước đỏ + 20 dòng log quanh lỗi** (che token/secret). So sánh với một build `success` cũ, ví dụ của `e02e4cb`. Ghi thêm *Build command*, *Deploy command*, và *Branch control* ở Settings → Builds. Hoặc uỷ quyền MCP Cloudflare Builds cho session.
+- [ ] Đối chiếu `workerVersionId` `6311c79b-e40e-41bd-9bff-16c6c3e03119` với phiên bản **Active**.
+- [ ] Thực hiện `docs/admin-qa-checklist.md` bằng tài khoản admin thật.
+- [ ] Chạy buổi thử nghiệm 3–5 người (≥ 1 nhóm C) theo `docs/user-testing/`.
+- [ ] Người có chuyên môn security xác nhận §17 (đặc biệt: mốc 200 ngày chứng chỉ từ 15/03/2026 và các mục “chưa áp dụng”).
+- [ ] Quyết định về Turnstile (rủi ro IP xoay vòng, §16).
+- [ ] Chỉ khi các mục trên xong mới xem xét Ready for Review → merge → deploy.
 
 ## Phase 3.3 — Final Security Review & User Validation (cập nhật)
 
@@ -236,6 +259,35 @@ Suy luận (**chưa được xác minh**): một bước *sau* khi tải phiên 
 | Tràn ngang | không | không |
 | Hộp chatbot trong khung nhìn | có | có |
 Bảng “Theo chế độ hiển thị” và cổng admin: không đo lại trong lượt này (mã trang không đổi); kết quả đo ở §4 và kiểm tra cổng 404/404/404/200 ở §2 vẫn là bằng chứng. **Chưa kiểm tra trên thiết bị thật** và chưa kiểm tra trang admin với dữ liệu nhiều dòng. Phạm vi sửa chỉ chạm `MatMat.tsx` (một className) và `ClarityVote.tsx`; test scan/chatbot (SSRF, rules, chatbot) đều pass trong 970 test.
+
+## 16. Phase 3.4 — Đánh giá thao túng phiếu và biện pháp P0
+| Tấn công | Chứng minh được? | Biện pháp | Còn lại |
+|---|---|---|---|
+| **Một người tự tạo nhiều “phiếu” cho một luật bằng cách bịa `variant`** (chuỗi `[a-z0-9-]{1,32}` tuỳ ý, mỗi biến thể là một dòng) | **Có** — trước khi sửa, test cho thấy một IP tạo được 60 dòng cho một luật/giờ, tự vượt `MIN_VOTES = 10` và biến mục đó thành “đủ mẫu” | **P0 đã làm:** mỗi người tối đa **5 biến thể/luật** (`MAX_VARIANTS_PER_RULE`); vượt → 429. Biến thể đã có vẫn đổi được phiếu. Không đổi giao diện: một báo cáo thật hiếm khi có > 5 biến thể của cùng luật | Một người vẫn tạo được tối đa 5 dòng/luật; cần ≥ 2 “người” để đạt ngưỡng 10 |
+| **Replay / bấm đúp / gửi lại y hệt** | Có (khuếch đại ghi D1 không giới hạn nếu số dòng < 60) | **P0 đã làm:** gửi lại cùng nội dung → không ghi, không đổi `updated_at` (test) | Đổi qua lại giữa Có/Chưa vẫn ghi (là ý muốn của người dùng) |
+| **Xoay IP / botnet / proxy** | Không chứng minh được trên production (cấm tạo phiếu giả) nhưng hiển nhiên về mặt thiết kế: không có CAPTCHA, mỗi IP mới là một “người” | Không có biện pháp P0 không ảnh hưởng UX/riêng tư. Phương án: Turnstile cho người ẩn danh (cần khoá site/secret trong cấu hình Cloudflare — **chủ repo quyết định**, tôi không tự thêm) | **Rủi ro chấp nhận có điều kiện:** dashboard chỉ mang tính tham khảo; không dùng phiếu để tự động đổi nội dung |
+| **IP dùng chung (CGNAT, văn phòng)** | Có (test “Hạn chế đã biết”) | Không thể sửa mà không thêm định danh (cookie dài hạn = thêm dữ liệu cá nhân) | Đếm thiếu; phiếu sau ghi đè phiếu trước |
+| **Đổi giữa tài khoản và ẩn danh** | Có | Chấp nhận: 2 “người” | — |
+| **Chưa giới hạn tổng số phiếu toàn cục/giờ** | Có về lý thuyết | Chưa làm (không có bằng chứng cần thiết khi 0 phiếu) | Giám sát số phiếu trong tuần đầu |
+Kiểm tra lại: 959 test trong `src/lib` đạt sau thay đổi.
+
+## 17. Phase 3.4 — Audit nội dung giải thích (độc lập, đối chiếu OWASP/MDN/RFC)
+**Phương pháp:** một agent không biết kết luận của tôi đọc lại toàn bộ văn bản giải thích/tác động/lệnh sửa của **63 luật** (`explain.ts`, `explain-more.ts`, `analyst.ts`, `impact.ts`, `fixes.ts`, `remediation.ts`) và đối chiếu với OWASP, MDN, RFC (có tra web). Tôi **không tin nguyên văn**: mỗi mục được kiểm với mã nguồn; mục có thể kiểm bằng thực nghiệm thì kiểm. Số “39” trong yêu cầu không khớp: có 63 luật.
+
+**Đã sửa (kèm test hồi quy `content-audit-regressions.test.ts`, 7 test):**
+1. `privacy.referrer-policy`: bỏ khẳng định sai “thiếu header thì trình duyệt gửi địa chỉ đầy đủ cho website khác” (mặc định hiện đại là `strict-origin-when-cross-origin`); nay nói rõ trình duyệt mới chỉ gửi tên miền, trình duyệt cũ có thể gửi cả đường dẫn.
+2. `tls.protocol-version`: lệnh kiểm tra cũ in “chấp nhận” cả khi bị từ chối. **Kiểm bằng thực nghiệm** (OpenSSL 3.5.2): lần bắt tay thất bại in `Cipher is (NONE)` và khớp `Cipher is`; chạy trên `example.com` còn cho kết luận sai ở TLS 1.0/1.1 (máy không hỗ trợ). Lệnh mới phân biệt *chấp nhận / từ chối / máy bạn không hỗ trợ*, đã chạy thử trên host thật (TLS 1.2, 1.3 → chấp nhận; 1.0, 1.1 → không hỗ trợ). Sửa cả lệnh “verify” trong `explain-more.ts`.
+3. `adv.dmarc-deep`: tiêu đề nói “theo dõi → cách ly → từ chối” nhưng snippet nhảy thẳng `p=quarantine; pct=100; adkim=s; aspf=s` (có thể đẩy thư hợp lệ của tên miền con/bên thứ ba vào spam). Nay bắt đầu `p=none`, tăng dần, kèm cảnh báo về `adkim/aspf=s`.
+4. CSP: snippet chính thức nay có cảnh báo “chỉ bật sau khi Report-Only sạch; Next.js cần nonce; sẽ chặn script/style nội tuyến và host khác”; Report-Only nói rõ cần `report-to/report-uri` mới thu được báo cáo.
+5. `tls.certificate-lifetime`: bỏ “60–90 ngày” như chuẩn; nêu mức tối đa **200 ngày với chứng chỉ cấp từ 15/03/2026** (CA/B Forum SC-081v3). *Cần người có chuyên môn xác nhận lại nguồn gốc: agent dựa trên tổng hợp của nhà cung cấp, chưa đọc trang ballot của CA/B Forum.* Ngưỡng 398 ngày trong **luật** không đổi.
+6. `tls.hsts`: không nói “chỉ lần đầu” nữa — thiếu HSTS thì mỗi lần vào qua `http://` đều hở; có HSTS thì chỉ lần ghé đầu còn hở (preload mới bịt).
+7. `browser.mixed-content`: bỏ khẳng định “kẻ cùng mạng đổi script để chạy mã” (trình duyệt hiện đại chặn script/CSS qua HTTP); nói rõ tác hại thực là tính năng hỏng, ảnh/media có thể bị thay ở trình duyệt cũ.
+8. Mức tuyên bố quá tay: `exposure.sitemap-xml` (luật chỉ báo khi **thiếu** file; không phải “lộ đường dẫn”), `adv.shared-cache-leak`, `adv.dom-xss-flow`, `adv.postmessage`, `adv.graphql-surface` (heuristic độ tin cậy thấp; nay ghi “có dấu hiệu / cần kiểm tra”), `tls.http2` (bỏ “thiếu cải tiến bảo mật”).
+9. SPF: chú thích `# …` nằm trong dòng giá trị TXT (dán nguyên sẽ làm bản ghi hỏng) — đã tách ra; `exposure.robots-txt`: không còn khuyên thay cả file bằng “Allow: /” mà không cảnh báo mất các luật Disallow.
+
+**Chưa áp dụng (còn mở, cần kiểm chứng nguồn hoặc thay đổi lớn hơn — KHÔNG tuyên bố đã xong):** CSP giá trị `RECOMMENDED.csp` trong `remediation.ts` (vẫn là chính sách chặt, nay đã có cảnh báo nhưng chưa có biến thể nonce); Trusted Types nên đi qua Report-Only; snippet cookie nginx/Apache áp cho mọi cookie; CORP `same-origin` → `same-site`; Permissions-Policy (mặc định iframe khác nguồn); SameSite mặc định theo trình duyệt; thứ tự triển khai HSTS (`max-age` tăng dần trước `includeSubDomains/preload`); verify GraphQL `__typename` không chứng minh đã tắt introspection; Django `ALLOWED_HOSTS` một host; minify xoá comment HTML; `security.txt` Expires; CAA và DNSSEC cần cảnh báo gia hạn/DS sai; `exposure.secrets` verify bằng chuỗi đã che; `config.http-methods` Express chặn PUT/PATCH/DELETE; `cache-policy` áp cho cả tài nguyên tĩnh; các mục LOW (header-consistency, www-consistency, charset, EC 224/256, `impact` chung cho redirect/email-auth/CORS). Các mục “UNSURE” của agent (hạ cấp TLS, chữ hoa/thường `proxy_cookie_flags`, danh sách cipher “Intermediate”, `Protocols h2` Apache, ngưỡng HSTS 180 ngày, mặc định SameSite) chưa được xác minh nên **không** sửa.
+
+**Giới hạn:** audit này là rà soát nội dung bằng một người đọc độc lập (mô hình), **không thay thế** người nhóm C; không đo mức dễ hiểu của người dùng. Không sửa `secrets.ts`, mã thu thập hay giao diện.
 
 ## 15. Lưu ý về quy trình
 Thư mục làm việc được dùng chung với một session khác. Nhánh cũ `phase-3.2-validation` có thêm commit tài liệu của họ (`94c33bd`); nhánh review `phase-3.2-release-ready` **không** chứa commit đó (xem §10). Lịch sử/tệp của session khác không bị sửa.

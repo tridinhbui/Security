@@ -68,3 +68,13 @@ Thứ tự ưu tiên sửa: (1) sai kỹ thuật, (2) hiểu thành “đã bị
 ## 7. Dữ liệu cá nhân
 
 Không ghi tên, email, số điện thoại, tên miền thật, ảnh màn hình có thông tin định danh. Ghi âm/quay màn hình chỉ khi có đồng ý riêng và xoá sau khi tổng hợp.
+
+## 8. Kế hoạch phân tích đăng ký trước (viết TRƯỚC khi có dữ liệu, để không chọn tiêu chí theo kết quả)
+- **Đơn vị**: người, không phải dòng. Báo `x/n` người; không báo phần trăm khi n ≤ 5.
+- **Điều kiện “đủ để quyết định”**: ≥ 3 người nhóm A đã làm T1–T5 **và** ≥ 1 người nhóm C đã điền phiếu rà soát. Thiếu một trong hai → báo cáo ghi “chưa đủ”, không rút ra khuyến nghị viết lại.
+- **Một giải thích chỉ được đưa vào danh sách “khó hiểu nhất”** khi: ≥ 2 người đã đọc mục đó **và** có ≥ 2 tín hiệu độc lập (hiểu sai / sai người xử lý / không tìm ra cách sửa / bấm “Chưa”) từ ≥ 2 người khác nhau; hoặc có ≥ 10 phiếu trên production và cận dưới Wilson ≥ 30%. Chưa đạt → ghi “chưa đủ dữ liệu”, **không xếp hạng**.
+- **Sai kỹ thuật do nhóm C chỉ ra** được sửa ngay, không cần đủ ngưỡng ở trên.
+- **Đổi giải thích**: giữ nguyên mức độ nghiêm trọng, độ chắc chắn và người xử lý; sau đó 1 người mới đọc lại (README §6.5).
+- **Dừng sớm**: nếu hai người liên tiếp hiểu sai theo hướng “website đã bị hack”, dừng buổi tiếp theo và sửa trước.
+- **Lịch gợi ý**: 5 buổi × 45 phút trong ≤ 2 tuần; điền CSV trong ngày; chạy công cụ tổng hợp sau buổi cuối, không giữa chừng (tránh thay đổi sản phẩm làm hỏng so sánh).
+- **Không** sửa văn bản giải thích giữa các buổi trừ khi là lỗi kỹ thuật; ghi `commit` từ `/api/version` mỗi buổi để biết mỗi người thấy phiên bản nào.

@@ -31,8 +31,8 @@ describe("phiếu “giải thích có rõ không?”", () => {
     expect(c.map((x) => x.comment)).toEqual(["chỗ này khó hiểu"]);
   });
   it("giới hạn tốc độ theo người bình chọn", async () => {
-    for (let i = 0; i < VOTES_PER_HOUR; i++) expect(await vote("spam", { variant: `v${i}` })).toBe(true);
-    expect(await vote("spam", { variant: "extra" })).toBe(false);
+    for (let i = 0; i < VOTES_PER_HOUR; i++) expect(await vote("spam", { ruleId: `r${i}`, variant: "v" })).toBe(true);
+    expect(await vote("spam", { ruleId: "r-extra", variant: "extra" })).toBe(false);
     expect(await vote("khac", { variant: "extra" })).toBe(true);
   });
   it("lọc biến thể (không để lọt tên miền/URL) và cắt nhận xét", () => {
