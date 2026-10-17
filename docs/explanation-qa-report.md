@@ -84,15 +84,38 @@ Không dùng `any`, `@ts-ignore`, ép kiểu hay nới cấu hình typecheck. T�
 
 **Kiểm thử cục bộ:** `npm run typecheck` sạch (cả hai chương trình); vitest 39 file / 927 test đạt; `build:cf` và `wrangler deploy --dry-run` thành công.
 
-**GitHub Actions:** commit `e02e4cb` — job `test` **thành công** (trước đó đỏ liên tục từ `9194666`), Workers Builds thành công.
+**GitHub Actions / Workers Builds (kiểm lại 2026-10-17):**
 
-**Production — mức xác minh đạt được và giới hạn:**
-- Workers Builds báo build thành công cho `e02e4cb` (Version ID `89d80d8d-f991-41cc-89ac-fe53e56db070`) — đây là kết quả *build*, không chứng minh phiên bản đó đang được phục vụ.
-- Dự án **không có version endpoint**, không có `version_metadata` binding, không có GitHub Deployments; công cụ Cloudflare trong phiên chưa được cấp quyền nên không đọc được deployment hiện hành.
-- Kiểm tra gián tiếp: `https://security.tridinhbui0901.workers.dev/demo` trả 200 và đã chứa các chuỗi “Mức chắc chắn”, “Tự kiểm tra lại” (chỉ có từ commit `1e73d61`); `/admin/giai-thich` ẩn danh trả 404. Điều này chứng tỏ production chạy **ít nhất** `1e73d61`, nhưng **không phân biệt** được `1e73d61` với `e02e4cb` (commit sau chỉ đổi cách giải mã UTF-8, không có dấu hiệu nhìn thấy được).
-- Kết luận: **chưa xác minh được commit chính xác đang phục vụ**. Cách đáng tin cậy là xem tab Deployments của Worker `security` trên Cloudflare dashboard (đối chiếu Version ID ở trên) hoặc thêm một endpoint/ binding phiên bản — chưa làm vì ngoài phạm vi.
-- Không deploy lại production thủ công.
+| Commit | Job `test` | Workers Builds |
+|---|---|---|
+| `1e73d61` | thất bại (2 lỗi typecheck có sẵn) | thành công |
+| `e02e4cb` | **thành công** | thành công |
+| `f718cf0` (chỉ đổi tài liệu) | **thành công** | **THẤT BẠI** — chưa rõ nguyên nhân |
 
-## 8. User testing
+Nhật ký build nằm ở Cloudflare dashboard (Build ID `138a523c-0949-40ed-b591-630214673ffd`); GitHub không có chi tiết và công cụ Cloudflare trong phiên chưa được cấp quyền, nên **chưa chẩn đoán được**. Commit chỉ đổi file `.md` nên khó là lỗi mã; có thể do build bị chồng lên build `e02e4cb` đang chạy vài phút trước hoặc sự cố nền tảng, nhưng đây là suy đoán chưa kiểm chứng. Tôi không chạy lại build vì đó là deploy.
 
-**Chưa thực hiện.** Chỉ mới có quy trình; cần 4–5 người thật.
+**Production — mức xác minh:**
+- Build thành công ≠ đang phục vụ. Build `e02e4cb` thành công (Version ID `89d80d8d-f991-41cc-89ac-fe53e56db070`) nhưng chưa có bằng chứng đây là phiên bản đang nhận traffic; build kế tiếp thất bại nên nhiều khả năng Worker vẫn ở `e02e4cb`, **chưa xác minh**.
+- Kiểm tra gián tiếp trước đó: `/demo` trên production chứa chuỗi chỉ có từ `1e73d61` → production chạy *ít nhất* `1e73d61`.
+- **Đã thêm `/api/version`** (commit riêng, **chưa deploy**): trả đúng 4 trường `commit` (nhúng lúc build từ `WORKERS_CI_COMMIT_SHA`/`GITHUB_SHA`, chỉ nhận SHA hex), `builtAt`, `workerVersionId` (đọc lúc chạy từ binding `version_metadata` — đây mới là bằng chứng bản đang phục vụ), `workerVersionUploadedAt`. Giá trị lạ bị đổi thành `unknown`/`null`, không phản chiếu chuỗi tuỳ ý, không lộ biến môi trường. Đã kiểm trên workerd cục bộ với binding thật: trả `commit` = HEAD và một `workerVersionId` do runtime cấp.
+- Sau khi bạn cho phép deploy: `curl -s https://security.tridinhbui0901.workers.dev/api/version` rồi đối chiếu `workerVersionId` với tab Deployments (phiên bản **Active**) trên dashboard và với Version ID trong check Workers Builds. Khi trùng cả ba mới được tuyên bố “production = commit X”. Lưu ý: nếu build chạy ngoài Workers Builds, `commit` có thể là `unknown`.
+- Không deploy lại thủ công.
+
+**Hồi quy trên Worker runtime thật (workerd, `wrangler dev --local`):** `decodeUtf8` (module `fetch.ts` đóng gói nguyên bản) so với `Buffer#toString("utf8")` của Node trên 412 vector (BOM, byte lỗi, overlong, surrogate, cắt giữa chừng, tiếng Việt/emoji, 400 mẫu ngẫu nhiên; mỗi vector còn đọc qua `subarray` của vùng nhớ lớn hơn): **0 sai khác**. Preview Worker đã build (`opennextjs-cloudflare preview`): `/demo` 200, `/admin`, `/admin/giai-thich`, `/api/admin/chat/*`, `/api/admin/help-requests/*` ẩn danh → 404; `/api/admin/metrics` không token → 401; bình chọn thiếu Origin → 403, `ruleId` lạ → 400, body > 4 KB → 413; quét `127.0.0.1`, `169.254.169.254`, `[::1]`, `10.0.0.1` bị từ chối `non_public_ip`, cổng 22 bị `port_not_allowed`. Bộ test SSRF/DNS/redirect (227 test) vẫn đạt. Chưa kiểm thử tích hợp GitHub thật (cần token OAuth); chỉ có test đơn vị.
+
+## 8. Audit nội dung (đợt này)
+
+- **Lỗi chatbot:** nút gợi ý “Có chắc là đúng không?” (chính chip do chatbot đưa ra) không khớp từ khoá nên rơi vào câu trả lời mặc định, bỏ qua độ tin cậy. Đã sửa và thêm test; câu trả lời nay nêu **mức chắc chắn + giới hạn bằng chứng** (`certainty`/`caveat`).
+- **Lời giải thích điểm:** khi 0 vấn đề, câu cũ “Tốt lắm” dễ bị hiểu là an toàn; nay nói rõ “không có nghĩa là website an toàn tuyệt đối”, và mức ≥ 80 điểm ghi “điểm cao không phải bảo chứng an toàn”. Test chặn các cụm “an toàn tuyệt đối/không thể bị hack” khi được dùng như lời bảo chứng.
+- **Giải thích tổng quát của chatbot (Feynman):** với phát hiện tiềm năng/chưa kết luận, nay kèm dòng “Lưu ý: <caveat>” thay vì chỉ ví von.
+- **Phân biệt kỹ thuật và suy luận:** mỗi giải thích có `certainty` (đã xác nhận / tiềm năng / chưa đủ dữ liệu) và test chặn các cụm khẳng định tuyệt đối trong cả 63 luật.
+- **Giới hạn đã biết, chưa sửa:** (1) ngưỡng “hạn chứng chỉ quá dài” của luật là 398 ngày trong khi ngành đang rút ngắn (từ 2026) — luật có thể bỏ sót chứng chỉ 200–398 ngày; đã làm mềm lời giải thích, **chưa đổi luật** vì đổi ngưỡng ảnh hưởng điểm/benchmark; (2) ACAO `*` không credentials vẫn tính “fail” mức thấp; (3) `Feynman` ví von vẫn là văn bản chung theo luật, chưa theo biến thể; (4) tỉ lệ đoán “cookie phiên” dựa trên tên cookie.
+- **Chưa làm được:** chưa có người thật đánh giá nên chưa biết mục nào *thực sự* gây hiểu sai; danh sách trên là rà soát của người viết, không thay thế user testing.
+
+## 9. User testing
+
+**Chưa thực hiện** — không có người tham gia nào, không có dữ liệu. Đã chuẩn bị: [docs/user-testing/README.md](./user-testing/README.md) (5 nhiệm vụ, thang chấm, tiêu chí), [consent-and-briefing.md](./user-testing/consent-and-briefing.md), phiếu quan sát [observations.csv](./user-testing/observations.csv) (chỉ có tiêu đề) và công cụ tổng hợp `scripts/usertest-summary.ts` (có test bằng fixture ghi rõ “không phải kết quả thật”). Nó chỉ báo số đếm, không tính phần trăm cho mẫu 5 người.
+
+## 10. Kiểm thử đợt này
+
+`npm run typecheck` sạch; vitest 41 file / 939 test đạt; `build:cf` + `wrangler deploy --dry-run` thành công, binding `CF_VERSION_METADATA` được nhận.

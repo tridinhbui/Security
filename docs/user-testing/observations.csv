@@ -1,0 +1,3 @@
+# Phiếu quan sát user testing. MỖI DÒNG = một người x một nhiệm vụ (T2 có 3 dòng, mỗi dòng một phát hiện). KHÔNG ghi tên thật, email hay tên miền.
+# group: A=không kỹ thuật, B=biết web cơ bản, C=có kinh nghiệm. completed: 0/1. understanding/owner_correct/fix_found: 0/1/2. verify_known: 0/1. clarity_vote: clear|unclear|none
+participant_id,group,task,finding_rule,completed,seconds,understanding,owner_correct,fix_found,verify_known,clarity_vote,confusion_note
