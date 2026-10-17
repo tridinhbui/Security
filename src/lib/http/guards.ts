@@ -26,7 +26,9 @@ export function clientIp(req: NextRequest): string | null {
 export function voterNet(ip: string | null): string {
   if (!ip) return "unknown";
   if (!ip.includes(":")) return ip;
-  const a = ip.toLowerCase().split("::");
+  const mapped = /^(?:0{0,4}:){2,5}(?:ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip.split("%")[0]!);
+  if (mapped) return mapped[1]!; // IPv4 nhúng trong IPv6 (::ffff:1.2.3.4) là một máy IPv4, KHÔNG được gom chung vào /64 toàn số 0
+  const a = ip.split("%")[0]!.toLowerCase().split("::");
   const head = a[0] ? a[0].split(":") : [];
   const tail = a[1] ? a[1].split(":") : [];
   const full = a.length === 2 ? [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill("0"), ...tail] : head;

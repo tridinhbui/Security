@@ -146,4 +146,19 @@ describe("tăng cường (Phase 3.2 release-ready)", () => {
     await POST(req(good, { ip: "2001:db8:1:3::1" })); // /64 khác → người khác
     expect(rows()).toHaveLength(2);
   });
+  it("IPv4 nhúng trong IPv6 (::ffff:a.b.c.d) vẫn là từng máy riêng, không bị gom chung", async () => {
+    await POST(req(good, { ip: "::ffff:198.51.100.1" }));
+    await POST(req(good, { ip: "::ffff:198.51.100.2" }));
+    expect(rows()).toHaveLength(2);
+    await POST(req({ ...good, verdict: "unclear" }, { ip: "198.51.100.1" })); // cùng máy ở dạng IPv4 thuần
+    expect(rows()).toHaveLength(2);
+  });
+  it("voterNet: các dạng viết khác nhau của cùng một /64 giống nhau; /64 khác nhau thì khác", async () => {
+    const { voterNet } = await import("@/lib/http/guards");
+    expect(voterNet("2001:DB8:0:0::1")).toBe(voterNet("2001:db8::ffff"));
+    expect(voterNet("fe80::1%eth0")).toBe(voterNet("fe80::2"));
+    expect(voterNet("2001:db8:1:2::1")).not.toBe(voterNet("2001:db8:1:3::1"));
+    expect(voterNet("203.0.113.5")).toBe("203.0.113.5");
+    expect(voterNet(null)).toBe("unknown");
+  });
 });

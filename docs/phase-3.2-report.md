@@ -2,19 +2,44 @@
 
 **Trạng thái: CHƯA HOÀN TẤT — chờ buổi thử nghiệm với người thật.** Phần kỹ thuật đã xác minh; phần cần người tham gia (mục 4–8 của yêu cầu) **chưa thực hiện** và **không có số liệu nào được bịa**.
 
-Cập nhật: `2026-10-17T23:03Z`. Nhánh review: `phase-3.2-release-ready` (tách từ `a1b6fa4`, chỉ chứa thay đổi Phase 3.2). **Chưa merge, chưa deploy, chưa thay đổi D1 production.**
+Cập nhật: `2026-10-17T23:06Z` (Phase 3.3). Nhánh review: `phase-3.2-release-ready` (tách từ `a1b6fa4`, chỉ chứa thay đổi Phase 3.2). **Chưa merge, chưa deploy, chưa thay đổi D1 production.**
 
-## Kết luận release-ready: PASS / BLOCKED / NEEDS HUMAN VALIDATION
+## Phase 3.3 — Final Security Review & User Validation (cập nhật)
+
+**Giữ NO-GO production.** PR #2 vẫn Draft, 15 file, chưa merge; `/api/version` vẫn `a1b6fa4`; production vẫn **0 phiếu**.
+
+### Kết quả mới của Phase 3.3
+| Mục | Trạng thái | Chi tiết |
+|---|---|---|
+| 1. Final PR review | **PASS** (sau khi sửa 1 lỗi tôi tự tìm ra) | CI GitHub `test` xanh (2/2). Tương thích `a1b6fa4`: là tổ tiên của đầu PR, merge sạch (MERGEABLE). Review toàn bộ diff `src/`: **tìm thấy lỗi thật trong `voterNet` (IPv6 /64) do chính PR này đưa vào**: IPv4 nhúng trong IPv6 (`::ffff:1.2.3.4`) bị gom hết về `0:0:0:0::/64`, tức mọi người dùng dạng đó thành *một* người bình chọn (đếm thiếu + dùng chung giới hạn 60/giờ). Đã sửa: dạng nhúng IPv4 được trả về địa chỉ IPv4; bỏ zone id `%eth0`; +2 test (23 test route). Production Cloudflare thường đưa IPv4 thuần nên lỗi này khó gặp, nhưng là lỗi thật. Rate limit, CSRF, riêng tư, quyền admin: không đổi so với §12, không tìm thấy lỗi mới. |
+| 2. Workers Builds | **BLOCKED** | Công cụ Cloudflare Builds chưa được uỷ quyền trong session này, `wrangler` không có lệnh đọc nhật ký bản dựng. Không đoán, không đổi cấu hình. Bằng chứng mới: **nhánh PR `cd0f4f0` cũng bị check “Workers Builds” báo failure (Build ID `cd3d2a81-9af9-4d49-b94f-74bae064716e`) và KHÔNG có phiên bản Worker mới nào được tải lên** (phiên bản mới nhất vẫn `6311c79b…`), nên bản dựng nhánh PR không đụng production. Failure này không phải riêng bản dựng trên `main`. |
+| 3. Timestamp migration 0011 | **PASS (đã giải thích)** | Không bất thường; xem §11. Không sửa lịch sử. |
+| 4. Thử nghiệm người thật | **NEEDS HUMAN VALIDATION** | Bộ công cụ đã sẵn sàng (`docs/user-testing/`); **chưa có người tham gia nào**, tôi không điều phối được và không tạo/giả phản hồi. Xem checklist. |
+| 5. UX trên admin thật | **NEEDS HUMAN VALIDATION** (admin) · **PASS** (mobile) | Cần tài khoản Google admin để vào `/admin/giai-thich` trên production — tôi không đăng nhập thay. Mobile 375px: bình chọn 40px, chatbot textarea tự giãn, không tràn ngang (đo lượt Phase 3.2; các tệp UI không đổi từ đó). |
+| 6. Phân tích phản hồi | **BLOCKED (không đủ dữ liệu)** | 0 phiếu, 0 người tham gia ⇒ **không xếp hạng** 5 giải thích khó hiểu nhất. Quy tắc: dưới 10 phiếu mỗi nhóm = “mẫu nhỏ”; 0 phiếu ≠ “dễ hiểu”. |
+| 7. Final gate | **PASS** (trừ Docker dry-run) | typecheck sạch · **970 test pass / 0 fail / 0 skip** (43 file) · `npm run build` OK · browser regression: textarea/nút bình chọn/tràn ngang đo lại ở Phase 3.2 (UI không đổi). **Chưa xác minh:** `wrangler deploy --dry-run` đầy đủ (cần Docker CLI để dựng image container, máy này không có). |
+
+### Checklist cho chủ repo (cần làm, theo thứ tự)
+- [ ] Mở nhật ký bản dựng trên dashboard Cloudflare: Build ID `79927e71-bbb5-4c00-af46-d89a4543cdd0` (a1b6fa4), `cd3d2a81-9af9-4d49-b94f-74bae064716e` (nhánh PR) và bản của `f718cf0`; chép lại **bước nào đỏ và thông báo lỗi** (không dán token/secret). Hoặc uỷ quyền công cụ Cloudflare Builds cho session.
+- [ ] Đối chiếu `workerVersionId` `6311c79b-e40e-41bd-9bff-16c6c3e03119` với tab Deployments (phiên bản **Active**).
+- [ ] Vào `/admin/giai-thich` bằng tài khoản admin (email trong `ADMIN_EMAILS` + đã liên kết Google) trên điện thoại và máy tính; ghi lại nếu bảng “Theo chế độ hiển thị” hoặc cổng 404 cho người không phải admin hoạt động sai.
+- [ ] Tuyển 3–5 người (≥ 3 không kỹ thuật, ≥ 1 có chuyên môn security, độc lập với đội phát triển) và chạy buổi theo `docs/user-testing/facilitator-runsheet.md`; điền `observations.csv` bằng dữ liệu thật.
+- [ ] Người nhóm C điền `security-reviewer-sheet.md` cho các luật đã viết lại ở `1e73d61`.
+- [ ] Chấp nhận hoặc từ chối rủi ro bình chọn ở §12 (IP dùng chung / IP xoay vòng / không CAPTCHA).
+- [ ] Cài Docker (hoặc dùng CI có Docker) để chạy `wrangler deploy --dry-run` trước khi deploy.
+- [ ] Chỉ sau các mục trên mới quyết định **Ready for Review → merge → deploy**; kiểm tra `/api/version` sau deploy.
+
+## Kết luận release-ready (Phase 3.2): PASS / BLOCKED / NEEDS HUMAN VALIDATION
 
 ### PASS (có bằng chứng trong báo cáo này)
 | Hạng mục | Bằng chứng |
 |---|---|
 | Phạm vi PR sạch | Nhánh `phase-3.2-release-ready` = `a1b6fa4` + commit Phase 3.2; **không** chứa `94c33bd` (tài liệu xác minh production của session khác, nhánh `docs/production-verification-a1b6fa4` của họ không bị chạm) — §10 |
 | Schema `explain_feedback` trên production khớp migration 0011 | Truy vấn chỉ-đọc: 10 cột, ràng buộc CHECK/UNIQUE, 2 chỉ mục đều trùng tệp SQL; `d1_migrations` có đủ 11/11 tệp, không dư/thiếu — §11 |
-| Bảo mật API bình chọn | 21 test route (CSRF, đầu vào, riêng tư, trùng, giới hạn, 413 theo độ dài thật, IPv6 /64) — §2, §12 |
+| Bảo mật API bình chọn | 23 test route (CSRF, đầu vào, riêng tư, trùng, giới hạn, 413 theo độ dài thật, IPv6 /64, IPv4 nhúng trong IPv6) — §2, §12 |
 | Giới hạn kích thước Worker | **Không còn là blocker**: Cloudflare đã bỏ giới hạn nén (3 MB/10 MB) từ 2026-09-04; chỉ còn 64 MiB chưa nén cho mọi gói. Bundle hiện ≈ 14,9 MB chưa nén — §13 |
 | UX | Đo trong trình duyệt: textarea tự giãn 42→116→166px (trần 168) ở 1280 và 375px; nút bình chọn 40px ở 375px (32px ở desktop); không tràn ngang; hộp chatbot nằm trọn khung nhìn — §14 |
-| Kiểm tra toàn bộ | typecheck (2 tsconfig) sạch · **968 test pass / 0 fail / 0 skip** (43 file) · `npm run build` (OpenNext) thành công — §8 |
+| Kiểm tra toàn bộ | typecheck (2 tsconfig) sạch · **970 test pass / 0 fail / 0 skip** (43 file) · `npm run build` (OpenNext) thành công — §8 |
 | Bộ thử nghiệm | Có thêm phiếu điều phối + phiếu rà soát kỹ thuật cho nhóm C; công cụ tổng hợp cảnh báo khi chưa có nhóm C — §3 |
 
 ### BLOCKED (không làm được nếu thiếu thứ từ bên ngoài)
@@ -28,7 +53,6 @@ Cập nhật: `2026-10-17T23:03Z`. Nhánh review: `phase-3.2-release-ready` (tá
 | Việc | Ai |
 |---|---|
 | Đọc nhật ký bản dựng Cloudflare và xác nhận vì sao check *failure* dù phiên bản đã được phục vụ; đối chiếu `workerVersionId` `6311c79b-…` với tab Deployments (Active) | Chủ repo/tài khoản Cloudflare |
-| Xác nhận dấu thời gian `applied_at` của `0011` (`2026-10-11 17:06:26`) — xem §11, tôi không giải thích được | Chủ repo (tôi là người đã áp tay migration này) |
 | Xem `/admin/giai-thich` bằng tài khoản admin thật trên production (chỉ kiểm cổng admin ở local) | Admin |
 | Chạy buổi thử nghiệm 3–5 người (≥ 1 người nhóm C) theo `docs/user-testing/` | Người điều phối |
 | Rà soát kỹ thuật các giải thích đã viết lại ở `1e73d61` | Người nhóm C |
@@ -144,7 +168,7 @@ Yêu cầu là chọn 5 phần khó hiểu nhất **có đủ bằng chứng**. 
 
 ## 8. CI (cục bộ, trước khi xin phê duyệt)
 - `npm run typecheck` (cả hai tsconfig): sạch.
-- `npx vitest run`: **968 passed (968), 0 skipped, 0 failed** (43 file).
+- `npx vitest run`: **970 passed (970), 0 skipped, 0 failed** (43 file).
 - `npm run build` (OpenNext) + `wrangler deploy --dry-run`: thành công, không lỗi.
 - `wrangler deploy --dry-run` đầy đủ **không chạy được** ở máy này (cần Docker CLI để dựng image container); bước đóng gói Worker thì chạy được (§13).
 - Chưa deploy. Không có commit nào được đẩy lên `main`.
@@ -172,7 +196,8 @@ Suy luận (**chưa được xác minh**): một bước *sau* khi tải phiên 
 ## 11. Kiểm toán D1 (chỉ đọc)
 - `sqlite_master` của production cho `explain_feedback`: 10 cột `id, rule_id, variant, verdict, source, mode, comment, voter_hash, created_at, updated_at`; `CHECK` trên `verdict`/`source`; `UNIQUE (voter_hash, rule_id, variant)`; chỉ mục `explain_feedback_rule_idx (rule_id, verdict)` và `explain_feedback_voter_idx (voter_hash, updated_at)`. **Trùng từng ký tự** với `migrations/0011_explain_feedback.sql`.
 - `d1_migrations`: 11 dòng, tên khớp đúng 11 tệp trong `migrations/` (không dư, không thiếu).
-- Lưu ý bất thường: `0009_quick_scan.sql` có id 8 và `0008_project_scans.sql` id 9 (áp dụng ngược thứ tự, đã biết từ trước, không ảnh hưởng vì không phụ thuộc nhau). `0011` có `applied_at = 2026-10-11 17:06:26`, **trong khi mọi việc về 0011 diễn ra trong phiên làm việc gần đây (17/10)** — tôi không giải thích được dấu thời gian này (có thể do cách ghi tay bản ghi). Dữ liệu không bị sửa; cần chủ repo xác nhận. Không có phiếu nào bị ghi/ xoá (0 dòng).
+- `0009_quick_scan.sql` có id 8 và `0008_project_scans.sql` id 9 (áp dụng ngược thứ tự, đã biết từ trước, không ảnh hưởng vì không phụ thuộc nhau).
+- **Dấu thời gian `0011` = `2026-10-11 17:06:26` — ĐÃ GIẢI THÍCH, không bất thường** (Phase 3.3, truy vấn chỉ-đọc + git): cột `applied_at` là `DEFAULT CURRENT_TIMESTAMP` (UTC) nên là thời điểm thật của lệnh chèn; commit của tính năng bình chọn `28344ad` có thời điểm `2026-10-11T13:06:27-04:00` = **17:06:27Z**, đúng 1 giây sau; hai phiên bản Worker `6a0e7048…` (17:04:48Z) và `71c3ee53…` (17:10:23Z) bao quanh nó. Nhận định trước đó của tôi (“việc áp migration diễn ra gần đây”) là **sai**: nó được áp ngày 11/10 khi làm tính năng 3.1. Lịch sử migration không bị sửa.
 - Không chạy lại migration, không sửa dữ liệu.
 
 ## 12. Rà soát bảo mật cơ chế bình chọn (mục 2)
@@ -210,7 +235,7 @@ Suy luận (**chưa được xác minh**): một bước *sau* khi tải phiên 
 | Nút 👍 Có / 🤔 Chưa | 32 px | **40 px** |
 | Tràn ngang | không | không |
 | Hộp chatbot trong khung nhìn | có | có |
-Bảng “Theo chế độ hiển thị” và cổng admin: không đo lại trong lượt này (mã trang không đổi); kết quả đo ở §4 và kiểm tra cổng 404/404/404/200 ở §2 vẫn là bằng chứng. **Chưa kiểm tra trên thiết bị thật** và chưa kiểm tra trang admin với dữ liệu nhiều dòng. Phạm vi sửa chỉ chạm `MatMat.tsx` (một className) và `ClarityVote.tsx`; test scan/chatbot (SSRF, rules, chatbot) đều pass trong 968 test.
+Bảng “Theo chế độ hiển thị” và cổng admin: không đo lại trong lượt này (mã trang không đổi); kết quả đo ở §4 và kiểm tra cổng 404/404/404/200 ở §2 vẫn là bằng chứng. **Chưa kiểm tra trên thiết bị thật** và chưa kiểm tra trang admin với dữ liệu nhiều dòng. Phạm vi sửa chỉ chạm `MatMat.tsx` (một className) và `ClarityVote.tsx`; test scan/chatbot (SSRF, rules, chatbot) đều pass trong 970 test.
 
 ## 15. Lưu ý về quy trình
 Thư mục làm việc được dùng chung với một session khác. Nhánh cũ `phase-3.2-validation` có thêm commit tài liệu của họ (`94c33bd`); nhánh review `phase-3.2-release-ready` **không** chứa commit đó (xem §10). Lịch sử/tệp của session khác không bị sửa.
