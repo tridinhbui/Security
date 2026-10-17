@@ -71,6 +71,28 @@ Quy trình 4–5 người, 10 phát hiện, thang chấm Q1–Q5, tiêu chí đ�
 | Browser E2E (dev server, `/demo`) | Giải thích hiển thị “Mức chắc chắn” và “Tự kiểm tra lại” với tên miền thật; không lỗi console; không tràn ngang ở viewport mobile 375px; POST bình chọn trả 201; `/admin/giai-thich` ẩn danh → 404 |
 | Chưa kiểm | Giao diện admin khi đăng nhập quản trị (không có tài khoản trong phiên); ảnh chụp cuộn tới phần giải thích bị hạn chế bởi hiệu ứng reveal của trang nên xác minh bằng DOM, không bằng ảnh |
 
-## 7. Production
+## 7. CI và production (cập nhật 2026-10-17)
 
-**Chưa xác minh.** Chưa push và công cụ Cloudflare Workers Builds trong phiên này chưa được cấp quyền, nên chưa thể xác nhận commit nào đang chạy ở production. Xem mục tiếp theo của phiên làm việc.
+**Hai lỗi typecheck từng làm CI đỏ (đã sửa ở commit `e02e4cb`, tách riêng khỏi phần giải thích):**
+
+| Lỗi | Nguyên nhân gốc | Sửa |
+|---|---|---|
+| `src/lib/project/github.ts:65` — `ignoreBOM` thiếu | `@cloudflare/workers-types` khai báo `TextDecoderConstructorOptions` với **cả hai** trường `fatal` và `ignoreBOM` là bắt buộc (lib.dom/@types/node để tuỳ chọn). Lỗi chỉ xuất hiện ở chương trình `worker/tsconfig.json` | Truyền đủ `{ fatal: false, ignoreBOM: false }` — đúng giá trị mặc định theo chuẩn nên runtime không đổi |
+| `src/lib/ssrf/fetch.ts:259` — `toString` “Expected 0 arguments” | `worker/tsconfig.json` có `types: ["@cloudflare/workers-types"]` và kéo `fetch.ts` (mã Node) vào qua chuỗi import `jobs/* → scanner/tls-inspect.ts → ssrf/fetch.ts`. Trong chương trình đó, kiểu `Buffer` mất overload `toString(encoding)` (thử `types: ["node"]` riêng thì hết lỗi; thêm `node` cạnh workers-types vẫn lỗi; import `Buffer` từ `node:buffer` vẫn lỗi). Chưa truy đến dòng khai báo xung đột cụ thể trong workers-types | Thay `res.body.toString("utf8")` bằng `decodeUtf8()` dùng `TextDecoder("utf-8", { fatal:false, ignoreBOM:true })` — giữ BOM và thay byte lỗi bằng U+FFFD như Buffer. Không đụng tới SSRF validation, DNS pinning, redirect handling, GitHub fetch |
+
+Không dùng `any`, `@ts-ignore`, ép kiểu hay nới cấu hình typecheck. Tính tương đương hành vi được khoá bằng `src/lib/ssrf/__tests__/fetch-decode.test.ts` (so với `Buffer#toString`: văn bản hợp lệ, BOM, byte lỗi/overlong/surrogate/cắt giữa chừng, 3000 mẫu ngẫu nhiên, subarray). Hạn chế: sự tương đương kiểm bằng thực nghiệm trên Node cục bộ, không phải chứng minh hình thức.
+
+**Kiểm thử cục bộ:** `npm run typecheck` sạch (cả hai chương trình); vitest 39 file / 927 test đạt; `build:cf` và `wrangler deploy --dry-run` thành công.
+
+**GitHub Actions:** commit `e02e4cb` — job `test` **thành công** (trước đó đỏ liên tục từ `9194666`), Workers Builds thành công.
+
+**Production — mức xác minh đạt được và giới hạn:**
+- Workers Builds báo build thành công cho `e02e4cb` (Version ID `89d80d8d-f991-41cc-89ac-fe53e56db070`) — đây là kết quả *build*, không chứng minh phiên bản đó đang được phục vụ.
+- Dự án **không có version endpoint**, không có `version_metadata` binding, không có GitHub Deployments; công cụ Cloudflare trong phiên chưa được cấp quyền nên không đọc được deployment hiện hành.
+- Kiểm tra gián tiếp: `https://security.tridinhbui0901.workers.dev/demo` trả 200 và đã chứa các chuỗi “Mức chắc chắn”, “Tự kiểm tra lại” (chỉ có từ commit `1e73d61`); `/admin/giai-thich` ẩn danh trả 404. Điều này chứng tỏ production chạy **ít nhất** `1e73d61`, nhưng **không phân biệt** được `1e73d61` với `e02e4cb` (commit sau chỉ đổi cách giải mã UTF-8, không có dấu hiệu nhìn thấy được).
+- Kết luận: **chưa xác minh được commit chính xác đang phục vụ**. Cách đáng tin cậy là xem tab Deployments của Worker `security` trên Cloudflare dashboard (đối chiếu Version ID ở trên) hoặc thêm một endpoint/ binding phiên bản — chưa làm vì ngoài phạm vi.
+- Không deploy lại production thủ công.
+
+## 8. User testing
+
+**Chưa thực hiện.** Chỉ mới có quy trình; cần 4–5 người thật.
