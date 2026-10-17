@@ -360,7 +360,7 @@ const certHygiene = adv({
     const t = obs.https?.tls;
     if (!t) return [];
     const issues: { t: string; sev: "medium" | "low" }[] = [];
-    if (t.validityDays && t.validityDays > 398) issues.push({ t: `Chứng chỉ có hiệu lực ${t.validityDays} ngày (trình duyệt từ chối chứng chỉ dài hơn 398 ngày).`, sev: "medium" });
+    if (t.validityDays && t.validityDays > 398) issues.push({ t: `Chứng chỉ có hiệu lực ${t.validityDays} ngày (vượt giới hạn 398 ngày của chứng chỉ công khai; từ 15/3/2026 giới hạn mới là 200 ngày).`, sev: "medium" });
     if (t.selfSigned) issues.push({ t: "Chứng chỉ tự ký.", sev: "medium" });
     if (t.chainLength === 1 && !t.selfSigned) issues.push({ t: "Máy chủ gửi chuỗi chỉ có 1 chứng chỉ (thiếu chứng chỉ trung gian): một số thiết bị sẽ báo lỗi.", sev: "low" });
     if ((t.altNames?.length ?? 0) > 40) issues.push({ t: `Một chứng chỉ phủ ${t.altNames!.length} tên miền: nếu lộ khoá riêng, tất cả cùng bị ảnh hưởng.`, sev: "low" });

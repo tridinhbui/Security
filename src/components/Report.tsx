@@ -46,6 +46,8 @@ import { Insight, Repro, ReportJson, ReportTriage, statementOf } from "./ReportI
 import { ClarityVote } from "./ClarityVote";
 import { EvidenceNotes, ExplainSections, StepsView } from "./ExplainView";
 import { explain } from "@/lib/scanner/explain";
+import { DEEP_DIVE } from "@/lib/scanner/deep-dive";
+import { DeepDiveView } from "./DeepDiveView";
 type Filter = "issues" | "notes" | "passed";
 
 const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
@@ -519,6 +521,7 @@ function FindingItem({ f, mode, data, i, open, onToggle, layout = "accordion" }:
             )}
             {isFail && <Repro f={f} host={data.host} />}
             {mode === "technical" && f.technical && <Section title="Chi tiết kỹ thuật"><p className="mono whitespace-pre-wrap text-xs leading-relaxed text-muted">{f.technical}</p></Section>}
+            {!isPass && DEEP_DIVE[f.ruleId] && <DeepDiveView d={DEEP_DIVE[f.ruleId]!} defaultOpen={false} />}
           </div>
 
           <div className="min-w-0 space-y-5">

@@ -50,7 +50,7 @@ export const FEYNMAN: Record<string, Feynman> = {
   "config.auth-surface": { like: "Chỉ là quan sát: nhìn từ ngoài, người ta thấy cửa đăng nhập của bạn ở đâu và trông thế nào.", todo: "Không cần làm gì gấp. Hãy bật xác thực hai lớp nếu có thể." },
   "config.debug-headers": { like: "Như nhân viên quên tắt máy ghi âm nội bộ, thông tin gỡ lỗi lọt ra ngoài.", todo: "Tắt chế độ gỡ lỗi ở bản chạy thật." },
   "config.http-methods": { like: "Như để mở cả những cánh cửa phụ bạn không bao giờ dùng.", todo: "Đóng các thao tác không cần thiết trong cấu hình máy chủ." },
-  "privacy.referrer-policy": { like: "Như khách rời tiệm và nói với tiệm kế bên chính xác họ vừa mua gì ở chỗ bạn.", todo: "Thêm một dòng cấu hình để giới hạn thông tin “vừa từ đâu tới”." },
+  "privacy.referrer-policy": { like: "Như khách rời tiệm và có thể bị hỏi “anh vừa ghé trang nào?” — bạn nên tự quy định mình cho biết bao nhiêu.", todo: "Thêm một dòng cấu hình để giới hạn thông tin “vừa từ đâu tới”." },
   "privacy.permissions-policy": { like: "Như khoá sẵn phòng camera và micro, trừ khi thật sự cần.", todo: "Thêm một dòng cấu hình khoá camera, micro, vị trí nếu bạn không dùng." },
   "privacy.third-party-origins": { like: "Như có nhiều người lạ đứng trong tiệm quan sát khách của bạn.", todo: "Rà lại các dịch vụ bên ngoài, bỏ cái nào không còn cần." },
   "privacy.trackers": { like: "Như có người theo sau khách trong tiệm để ghi lại họ xem gì.", todo: "Nếu có theo dõi, hãy nói rõ trong chính sách riêng tư, hoặc gỡ bớt." },
