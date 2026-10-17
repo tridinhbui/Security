@@ -7,7 +7,7 @@ import { KIND_LABEL, PLATFORM_LABEL, type DeepDive } from "@/lib/scanner/deep-di
 function Code({ code }: { code: string }) {
   return (
     <div className="group relative overflow-hidden rounded-lg border border-line bg-surface">
-      <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"><CopyButton text={code} /></div>
+      <div className="absolute right-2 top-2 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"><CopyButton text={code} /></div>
       <pre className="overflow-x-auto px-3 py-2.5 text-[12.5px] leading-6"><code className="whitespace-pre text-fg/90">{code}</code></pre>
     </div>
   );
