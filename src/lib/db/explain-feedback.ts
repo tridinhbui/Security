@@ -67,3 +67,23 @@ export async function recentUnclearComments(db: D1Like, limit = 40) {
     .all<{ rule_id: string; variant: string; comment: string; source: string; mode: string; updated_at: string }>();
   return results;
 }
+
+export interface ModeCell { clear: number; unclear: number; total: number; level: ClarityLevel }
+export interface ModeRow { rule_id: string; beginner: ModeCell; technical: ModeCell }
+const emptyCell = (): ModeCell => ({ clear: 0, unclear: 0, total: 0, level: "insufficient" });
+
+/** Phiếu theo (luật × chế độ hiển thị). Mỗi ô tự áp quy tắc mẫu nhỏ riêng: ít hơn MIN_VOTES phiếu thì “insufficient”. */
+export async function clarityByMode(db: D1Like): Promise<{ overall: { beginner: ModeCell; technical: ModeCell }; rules: ModeRow[] }> {
+  const { results } = await db.prepare(`SELECT rule_id, CASE WHEN mode='technical' THEN 'technical' ELSE 'beginner' END AS mode,
+      SUM(verdict='clear') AS clear, SUM(verdict='unclear') AS unclear, COUNT(*) AS total FROM explain_feedback GROUP BY rule_id, 2`).all<{ rule_id: string; mode: "beginner" | "technical"; clear: number; unclear: number; total: number }>();
+  const overall = { beginner: emptyCell(), technical: emptyCell() };
+  const byRule = new Map<string, ModeRow>();
+  for (const r of results) {
+    const cell: ModeCell = { clear: r.clear, unclear: r.unclear, total: r.total, level: clarityLevel(r.unclear, r.total) };
+    const row = byRule.get(r.rule_id) ?? { rule_id: r.rule_id, beginner: emptyCell(), technical: emptyCell() };
+    row[r.mode] = cell; byRule.set(r.rule_id, row);
+    const o = overall[r.mode]; o.clear += r.clear; o.unclear += r.unclear; o.total += r.total;
+  }
+  for (const m of ["beginner", "technical"] as const) overall[m].level = clarityLevel(overall[m].unclear, overall[m].total);
+  return { overall, rules: [...byRule.values()].sort((a, b) => (b.beginner.unclear + b.technical.unclear) - (a.beginner.unclear + a.technical.unclear)) };
+}

@@ -135,7 +135,7 @@ export function MatMat({ authed }: { authed: boolean }) {
                   <textarea ref={taRef} rows={1} value={text} maxLength={MAX_LEN} onChange={(e) => setText(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }}
                     placeholder="Hỏi Mật Mật bất cứ điều gì… (Shift+Enter để xuống dòng)" aria-label="Câu hỏi cho Mật Mật"
-                    className="input !h-auto max-h-44 min-h-10 resize-none py-2.5 leading-relaxed" />
+                    className="input max-h-44 min-h-10 resize-none overflow-y-auto py-2.5 leading-relaxed" />
                   {text.length > 1500 && <p className="mt-1 text-right text-[11px] text-faint" aria-live="polite">{text.length}/{MAX_LEN}</p>}
                 </div>
                 <button className="btn-primary !h-10" disabled={busy || !text.trim()}>Gửi</button>

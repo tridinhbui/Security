@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { cleanComment, cleanVariant, clarityByRule, clarityLevel, unclearLowerBound, recentUnclearComments, saveVote, VOTES_PER_HOUR } from "../explain-feedback";
+import { clarityByMode, cleanComment, cleanVariant, clarityByRule, clarityLevel, unclearLowerBound, recentUnclearComments, saveVote, VOTES_PER_HOUR } from "../explain-feedback";
 import { createTestD1 } from "./test-d1";
 
 let db: ReturnType<typeof createTestD1>;
@@ -84,5 +84,28 @@ describe("không kết luận từ mẫu nhỏ", () => {
     expect(clarityLevel(1, 20)).toBe("ok");
     expect(unclearLowerBound(5, 10)).toBeLessThan(0.3);
     expect(unclearLowerBound(0, 0)).toBe(0);
+  });
+});
+
+describe("phân tích theo chế độ hiển thị (dữ liệu trong test chỉ để kiểm tra mã, không phải kết quả nghiên cứu)", () => {
+  it("tách “dễ hiểu” và “kỹ thuật”; mỗi ô tự áp quy tắc mẫu nhỏ", async () => {
+    for (let i = 0; i < 12; i++) await saveVote(db, { voter: `b${i}`, ruleId: "headers.csp", variant: "", verdict: i < 8 ? "unclear" : "clear", source: "quick", mode: "beginner", comment: "" });
+    for (let i = 0; i < 3; i++) await saveVote(db, { voter: `t${i}`, ruleId: "headers.csp", variant: "", verdict: "unclear", source: "quick", mode: "technical", comment: "" });
+    const r = await clarityByMode(db);
+    const row = r.rules.find((x) => x.rule_id === "headers.csp")!;
+    expect(row.beginner).toMatchObject({ clear: 4, unclear: 8, total: 12, level: "priority" });
+    expect(row.technical).toMatchObject({ unclear: 3, total: 3, level: "insufficient" }); // 3/3 “chưa rõ” KHÔNG được coi là kết luận
+    expect(r.overall.beginner.total).toBe(12);
+    expect(r.overall.technical.level).toBe("insufficient");
+  });
+  it("không có phiếu nào → mọi ô là mẫu nhỏ, không bịa số", async () => {
+    const r = await clarityByMode(db);
+    expect(r.rules).toEqual([]);
+    expect(r.overall.beginner).toMatchObject({ total: 0, level: "insufficient" });
+  });
+  it("2/2 phiếu “chưa rõ” không phải kết luận (mẫu nhỏ); 8/10 có cận dưới chắc chắn", async () => {
+    expect(clarityLevel(2, 2)).toBe("insufficient");
+    expect(clarityLevel(8, 10)).toBe("priority");
+    expect(clarityLevel(1, 10)).toBe("ok");
   });
 });
