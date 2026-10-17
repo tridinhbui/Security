@@ -26,6 +26,14 @@ export interface FetcherDeps {
 }
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Giải mã UTF-8 giống hệt `Buffer#toString("utf8")` (giữ BOM, thay byte lỗi bằng U+FFFD).
+ * Không gọi `Buffer#toString(encoding)` vì khi typecheck trong chương trình Worker (worker/tsconfig.json, nạp
+ * @cloudflare/workers-types), kiểu `Buffer` bị mất overload nhận encoding; `TextDecoder` có kiểu đúng ở cả hai môi trường.
+ * Tương đương hành vi được khoá bằng test so sánh với Buffer (fetch-decode.test.ts).
+ */
+export const decodeUtf8 = (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: false, ignoreBOM: true }).decode(bytes);
 export const CERT_ERRORS = new Set([
   "CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
   "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", "ERR_TLS_CERT_ALTNAME_INVALID", "CERT_NOT_YET_VALID", "CERT_REVOKED",
@@ -256,7 +264,7 @@ export function createSafeFetcher(budget: ScanBudget, deps: FetcherDeps = {}) {
         continue;
       }
 
-      record.body = res.body.toString("utf8");
+      record.body = decodeUtf8(res.body);
       record.bytes = res.body.length;
       record.truncated = res.truncated;
       record.contentType = String(res.headers["content-type"] ?? "").toLowerCase();

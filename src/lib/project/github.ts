@@ -62,7 +62,7 @@ export async function fetchRepoSnapshot(owner: string, repo: string, token: stri
 
   const files: SourceFile[] = [];
   const allPaths: string[] = [];
-  const dec = new TextDecoder("utf-8", { fatal: false });
+  const dec = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }) // @cloudflare/workers-types marks both options required; these are the spec defaults;
   let kept = 0, skippedLarge = 0;
   const { truncated, entries } = await untar(res.body.pipeThrough(new DecompressionStream("gzip")), {
     maxTotalBytes: 220_000_000, maxEntries: 40_000,
