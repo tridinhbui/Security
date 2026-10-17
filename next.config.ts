@@ -43,7 +43,11 @@ const securityHeaders = [
   },
 ];
 
+// Dấu vết bản dựng, được nhúng lúc build (Workers Builds đặt WORKERS_CI_COMMIT_SHA; GitHub Actions đặt GITHUB_SHA). Không bí mật.
+const buildSha = process.env.WORKERS_CI_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "unknown";
+
 const config: NextConfig = {
+  env: { BUILD_COMMIT_SHA: buildSha, BUILD_TIME: new Date().toISOString() },
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
