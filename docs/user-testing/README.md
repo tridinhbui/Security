@@ -4,6 +4,8 @@
 
 Mục tiêu: kiểm chứng rằng người **không biết bảo mật** (1) quét được, (2) hiểu đúng phát hiện, (3) biết ưu tiên, (4) tìm được cách sửa **và** cách kiểm tra lại. Bổ sung cho [user-testing-explanations.md](../user-testing-explanations.md) (bộ 10 phát hiện, dùng cho vòng chuyên sâu).
 
+Tài liệu đi kèm: [facilitator-runsheet.md](./facilitator-runsheet.md) (kiểm tra trước buổi, cách đo, sau buổi) · [security-reviewer-sheet.md](./security-reviewer-sheet.md) (phiếu rà soát kỹ thuật cho người nhóm C).
+
 ## 1. Người tham gia (5)
 
 | Nhóm | Số | Mô tả |

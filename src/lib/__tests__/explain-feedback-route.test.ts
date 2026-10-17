@@ -127,3 +127,23 @@ describe("quyền admin của trang tổng hợp", () => {
     }
   });
 });
+
+describe("tăng cường (Phase 3.2 release-ready)", () => {
+  it("413 khi nội dung thật vượt 4 KB dù không có content-length", async () => {
+    const big = JSON.stringify({ ...good, comment: "a b ".repeat(2000) });
+    const r = new NextRequest(`https://${HOST}/api/explain-feedback`, { method: "POST", headers: { host: HOST, origin: `https://${HOST}`, "cf-connecting-ip": "203.0.113.9" }, body: big });
+    r.headers.delete("content-length");
+    expect((await POST(r)).status).toBe(413);
+    expect(rows()).toHaveLength(0);
+  });
+  it("body là mảng/null/chuỗi JSON → 400", async () => {
+    for (const b of ["[]", "null", '"x"', "123"]) expect((await POST(req(b))).status).toBe(400);
+  });
+  it("IPv6 cùng /64 được tính là một người (không tách phiếu bằng cách đổi 64 bit cuối)", async () => {
+    await POST(req(good, { ip: "2001:db8:1:2::1" }));
+    await POST(req({ ...good, verdict: "unclear" }, { ip: "2001:db8:1:2:aaaa:bbbb:cccc:dddd" }));
+    expect(rows()).toHaveLength(1);
+    await POST(req(good, { ip: "2001:db8:1:3::1" })); // /64 khác → người khác
+    expect(rows()).toHaveLength(2);
+  });
+});
