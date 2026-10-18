@@ -54,3 +54,9 @@ Ngày 2026-10-18. Production: `https://security.tridinhbui0901.workers.dev`, `/a
 - Không đổi luật chấm điểm.
 - Không vượt giới hạn tốc độ hay kiểm soát bảo mật nào.
 - Không merge, không deploy.
+
+## Xác nhận sau khi deploy bản sửa (PR #6, production `5f9f54a`, bộ luật v12)
+
+- `/api/version` → commit `5f9f54a03dfa…`, `workerVersionId 5c5b1e48-…`; Workers Builds và GitHub Actions trên `main` thành công.
+- Quét nhanh `expired.badssl.com` trên production → **HTTP 422 `invalid_certificate`**: “Phát hiện nghiêm trọng: chứng chỉ HTTPS của website không hợp lệ…”, kèm cách sửa. Trước bản sửa: 76/C, “HTTPS hoạt động và chứng chỉ được tin cậy”. **PASS.**
+- Quét nhanh `badssl.com` sau khi đổi phiên bản bộ luật → `cached: false` (cache v11 đã bị bỏ qua), vẫn 69/D, trần 89, phạm vi 6/7. **PASS** (không hồi quy với website bình thường).
