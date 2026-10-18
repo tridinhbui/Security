@@ -130,3 +130,10 @@ describe("benchmark theo nền tảng (giả lập toàn bộ luồng quét nhan
     expect(r.grade).toBe("B");
   });
 });
+
+describe("hồi quy sau deploy: chứng chỉ hết hạn sau Cloudflare (526)", () => {
+  it("quét nhanh không còn báo “HTTPS hoạt động, chứng chỉ được tin cậy” mà nêu lỗi chứng chỉ nghiêm trọng", async () => {
+    const cf526 = () => new Response("<html><title>Invalid SSL certificate</title></html>", { status: 526, headers: { "content-type": "text/html", server: "cloudflare" } });
+    await expect(scan({ host: "expired.shop.vn", dns: GOOD_DNS, https: () => cf526() })).rejects.toMatchObject({ code: "invalid_certificate" });
+  });
+});

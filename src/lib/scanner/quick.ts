@@ -105,6 +105,8 @@ export interface QuickResult {
 
 export const UNREACHABLE_MESSAGE = "Chưa quét được: VibeSec không kết nối được tới website qua HTTPS lẫn HTTP. Đây không phải kết quả bảo mật. Hãy kiểm tra: (1) địa chỉ gõ đúng chưa; (2) mở thử bằng trình duyệt xem website có đang chạy không; (3) website có chặn công cụ tự động (tường lửa, chống bot) không. Sau đó thử lại.";
 
+export const INVALID_CERT_MESSAGE = "Phát hiện nghiêm trọng: chứng chỉ HTTPS của website không hợp lệ (hết hạn, tự ký hoặc không khớp tên miền). Khách truy cập sẽ thấy cảnh báo đỏ toàn màn hình và đa số sẽ rời đi. Cần sửa ngay: gia hạn hoặc cài lại chứng chỉ ở hosting/CDN (Let’s Encrypt hoặc chứng chỉ tự động của nền tảng), đảm bảo chứng chỉ khớp đúng tên miền và có đủ chuỗi trung gian. VibeSec chưa chấm điểm các mục khác vì không đọc được trang qua kết nối hợp lệ; sửa xong hãy quét lại.";
+
 export const HTTPS_UNAVAILABLE_MESSAGE = "Chưa chấm điểm: website mở được bằng http:// nhưng bản https:// không kết nối được trong lần quét này. Nếu website CHƯA có HTTPS (ổ khoá trên thanh địa chỉ), đây là việc cần làm đầu tiên: bật HTTPS ở hosting/CDN (thường miễn phí và chỉ vài cú bấm), rồi quét lại. Nếu website ĐÃ có HTTPS, có thể do mạng tạm thời: hãy thử lại sau ít phút hoặc dùng quét đầy đủ.";
 
 const short = (s: string, n = 170) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
@@ -185,6 +187,9 @@ export async function runQuickScan(input: string, deps: QuickDeps): Promise<Quic
   const blocked = obs.https?.error?.blocked ? obs.https.error : obs.http?.error?.blocked ? obs.http.error : null;
   if (!obs.page && blocked) throw new SsrfError(blocked.code as SsrfError["code"], blocked.message, blocked.detail);
   // Không kết nối được: KHÔNG chấm điểm (một điểm 0/F sẽ biến “chưa kiểm tra được” thành “lỗi bảo mật”) và không lưu vào bộ nhớ đệm.
+  // Chứng chỉ HTTPS không hợp lệ: đây CHÍNH LÀ phát hiện quan trọng nhất (trình duyệt chặn khách bằng cảnh báo đỏ). Không chấm điểm phần còn lại
+  // vì VibeSec không đọc được trang thật qua kết nối hợp lệ, nhưng nói rõ lỗi và cách sửa.
+  if (obs.https?.certError && (!obs.page || obs.page === obs.https || obs.https.error)) throw new ScanRefusedError("invalid_certificate", INVALID_CERT_MESSAGE, obs.https.certError.code);
   if (!obs.page) throw new ScanRefusedError("unreachable", UNREACHABLE_MESSAGE, (obs.https?.error ?? obs.http?.error)?.code);
   // HTTPS không mở được nhưng HTTP có: Worker không phân biệt được “không có HTTPS” với “lỗi mạng tạm thời”, nên không chấm điểm
   // (nếu chấm, website chỉ có HTTP có thể ra hạng A vì mọi kiểm tra HTTPS đều im lặng).
