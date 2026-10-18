@@ -139,7 +139,14 @@ export const T2: Record<string, Tpl2> = {
   },
 
   /* ───────── Cookies ───────── */
-  "cookies.flags": (f) => {
+  "cookies.flags": (f) => key(f) === "na-no-cookies" ? {
+    saw: "Ở lần truy cập đầu (chưa đăng nhập), website không đặt cookie nào.",
+    why: "Kiểm tra cookie chỉ có ý nghĩa khi có cookie. Không có cookie thì không có cờ bảo mật nào để thiếu.",
+    consequence: "Không áp dụng cho lượt quét này; không trừ điểm và không tính là “đạt”.",
+    steps: [S("dev", "Nếu website có đăng nhập, hãy tự kiểm tra cookie phiên sau khi đăng nhập có đủ Secure, HttpOnly, SameSite (DevTools → Application → Cookies).")],
+    expect: "Cookie phiên sau đăng nhập có đủ Secure, HttpOnly, SameSite.", certainty: "confirmed",
+    caveat: "VibeSec không đăng nhập, nên không thấy cookie chỉ xuất hiện sau khi đăng nhập.", verify: "curl -sI https://HOST/ | grep -i set-cookie",
+  } : (() => {
     const name = key(f) || "cookie";
     const line = f.evidence[0] ?? "";
     const missing = (/Thiếu:\s*([^.]*)\./.exec(f.summary)?.[1] ?? "").split(/,\s*/).filter(Boolean);
@@ -162,7 +169,7 @@ export const T2: Record<string, Tpl2> = {
       verify: "curl -sI https://HOST/ | grep -i set-cookie",
       note: (l) => /=<đã che>/.test(l) ? `Tên cookie và cờ đang có: ${[/Secure/.test(l) ? "Secure" : "THIẾU Secure", /HttpOnly/i.test(l) ? "HttpOnly" : "THIẾU HttpOnly", /SameSite/i.test(l) ? "SameSite" : "THIẾU SameSite"].join(", ")}. Giá trị cookie đã được che.` : undefined,
     };
-  },
+  })(),
   "cookies.cache-control-sensitive": (f) => ({
     saw: clip(f.summary, 220),
     why: "Trang đăng nhập/tài khoản có thể chứa thông tin cá nhân. Nếu không có Cache-Control: no-store, proxy hoặc trình duyệt dùng chung có thể lưu bản sao và phục vụ lại cho người sau.",
@@ -290,7 +297,7 @@ export const T2: Record<string, Tpl2> = {
     const dig = `dig +short TXT ${d}`;
     const base = (t: TplOut): TplOut => ({ certainty: "confirmed", caveat: "Kết quả từ bộ phân giải DNS công khai; DNS vừa đổi có thể cần chờ vài giờ để cập nhật. Chúng tôi không biết tên miền này có thật sự gửi email hay không.", ...t });
     switch (k) {
-      case "platform": {
+      case "na-platform": {
         const suffix = /Hậu tố nền tảng[^:]*:\s*(\S+)/.exec(f.evidence.join("\n"))?.[1] ?? "nền tảng";
         return {
           saw: `Website đang chạy trên tên miền con của ${suffix} (tên miền do nền tảng sở hữu, không phải của bạn).`,

@@ -256,7 +256,7 @@ const outdatedLibraries: Rule = {
     if (libs.length === 0 || !obs.page) return [];
     const url = obs.page.finalUrl;
     const bad = libs.filter((l) => l.severity);
-    const refs = [{ title: "OWASP Top 10 A06:2021 — Vulnerable and Outdated Components", url: "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/" }];
+    const refs = [{ title: "OWASP Top 10 A03:2025 — Software Supply Chain Failures", url: "https://owasp.org/Top10/2025/A03_2025-Software_Supply_Chain_Failures/" }];
     if (bad.length === 0) {
       return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: url, summary: `Nhận diện ${libs.length} thư viện (${libs.slice(0, 4).map((l) => `${l.name} ${l.version}`).join(", ")}); không có phiên bản nào nằm trong danh sách lỗ hổng đã biết của chúng tôi.`, explanation: "Danh sách của chúng tôi chỉ gồm các thư viện phổ biến và lỗ hổng nổi tiếng. Hãy dùng thêm npm audit / Dependabot cho kiểm tra đầy đủ.", evidence: libs.slice(0, 8).map((l) => `${l.name} ${l.version} — ${truncate(l.source, 140)}`), references: refs })];
     }

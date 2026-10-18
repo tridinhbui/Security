@@ -6,7 +6,7 @@ import { headline } from "./QuickAnalyst";
 /** Các khối bổ sung cho trang kết quả quét nhanh: việc làm trước, điểm đến từ đâu, phạm vi quét, bộ lọc. */
 
 export type StatusFilter = "issues" | "all" | "pass" | "notes";
-export const filterMatch = (f: StatusFilter, i: AItem) => (f === "all" ? true : f === "pass" ? i.status === "pass" : f === "notes" ? i.status === "info" || i.status === "unknown" : isIssueItem(i));
+export const filterMatch = (f: StatusFilter, i: AItem) => (f === "all" ? true : f === "pass" ? i.status === "pass" : f === "notes" ? i.status === "info" || i.status === "unknown" || i.status === "not_applicable" : isIssueItem(i));
 
 const URG_RANK = { now: 0, week: 1, later: 2 } as const;
 const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -22,6 +22,7 @@ export function TopActions({ items, onPick }: { items: AItem[]; onPick: (n: numb
   return (
     <div className="mt-4 rounded-xl border border-line bg-white p-3.5">
       <p className="eyebrow">nên làm trước</p>
+      <p className="mt-1 text-xs text-muted">Bấm một mục để xem chuyện gì đang xảy ra, ai cần sửa và sửa thế nào.</p>
       <ol className="mt-2 space-y-1.5">
         {ranked.map(({ i, n }, k) => (
           <li key={n}>

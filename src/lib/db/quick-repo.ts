@@ -25,6 +25,26 @@ export const freshGlobal = (db: D1Like, windowMs: number) => count(db, "SELECT C
 /** Số lượt quét thật tới cùng một tên miền (bảo vệ website bị quét). */
 export const freshByHost = (db: D1Like, host: string, windowMs: number) => count(db, "SELECT COUNT(*) c FROM quick_scan_log WHERE host = ? AND cached = 0 AND at > ?", host, isoAgo(windowMs));
 
+export type QuickLimitHit = "ip" | "host" | "global";
+/**
+ * GIỮ CHỖ một lượt quét thật rồi mới đếm, để các yêu cầu ĐỒNG THỜI không cùng lọt qua hạn mức (trước đây: đếm rồi mới ghi, nên 8 yêu cầu
+ * song song tới cùng một website đều được quét dù hạn mức là 3/giờ). Chỉ đếm các dòng có id ≤ id của mình: N yêu cầu đầu tiên được quét,
+ * phần còn lại bị từ chối và xoá chỗ đã giữ. Không bao giờ vượt hạn mức; trong trường hợp xấu nhất từ chối hơi nhiều hơn cần thiết.
+ */
+export async function reserveFreshQuickScan(db: D1Like, ipHash: string, host: string, l: { freshPerHour: number; freshPerDay: number; hostPerHour: number; globalPerDay: number }): Promise<{ ok: true; id: number } | { ok: false; hit: QuickLimitHit }> {
+  const row = await db.prepare("INSERT INTO quick_scan_log (ip_hash,host,cached,at) VALUES (?,?,0,?) RETURNING id").bind(ipHash, host, nowIso()).first<{ id: number }>();
+  const id = row!.id;
+  const upTo = (sql: string, ...p: (string | number)[]) => count(db, `${sql} AND id <= ?`, ...p, id);
+  const hit: QuickLimitHit | null =
+    (await upTo("SELECT COUNT(*) c FROM quick_scan_log WHERE ip_hash = ? AND cached = 0 AND at > ?", ipHash, isoAgo(HOUR))) > l.freshPerHour ||
+    (await upTo("SELECT COUNT(*) c FROM quick_scan_log WHERE ip_hash = ? AND cached = 0 AND at > ?", ipHash, isoAgo(DAY))) > l.freshPerDay ? "ip"
+    : (await upTo("SELECT COUNT(*) c FROM quick_scan_log WHERE host = ? AND cached = 0 AND at > ?", host, isoAgo(HOUR))) > l.hostPerHour ? "host"
+    : (await upTo("SELECT COUNT(*) c FROM quick_scan_log WHERE cached = 0 AND at > ?", isoAgo(DAY))) > l.globalPerDay ? "global"
+    : null;
+  if (hit) { await db.prepare("DELETE FROM quick_scan_log WHERE id = ?").bind(id).run(); return { ok: false, hit }; }
+  return { ok: true, id };
+}
+
 /** Dọn dữ liệu cũ (gọi cơ hội mỗi lần quét thật; rẻ nhờ chỉ mục theo thời gian). */
 export async function purgeQuick(db: D1Like) {
   await db.batch([

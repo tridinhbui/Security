@@ -134,7 +134,7 @@ const httpMethods: Rule = {
     const allowed = (m.allow ?? "").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
     const ev = [`OPTIONS ${url} → ${m.status}`, `Allow: ${m.allow ?? "(không có)"}`];
     const trace = allowed.filter((x) => x === "TRACE" || x === "TRACK");
-    if (trace.length) return [makeFinding({ ruleId: this.id, key: "trace", title: "Máy chủ công bố phương thức TRACE/TRACK", category: this.category, severity: "medium", confidence: "high", status: "fail", affectedUrl: url, references: refs,
+    if (trace.length) return [makeFinding({ ruleId: this.id, key: "trace", title: "Máy chủ công bố phương thức TRACE/TRACK", category: this.category, severity: "low" /* trình duyệt hiện đại chặn TRACE từ fetch/XHR nên XST gần như không còn khai thác được */, confidence: "high", status: "fail", affectedUrl: url, references: refs,
       summary: `Header Allow có ${trace.join(", ")}.`, explanation: "TRACE phản chiếu lại nguyên request (kể cả header nhạy cảm) và là nền tảng của tấn công Cross-Site Tracing. Hiếm khi cần ở production.", evidence: ev,
       remediation: { summary: "Tắt TRACE/TRACK.", snippets: [] } })];
     const risky = allowed.filter((x) => ["PUT", "DELETE", "PATCH", "CONNECT"].includes(x));

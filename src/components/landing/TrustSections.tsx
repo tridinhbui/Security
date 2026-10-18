@@ -22,7 +22,7 @@ const Ico = ({ d }: { d: string }) => <svg viewBox="0 0 24 24" className="size-6
 
 /** Dải chuẩn tham chiếu ngay dưới hero. Chữ thuần, không logo: chúng tôi tham chiếu chuẩn mở, không phải được các tổ chức này chứng nhận. */
 export function StandardsStrip() {
-  const items = ["OWASP Top 10 (2021)", "CWE · MITRE", "OWASP ASVS 4.0.3", "OWASP WSTG", "OSV.dev", "npm registry"];
+  const items = ["OWASP Top 10:2025", "CWE · MITRE", "OWASP ASVS 4.0.3", "OWASP WSTG", "OSV.dev", "npm registry"];
   return (
     <section className="hairline bg-surface/60" aria-labelledby="std-h">
       <div className="container-x py-7">
@@ -97,7 +97,7 @@ export function CoverageTable() {
         <Reveal from="left">
           <p className="eyebrow mb-3">minh bạch phạm vi</p>
           <h2 id="cov-h" className="text-3xl font-semibold tracking-tight">Chúng tôi nói rõ cái gì quét được và không.</h2>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted">Quét từ bên ngoài chạm tới <strong className="font-medium text-fg">{s.owasp}/10</strong> nhóm trong OWASP Top 10. Hai nhóm còn lại cần truy cập bên trong hệ thống hoặc gửi payload tấn công, nên chúng tôi cố ý bỏ qua thay vì làm ra vẻ bao phủ.</p>
+          <p className="mt-4 text-[15px] leading-relaxed text-muted">Quét từ bên ngoài chạm tới <strong className="font-medium text-fg">{s.owasp}/10</strong> nhóm trong OWASP Top 10. Nhóm còn lại (ghi nhật ký và cảnh báo) chỉ thấy được từ bên trong hệ thống, nên chúng tôi nói thẳng là không phủ thay vì làm ra vẻ bao phủ. Nhiều nhóm khác chỉ được phủ một phần, ghi rõ bên cạnh.</p>
           <p className="mt-3 text-[15px] leading-relaxed text-muted">VibeSec là công cụ sàng lọc nhanh và chỉ đường sửa, <strong className="font-medium text-fg">không thay thế kiểm thử xâm nhập (pentest)</strong> hay chứng nhận tuân thủ.</p>
         </Reveal>
         <Reveal from="right" delay={100}>

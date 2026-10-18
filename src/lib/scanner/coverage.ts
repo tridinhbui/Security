@@ -17,7 +17,8 @@ export function coverageGaps(obs: Observations, opts: { quick?: boolean } = {}):
     g.push({ code: "https_unverified", text: `Không kết nối ổn định được bản HTTPS (${h.error.code}), nên các kiểm tra chứng chỉ, HSTS và header trên HTTPS chưa đầy đủ.` });
   else if (!opts.quick && h && !h.error && !h.tls)
     g.push({ code: "tls_unread", text: "Không đọc được thông tin chứng chỉ TLS (hạn dùng, độ dài khoá, phiên bản TLS), nên các mục này chưa được kiểm tra." });
-  if (!obs.dns && !obs.platformSuffix)
+  const dnsFailed = !!obs.dns && obs.dns.spf === undefined && obs.dns.dmarc === undefined; // mọi truy vấn TXT đều lỗi
+  if ((!obs.dns || dnsFailed) && !obs.platformSuffix)
     g.push({ code: "dns_unavailable", text: "Không tra được DNS của tên miền, nên SPF, DMARC, CAA, DNSSEC chưa được kiểm tra." });
   return g;
 }

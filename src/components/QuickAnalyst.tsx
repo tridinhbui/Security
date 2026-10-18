@@ -15,7 +15,7 @@ export interface ATech {
   references?: { title: string; url: string }[];
   title?: string; explain?: ExplainData;
 }
-export type AStatus = "pass" | "warning" | "fail" | "info" | "unknown";
+export type AStatus = "pass" | "warning" | "fail" | "info" | "unknown" | "not_applicable";
 export interface AItem { id: string; label: string; status: AStatus; text: string; tech?: ATech }
 /** Chỉ “cần sửa” và “nên cải thiện” là việc phải làm; “tham khảo” và “chưa kiểm tra được” thì không. */
 export const isIssueItem = (i: Pick<AItem, "status">) => i.status === "fail" || i.status === "warning";
@@ -118,8 +118,8 @@ function toMarkdown(host: string, score: number, grade: string, items: AItem[]):
     if (t?.fixSummary) L.push("", `Giải pháp: ${t.fixSummary}`);
     L.push("");
   });
-  const notes = items.filter((i) => i.status === "info" || i.status === "unknown");
-  if (notes.length) L.push(`## Tham khảo / chưa kiểm tra được (${notes.length})`, "", ...notes.map((i) => `- ${i.status === "unknown" ? "[Chưa kiểm tra được] " : ""}${i.label}: ${i.text}`), "");
+  const notes = items.filter((i) => i.status === "info" || i.status === "unknown" || i.status === "not_applicable");
+  if (notes.length) L.push(`## Tham khảo / chưa kiểm tra được (${notes.length})`, "", ...notes.map((i) => `- ${i.status === "unknown" ? "[Chưa kiểm tra được] " : i.status === "not_applicable" ? "[Không áp dụng] " : ""}${i.label}: ${i.text}`), "");
   const ok = items.filter((i) => i.status === "pass");
   L.push(`## Đạt (${ok.length})`, "", ...ok.map((i) => `- ${i.label}: ${i.text}`), "");
   return L.join("\n");

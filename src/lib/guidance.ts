@@ -34,20 +34,67 @@ export const EFFORT: Record<string, Effort> = {
 };
 export const effortFor = (f: Pick<Finding, "ruleId">): Effort => EFFORT[f.ruleId] ?? "medium";
 
-/** Ánh xạ sang OWASP Top 10 (2021). */
+/**
+ * Ánh xạ sang OWASP Top 10:2025 (bản chính thức, thay cho 2021). Đối chiếu với tên hạng mục và danh sách CWE của từng hạng mục trong
+ * repo OWASP/Top10 (2025/docs/en). Ánh xạ theo Ý NGHĨA của kiểm tra; luật không thuộc rủi ro nào trong Top 10 (hiệu năng, thông tin
+ * tham khảo, quyền riêng tư) cố ý không có mục: tls.http2, exposure.robots-txt, exposure.sitemap-xml, exposure.security-txt,
+ * config.technology, config.auth-surface, adv.endpoint-map, privacy.trackers, privacy.third-party-origins.
+ */
 export const OWASP_MAP: Record<string, string[]> = {
-  "adv.csp-analysis": ["A03:2021 – Injection (giảm thiểu XSS)"], "adv.shared-cache-leak": ["A04:2021 – Thiết kế không an toàn"], "adv.cookie-scope": ["A07:2021 – Lỗi xác thực"], "adv.supply-chain": ["A08:2021 – Lỗi toàn vẹn phần mềm và dữ liệu"], "adv.dom-xss-flow": ["A03:2021 – Injection (giảm thiểu XSS)"], "adv.postmessage": ["A01:2021 – Kiểm soát truy cập bị hỏng"], "adv.web-storage-secrets": ["A02:2021 – Lỗi mật mã học"], "adv.graphql-surface": ["A05:2021 – Cấu hình bảo mật sai"], "adv.header-consistency": ["A05:2021 – Cấu hình bảo mật sai"], "adv.spf-deep": ["A05:2021 – Cấu hình bảo mật sai"], "adv.dmarc-deep": ["A05:2021 – Cấu hình bảo mật sai"], "adv.certificate-hygiene": ["A02:2021 – Lỗi mật mã học"], "adv.form-method": ["A07:2021 – Lỗi xác thực"],
-  "tls.https-available": ["A02:2021 – Lỗi mật mã học"], "tls.certificate-expiry": ["A02:2021 – Lỗi mật mã học"], "tls.certificate-strength": ["A02:2021 – Lỗi mật mã học"],
-  "tls.protocol-version": ["A02:2021 – Lỗi mật mã học"], "tls.http-to-https-redirect": ["A02:2021 – Lỗi mật mã học"], "tls.www-consistency": ["A02:2021 – Lỗi mật mã học"],
-  "tls.hsts": ["A02:2021 – Lỗi mật mã học"], "tls.insecure-login-form": ["A02:2021 – Lỗi mật mã học", "A07:2021 – Lỗi xác thực"],
-  "headers.csp": ["A03:2021 – Injection (giảm thiểu XSS)", "A05:2021 – Cấu hình bảo mật sai"], "headers.frame-protection": ["A05:2021 – Cấu hình bảo mật sai"],
-  "headers.x-content-type-options": ["A05:2021 – Cấu hình bảo mật sai"], "headers.broken": ["A05:2021 – Cấu hình bảo mật sai"], "headers.cross-origin-isolation": ["A05:2021 – Cấu hình bảo mật sai"],
-  "headers.charset": ["A05:2021 – Cấu hình bảo mật sai"], "headers.deprecated": ["A05:2021 – Cấu hình bảo mật sai"], "tls.hsts-preload": ["A02:2021 – Lỗi mật mã học"], "tls.cipher-suite": ["A02:2021 – Lỗi mật mã học"], "headers.cache-policy": ["A04:2021 – Thiết kế không an toàn"], "config.debug-headers": ["A05:2021 – Cấu hình bảo mật sai"], "config.http-methods": ["A05:2021 – Cấu hình bảo mật sai"], "browser.form-targets": ["A07:2021 – Lỗi xác thực", "A08:2021 – Lỗi toàn vẹn phần mềm và dữ liệu"], "cookies.prefix": ["A07:2021 – Lỗi xác thực"], "exposure.internal-references": ["A05:2021 – Cấu hình bảo mật sai"], "exposure.html-comments": ["A05:2021 – Cấu hình bảo mật sai"],
-  "browser.mixed-content": ["A02:2021 – Lỗi mật mã học"], "browser.third-party-integrity": ["A08:2021 – Lỗi toàn vẹn phần mềm và dữ liệu"], "browser.cors": ["A01:2021 – Kiểm soát truy cập bị hỏng", "A05:2021 – Cấu hình bảo mật sai"],
-  "cookies.flags": ["A07:2021 – Lỗi xác thực", "A02:2021 – Lỗi mật mã học"], "cookies.cache-control-sensitive": ["A04:2021 – Thiết kế không an toàn"],
-  "exposure.secrets": ["A02:2021 – Lỗi mật mã học", "A05:2021 – Cấu hình bảo mật sai"], "exposure.public-config": ["A05:2021 – Cấu hình bảo mật sai"], "exposure.source-maps": ["A05:2021 – Cấu hình bảo mật sai"],
-  "exposure.outdated-libraries": ["A06:2021 – Thành phần lỗi thời hoặc có lỗ hổng"], "exposure.subdomain-takeover": ["A05:2021 – Cấu hình bảo mật sai"], "exposure.error-page-disclosure": ["A05:2021 – Cấu hình bảo mật sai"],
-  "config.server-disclosure": ["A05:2021 – Cấu hình bảo mật sai"], "config.suspicious-redirects": ["A01:2021 – Kiểm soát truy cập bị hỏng"], "config.dns-email-security": ["A05:2021 – Cấu hình bảo mật sai"],
+  "tls.https-available": ["A04:2025 – Lỗi mật mã học"],
+  "tls.certificate-expiry": ["A04:2025 – Lỗi mật mã học"],
+  "tls.certificate-strength": ["A04:2025 – Lỗi mật mã học"],
+  "tls.protocol-version": ["A04:2025 – Lỗi mật mã học"],
+  "tls.http-to-https-redirect": ["A04:2025 – Lỗi mật mã học"],
+  "tls.www-consistency": ["A04:2025 – Lỗi mật mã học"],
+  "tls.hsts": ["A04:2025 – Lỗi mật mã học"],
+  "tls.hsts-preload": ["A04:2025 – Lỗi mật mã học"],
+  "tls.cipher-suite": ["A04:2025 – Lỗi mật mã học"],
+  "browser.mixed-content": ["A04:2025 – Lỗi mật mã học"],
+  "adv.certificate-hygiene": ["A04:2025 – Lỗi mật mã học"],
+  "adv.redirect-chain": ["A04:2025 – Lỗi mật mã học"],
+  "tls.insecure-login-form": ["A04:2025 – Lỗi mật mã học", "A07:2025 – Lỗi xác thực"],
+  "headers.csp": ["A05:2025 – Injection (giảm thiểu XSS)", "A02:2025 – Cấu hình bảo mật sai"],
+  "adv.csp-analysis": ["A05:2025 – Injection (giảm thiểu XSS)"],
+  "adv.dom-xss-flow": ["A05:2025 – Injection (giảm thiểu XSS)"],
+  "headers.frame-protection": ["A02:2025 – Cấu hình bảo mật sai"],
+  "headers.x-content-type-options": ["A02:2025 – Cấu hình bảo mật sai"],
+  "headers.broken": ["A02:2025 – Cấu hình bảo mật sai"],
+  "headers.cross-origin-isolation": ["A02:2025 – Cấu hình bảo mật sai"],
+  "headers.charset": ["A02:2025 – Cấu hình bảo mật sai"],
+  "headers.deprecated": ["A02:2025 – Cấu hình bảo mật sai"],
+  "config.debug-headers": ["A02:2025 – Cấu hình bảo mật sai"],
+  "config.http-methods": ["A02:2025 – Cấu hình bảo mật sai"],
+  "config.server-disclosure": ["A02:2025 – Cấu hình bảo mật sai"],
+  "config.dns-email-security": ["A02:2025 – Cấu hình bảo mật sai"],
+  "exposure.internal-references": ["A02:2025 – Cấu hình bảo mật sai"],
+  "exposure.html-comments": ["A02:2025 – Cấu hình bảo mật sai"],
+  "exposure.public-config": ["A02:2025 – Cấu hình bảo mật sai"],
+  "exposure.source-maps": ["A02:2025 – Cấu hình bảo mật sai"],
+  "exposure.subdomain-takeover": ["A02:2025 – Cấu hình bảo mật sai"],
+  "adv.graphql-surface": ["A02:2025 – Cấu hình bảo mật sai"],
+  "adv.header-consistency": ["A02:2025 – Cấu hình bảo mật sai"],
+  "adv.spf-deep": ["A02:2025 – Cấu hình bảo mật sai"],
+  "adv.dmarc-deep": ["A02:2025 – Cấu hình bảo mật sai"],
+  "privacy.referrer-policy": ["A02:2025 – Cấu hình bảo mật sai"],
+  "privacy.permissions-policy": ["A02:2025 – Cấu hình bảo mật sai"],
+  "headers.cache-policy": ["A06:2025 – Thiết kế không an toàn"],
+  "cookies.cache-control-sensitive": ["A06:2025 – Thiết kế không an toàn"],
+  "adv.shared-cache-leak": ["A06:2025 – Thiết kế không an toàn"],
+  "adv.cookie-scope": ["A07:2025 – Lỗi xác thực"],
+  "cookies.prefix": ["A07:2025 – Lỗi xác thực"],
+  "browser.form-targets": ["A07:2025 – Lỗi xác thực"],
+  "browser.third-party-integrity": ["A08:2025 – Lỗi toàn vẹn phần mềm và dữ liệu"],
+  "browser.cors": ["A01:2025 – Kiểm soát truy cập bị hỏng", "A02:2025 – Cấu hình bảo mật sai"],
+  "adv.postmessage": ["A01:2025 – Kiểm soát truy cập bị hỏng"],
+  "adv.web-storage-secrets": ["A01:2025 – Kiểm soát truy cập bị hỏng"],
+  "exposure.outdated-libraries": ["A03:2025 – Lỗi chuỗi cung ứng phần mềm"],
+  "config.suspicious-redirects": ["A04:2025 – Lỗi mật mã học", "A02:2025 – Cấu hình bảo mật sai"],
+  "exposure.error-page-disclosure": ["A10:2025 – Xử lý sai tình huống bất thường", "A02:2025 – Cấu hình bảo mật sai"],
+  "adv.supply-chain": ["A03:2025 – Lỗi chuỗi cung ứng phần mềm", "A08:2025 – Lỗi toàn vẹn phần mềm và dữ liệu"],
+  "cookies.flags": ["A02:2025 – Cấu hình bảo mật sai", "A07:2025 – Lỗi xác thực"],
+  "exposure.secrets": ["A07:2025 – Lỗi xác thực", "A02:2025 – Cấu hình bảo mật sai"],
+  "adv.form-method": ["A06:2025 – Thiết kế không an toàn", "A07:2025 – Lỗi xác thực"],
 };
 
 const open = (fs: Finding[]) => fs.filter((f) => f.status === "fail" && f.severity !== "info");
@@ -60,7 +107,8 @@ export function buildRoadmap(findings: Finding[], currentScore: number): Roadmap
   const order: Severity[] = ["critical", "high", "medium", "low", "info"];
   return (["quick", "medium", "planned"] as Effort[]).map((effort) => {
     const items = failing.filter((f) => effortFor(f) === effort).sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity));
-    const remaining = findings.filter((f) => !items.includes(f));
+    // Coi các mục đã xử lý là ĐẠT (không xoá đi): xoá sẽ làm nhóm kiểm tra trông như “chưa kiểm tra được” và hạ trần điểm sai.
+    const remaining = findings.map((f) => (items.includes(f) ? { ...f, status: "pass" as const } : f));
     return { effort, items, gain: items.length ? Math.max(0, calculateScore(remaining).score - currentScore) : 0 };
   }).filter((g) => g.items.length > 0);
 }

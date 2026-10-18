@@ -18,6 +18,7 @@ import { ANALYST, originFor, reproFor, type Origin } from "./analyst";
 import { explain, type Explanation } from "./explain";
 import { ScanRefusedError } from "./report";
 import { coverageGaps, refuseIfBlocked } from "./coverage";
+import { isNotApplicable, type ScanCoverage } from "./scan-coverage";
 
 /**
  * QUÉT NHANH MIỄN PHÍ (không cần tài khoản). Chạy hoàn toàn trong Worker, thụ động và rất nhẹ:
@@ -60,7 +61,7 @@ export const GROUP_LABEL: Record<QuickGroup, string> = {
  * pass = đạt · warning = nên cải thiện (mức Thấp) · fail = cần sửa (Trung bình trở lên)
  * info = thông tin tham khảo, không phải lỗi · unknown = CHƯA KIỂM TRA ĐƯỢC (thiếu dữ liệu) — không bao giờ bị tính là lỗi hay đạt.
  */
-export type QuickStatus = "pass" | "warning" | "fail" | "info" | "unknown";
+export type QuickStatus = "pass" | "warning" | "fail" | "info" | "unknown" | "not_applicable";
 /** Chỉ "fail" và "warning" là việc cần làm; "info"/"unknown" không trừ điểm và không được đếm là vấn đề. */
 export const isIssue = (s: QuickStatus) => s === "fail" || s === "warning";
 /** Chi tiết kỹ thuật + giải pháp của một mục (chỉ dữ liệu đã được che; không bao giờ có giá trị cookie hay bí mật). */
@@ -98,6 +99,8 @@ export interface QuickResult {
   limited: true; requests: number;
   /** Phần chưa kiểm tra được trong lượt quét này (vd. không tra được DNS). */
   gaps?: string[];
+  /** Phạm vi quét theo nhóm, tách khỏi điểm bảo mật. */
+  coverage?: ScanCoverage;
 }
 
 export const UNREACHABLE_MESSAGE = "Chưa quét được: VibeSec không kết nối được tới website qua HTTPS lẫn HTTP. Đây không phải kết quả bảo mật. Hãy kiểm tra: (1) địa chỉ gõ đúng chưa; (2) mở thử bằng trình duyệt xem website có đang chạy không; (3) website có chặn công cụ tự động (tường lửa, chống bot) không. Sau đó thử lại.";
@@ -107,8 +110,9 @@ export const HTTPS_UNAVAILABLE_MESSAGE = "Chưa chấm điểm: website mở đ�
 const short = (s: string, n = 170) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
 /** Mức độ → Đạt / Nên cải thiện / Cần sửa. Chỉ Thấp là “nên cải thiện”; Trung bình trở lên là “cần sửa”. Ghi chú và mục chưa kiểm tra được giữ nguyên trạng thái riêng. */
-export function toStatus(f: Pick<Finding, "status" | "severity">): QuickStatus {
+export function toStatus(f: Pick<Finding, "status" | "severity" | "fingerprint">): QuickStatus {
   if (f.status === "pass") return "pass";
+  if (isNotApplicable(f)) return "not_applicable";
   if (f.status === "unknown") return "unknown";
   if (f.status === "info") return "info";
   return f.severity === "low" || f.severity === "info" ? "warning" : "fail";
@@ -123,7 +127,7 @@ export function toItems(findings: Finding[], host = ""): QuickItem[] {
     const status = toStatus(f);
     if (!meta) continue;
     const bad = isIssue(status);
-    const note = status === "info" || status === "unknown";
+    const note = status === "info" || status === "unknown" || status === "not_applicable";
     const tech: QuickTech = {
       ruleId: f.ruleId, severity: f.severity, confidence: f.confidence,
       evidence: f.evidence.slice(0, 5).map((e) => clip(e, 220)),
@@ -139,7 +143,7 @@ export function toItems(findings: Finding[], host = ""): QuickItem[] {
     };
     out.push({ id: f.fingerprint, group: meta.group, label: GROUP_LABEL[meta.group], status, text: short(status === "pass" || note ? f.summary : `${f.title}. ${f.summary}`), tech });
   }
-  const order: Record<QuickStatus, number> = { fail: 0, warning: 1, unknown: 2, info: 3, pass: 4 };
+  const order: Record<QuickStatus, number> = { fail: 0, warning: 1, unknown: 2, info: 3, not_applicable: 4, pass: 5 };
   return out.sort((a, b) => order[a.status] - order[b.status] || a.label.localeCompare(b.label));
 }
 
@@ -195,12 +199,12 @@ export async function runQuickScan(input: string, deps: QuickDeps): Promise<Quic
   const rules = ALL_RULES.filter((r) => r.id in QUICK_RULES);
   const { findings } = evaluate(obs, rules);
   // HTTPS không dùng được (chứng chỉ hỏng, lỗi mạng…): luật tls.https-available báo; các luật phụ thuộc trang HTTP vẫn chạy trên bản HTTP nếu có.
-  const score = calculateScore(findings.filter((f) => f.ruleId in QUICK_RULES), { limitedCoverage: true });
+  const score = calculateScore(findings.filter((f) => f.ruleId in QUICK_RULES), { limitedCoverage: true, quick: true });
   const items = toItems(attachFixCommands(findings, { host: target.host, platforms: obs.platforms }), target.host);
   // Luật SRI im lặng khi không có gì để báo; với trang HTML đã phân tích được, hiển thị rõ là "đạt" thay vì bỏ trống mục này.
   if (obs.html && !items.some((i) => i.group === "sri")) items.push({ id: "sri-none", group: "sri", label: GROUP_LABEL.sri, status: "pass", text: "Không thấy script hay stylesheet từ CDN công cộng nào thiếu mã kiểm tra toàn vẹn (SRI)." });
-  const counts = { pass: 0, warning: 0, fail: 0, info: 0, unknown: 0 } as Record<QuickStatus, number>;
+  const counts = { pass: 0, warning: 0, fail: 0, info: 0, unknown: 0, not_applicable: 0 } as Record<QuickStatus, number>;
   for (const i of items) counts[i.status]++;
   const gaps = coverageGaps(obs, { quick: true }).map((x) => x.text);
-  return { host: target.host, score: score.score, grade: score.grade, scannedAt: obs.scannedAt, counts, items, limited: true, requests: budget.used, recon: buildRecon(obs), ceiling: score.ceiling, ...(gaps.length ? { gaps } : {}) };
+  return { host: target.host, score: score.score, grade: score.grade, scannedAt: obs.scannedAt, counts, items, limited: true, requests: budget.used, recon: buildRecon(obs), ceiling: score.ceiling, coverage: score.coverage, ...(gaps.length ? { gaps } : {}) };
 }
