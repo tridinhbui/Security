@@ -257,7 +257,7 @@ export function attachFixCommands(findings: Finding[], base: { host: string; pla
 Object.assign(FIXES, {
   "adv.csp-analysis": (c: FixCtx) => [
     S("CSP chặt khởi điểm (thử ở chế độ chỉ-báo-cáo trước)", "text", "Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'nonce-{NONCE_NGẪU_NHIÊN_MỖI_REQUEST}' 'strict-dynamic'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"),
-    S("Next.js: sinh nonce mỗi request (middleware)", "ts", "// middleware.ts — mỗi request một nonce mới, đặt vào header CSP\nconst nonce = btoa(crypto.randomUUID());\nconst csp = `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; object-src 'none'; base-uri 'none'`;", "nextjs"),
+    S("Next.js 16: sinh nonce mỗi request (proxy.ts, tên cũ là middleware.ts ở Next ≤15)", "ts", "// proxy.ts — mỗi request một nonce mới, đặt vào header CSP\nconst nonce = btoa(crypto.randomUUID());\nconst csp = `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; object-src 'none'; base-uri 'none'`;", "nextjs"),
     S("Kiểm tra CSP hiện tại", "bash", curlHeader(c.host, "content-security-policy(-report-only)?")),
     S("Công cụ chấm CSP của Google", "text", "Dán CSP vào https://csp-evaluator.withgoogle.com/ để xem điểm yếu còn lại."),
   ],

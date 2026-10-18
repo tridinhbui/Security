@@ -127,8 +127,8 @@ const certStrength: Rule = {
     if ((t.validityDays ?? 0) > 398) {
       out.push(makeFinding({
         ruleId: this.id, key: "long-validity", title: "Chứng chỉ có thời hạn dài bất thường", category: CAT, severity: "low", confidence: "medium", status: "fail", affectedUrl: url, references: refs,
-        summary: `Chứng chỉ có thời hạn ${t.validityDays} ngày, vượt quá mức tối đa 398 ngày mà trình duyệt chấp nhận cho chứng chỉ công khai.`,
-        explanation: "Chứng chỉ công khai cấp sau tháng 9/2020 không được vượt 398 ngày. Chứng chỉ dài hơn có thể bị trình duyệt từ chối, và thời hạn càng dài thì khoá bị lộ càng lâu mới bị phát hiện.",
+        summary: `Chứng chỉ có thời hạn ${t.validityDays} ngày, vượt xa mức tối đa mà trình duyệt chấp nhận cho chứng chỉ công khai (398 ngày trước 15/3/2026, 200 ngày từ 15/3/2026, giảm tiếp xuống 100 ngày năm 2027 và 47 ngày năm 2029).`,
+        explanation: "Chứng chỉ công khai cấp sau tháng 9/2020 không được vượt 398 ngày, và quy định của ngành (CA/Browser Forum) đã giảm còn 200 ngày với chứng chỉ cấp từ 15/3/2026. Chứng chỉ dài hơn mức này có thể bị trình duyệt từ chối, và thời hạn càng dài thì khoá bị lộ càng lâu mới bị phát hiện.",
         evidence, remediation: { summary: "Dùng chứng chỉ có thời hạn ngắn và bật tự động gia hạn (Let's Encrypt: 90 ngày).", snippets: [] },
       }));
     }
