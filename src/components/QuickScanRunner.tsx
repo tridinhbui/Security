@@ -13,7 +13,8 @@ import { ScanStage } from "./ScanStage";
 import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
 
-type Status = "pass" | "warning" | "fail";
+type Status = "pass" | "warning" | "fail" | "info" | "unknown";
+const isIssue = (s: Status) => s === "fail" || s === "warning";
 interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" }; statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null; penalty?: number; title?: string; summary?: string; explain?: ExplainData }
 interface Item { id: string; group?: string; label: string; status: Status; text: string; tech?: Tech }
 interface Recon {
@@ -25,9 +26,13 @@ interface Recon {
 const URGENCY: Record<string, { label: string; cls: string }> = { now: { label: "Sửa ngay hôm nay", cls: "chip-crit" }, week: { label: "Sửa trong tuần này", cls: "chip-med" }, later: { label: "Sửa khi rảnh", cls: "chip-info" } };
 const SEV: Record<string, string> = { critical: "nghiêm trọng", high: "cao", medium: "trung bình", low: "thấp", info: "thông tin" };
 const CONF: Record<string, string> = { high: "cao", medium: "vừa", low: "thấp" };
-interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean; recon?: Recon; ceiling?: number }
+interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean; recon?: Recon; ceiling?: number; gaps?: string[] }
 
-const CHIP: Record<Status, { cls: string; label: string }> = { pass: { cls: "chip-ok", label: "Đạt" }, warning: { cls: "chip-med", label: "Cảnh báo" }, fail: { cls: "chip-crit", label: "Lỗi" } };
+/** Ba lớp người mới cần phân biệt: cần sửa (mức Trung bình trở lên) · nên cải thiện (mức Thấp) · tham khảo; cộng mục chưa kiểm tra được (không phải lỗi). */
+const CHIP: Record<Status, { cls: string; label: string }> = {
+  pass: { cls: "chip-ok", label: "Đạt" }, warning: { cls: "chip-med", label: "Nên cải thiện" }, fail: { cls: "chip-crit", label: "Cần sửa" },
+  info: { cls: "chip-info", label: "Tham khảo" }, unknown: { cls: "chip-info", label: "Chưa kiểm tra" },
+};
 
 /** Các bước Mật Mật “đang làm bên trong” (bám theo các nhóm kiểm tra thật). Thời gian và số dòng nhật ký chỉ mang tính minh hoạ tiến trình. */
 interface Step { label: string; say: string; lines: (h: string) => string[] }
@@ -64,11 +69,11 @@ const LIKE: Record<string, string> = {
   mixed: "Như cửa hàng khoá chắc nhưng vẫn để một cửa sổ mở toang.",
   sri: "SRI là con dấu niêm phong hàng nhập từ nhà cung cấp bên ngoài, bị tráo là biết ngay.",
 };
-const TAIL: Record<Status, string> = { pass: "Chỗ này bạn làm tốt rồi 🎉", warning: "Chỉ là chỗ nhỏ, sửa khi rảnh nhé.", fail: "Chỗ này nên sửa sớm nha!" };
+const TAIL: Record<Status, string> = { pass: "Chỗ này bạn làm tốt rồi 🎉", warning: "Chỉ là chỗ nhỏ, sửa khi rảnh nhé.", fail: "Chỗ này nên sửa sớm nha!", info: "Đây là thông tin để bạn biết, không phải lỗi.", unknown: "Lần này mình chưa kiểm tra được mục này, nên không tính là lỗi hay đạt. Thử quét lại sau nhé." };
 
 /** Prompt đơn giản để dán vào AI viết code (Cursor, Claude Code…): chỉ liệt kê các mục chưa đạt, lỗi trước. Ghép chuỗi, không gọi AI. */
 function buildPrompt(r: Result): string {
-  const bad = r.items.filter((i) => i.status !== "pass");
+  const bad = r.items.filter((i) => isIssue(i.status));
   return [
     `Bạn là kỹ sư bảo mật. Bộ quét đã kiểm tra ${r.host} và thấy ${bad.length} vấn đề cấu hình cần sửa (xếp từ nghiêm trọng nhất):`,
     "",
@@ -93,8 +98,8 @@ function CopyPrompt({ r }: { r: Result }) {
 
 function summaryText(r: Result): string {
   const mood = r.score >= 80 ? "Khá ổn đó!" : r.score >= 60 ? "Tạm ổn, còn vài chỗ nên siết lại." : "Còn khá nhiều cửa chưa khoá, mình giúp bạn xem từng chỗ nhé.";
-  const bits = [`${r.counts.pass} mục đạt`, r.counts.warning ? `${r.counts.warning} chỗ cần chú ý` : "", r.counts.fail ? `${r.counts.fail} chỗ nên sửa sớm` : ""].filter(Boolean).join(", ");
-  return `Xong rồi nè! ${r.host} được ${r.score}/100 điểm (hạng ${r.grade}). ${mood}\nMình thấy: ${bits}. Bấm “Mật Mật giải thích” ở từng mục để hiểu dễ hơn${r.counts.warning + r.counts.fail ? ", rồi copy prompt bên dưới đưa cho AI sửa giúp" : ""} nhé 🐾`;
+  const bits = [`${r.counts.pass} mục đạt`, r.counts.fail ? `${r.counts.fail} chỗ cần sửa` : "", r.counts.warning ? `${r.counts.warning} chỗ nên cải thiện` : "", r.counts.unknown ? `${r.counts.unknown} mục chưa kiểm tra được` : ""].filter(Boolean).join(", ");
+  return `Xong rồi nè! ${r.host} được ${r.score}/100 điểm (hạng ${r.grade}). ${mood}\nMình thấy: ${bits}. Chọn từng mục bên dưới để xem giải thích, hoặc bấm “Hỏi Mật Mật về mục này”${r.counts.warning + r.counts.fail ? ", rồi copy prompt bên dưới đưa cho AI sửa giúp" : ""} nhé 🐾`;
 }
 
 /** Màn hình chia đôi: trái là các bước Mật Mật đang làm, phải là “màn hình trực tiếp” với nhật ký chạy từng dòng. */
@@ -125,6 +130,16 @@ function Thinking({ host, done }: { host: string; done: boolean }) {
  */
 /** Cột giải pháp: tóm tắt việc cần làm, các bước, rồi lệnh/cấu hình chép thẳng được. Mục đã đạt thì nói rõ không cần làm gì. */
 function Solution({ item, cta }: { item: Item; cta: string }) {
+  if (item.status === "unknown") return <p className="mt-2 text-[15px] leading-relaxed text-muted">Chưa có gì để sửa: lần quét này không đủ dữ liệu để kết luận mục này. Hãy quét lại sau ít phút; nếu vẫn vậy, có thể website chặn công cụ tự động hoặc dịch vụ tra cứu tạm thời lỗi.</p>;
+  if (item.status === "info") {
+    const steps = item.tech?.explain?.steps ?? [];
+    return (
+      <div className="mt-2 space-y-3">
+        <p className="text-[15px] leading-relaxed text-muted">Không bắt buộc sửa. Đây là thông tin tham khảo, không trừ điểm.</p>
+        {steps.length > 0 && <StepsView steps={steps} expect={item.tech!.explain!.expect} verify={item.tech!.explain!.verify} />}
+      </div>
+    );
+  }
   if (item.status === "pass") {
     return (
       <div className="mt-2 flex items-start gap-2.5 text-[15px] text-muted">
@@ -178,7 +193,7 @@ function toFinding(i: Item): Finding {
     fingerprint: i.id,
   };
 }
-const toFindings = (r: { items: Item[] }): Finding[] => r.items.filter((i) => i.status !== "pass").map(toFinding);
+const toFindings = (r: { items: Item[] }): Finding[] => r.items.filter((i) => isIssue(i.status)).map(toFinding);
 
 export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authed: boolean; ruleCount: number }) {
   const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean }>({ kind: "loading" });
@@ -250,7 +265,9 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   <ScoreRing score={r.score} grade={r.grade} size={116} />
                   <div className="min-w-0">
                     <p className="mono truncate text-sm text-muted">{r.host}</p>
-                    <div className="mt-2 flex flex-wrap gap-2"><span className="chip-ok">{r.counts.pass} Đạt</span><span className="chip-med">{r.counts.warning} Cảnh báo</span><span className="chip-crit">{r.counts.fail} Lỗi</span></div>
+                    <div className="mt-2 flex flex-wrap gap-2"><span className="chip-crit">{r.counts.fail} Cần sửa</span><span className="chip-med">{r.counts.warning} Nên cải thiện</span><span className="chip-ok">{r.counts.pass} Đạt</span>{(r.counts.unknown ?? 0) > 0 && <span className="chip-info">{r.counts.unknown} Chưa kiểm tra</span>}</div>
+                    <p className="mt-2 text-xs leading-relaxed text-faint">Điểm chỉ phản ánh các mục VibeSec kiểm tra được từ bên ngoài, không phải chứng nhận website an toàn.</p>
+                    {r.gaps && r.gaps.length > 0 && <div className="mt-2 rounded-lg border border-med/30 bg-med/5 px-3 py-2 text-xs leading-relaxed"><p className="font-medium text-med">Lần quét này chưa kiểm tra được:</p><ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">{r.gaps.map((g) => <li key={g}>{g}</li>)}</ul></div>}
                     {hasIssue && <div className="mt-3"><CopyPrompt r={r} /></div>}
                   </div>
                 </div>
@@ -282,10 +299,10 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
               </div>
               {tab === "findings" && <TriageStrip items={r.items} />}
               {tab === "score" ? <div className="grid max-h-[40rem] gap-4 overflow-y-auto p-4 lg:grid-cols-2"><ScoreBreakdown items={r.items} score={r.score} ceiling={r.ceiling ?? 90} /><CoverageStrip cta={cta} /></div> : tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
-              <div className="grid h-[44rem] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[36rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+              <div className="grid h-[44rem] grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[36rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
                 <div className="flex min-h-0 flex-col border-b border-line md:border-b-0 md:border-r">
                 <StatusFilterBar value={flt} onChange={(v) => { setStatusFilter(v); const first = r.items.findIndex((x) => filterMatch(v, x)); if (first >= 0) setSelected(first); }}
-                  counts={{ issues: r.items.filter((x) => filterMatch("issues", x)).length, pass: r.items.filter((x) => filterMatch("pass", x)).length, all: r.items.length }} />
+                  counts={{ issues: r.items.filter((x) => filterMatch("issues", x)).length, notes: r.items.filter((x) => filterMatch("notes", x)).length, pass: r.items.filter((x) => filterMatch("pass", x)).length, all: r.items.length }} />
                 <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto" role="listbox" aria-label="Các mục kiểm tra" tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -298,7 +315,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   {r.items.map((i, n) => ({ i, n })).filter(({ i }) => filterMatch(flt, i)).map(({ i, n }) => (
                     <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
                       <button type="button" onClick={() => setSelected(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
-                        <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
+                        <span className={`${CHIP[i.status].cls} mt-0.5 w-[6.75rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
                         <span className="min-w-0 text-sm"><span className="block font-medium leading-snug">{headline(i).title}</span><span className="line-clamp-2 text-muted">{i.status === "pass" ? i.text : headline(i).sub}</span></span>
                       </button>
                     </li>

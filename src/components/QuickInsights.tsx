@@ -1,12 +1,12 @@
 "use client";
 
-import { URGENCY, type AItem } from "./QuickAnalyst";
+import { isIssueItem, URGENCY, type AItem } from "./QuickAnalyst";
 import { headline } from "./QuickAnalyst";
 
 /** Các khối bổ sung cho trang kết quả quét nhanh: việc làm trước, điểm đến từ đâu, phạm vi quét, bộ lọc. */
 
-export type StatusFilter = "issues" | "all" | "pass";
-export const filterMatch = (f: StatusFilter, i: AItem) => (f === "all" ? true : f === "pass" ? i.status === "pass" : i.status !== "pass");
+export type StatusFilter = "issues" | "all" | "pass" | "notes";
+export const filterMatch = (f: StatusFilter, i: AItem) => (f === "all" ? true : f === "pass" ? i.status === "pass" : f === "notes" ? i.status === "info" || i.status === "unknown" : isIssueItem(i));
 
 const URG_RANK = { now: 0, week: 1, later: 2 } as const;
 const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -15,7 +15,7 @@ const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low:
 export function TopActions({ items, onPick }: { items: AItem[]; onPick: (n: number) => void }) {
   const ranked = items
     .map((i, n) => ({ i, n }))
-    .filter(({ i }) => i.status !== "pass" && i.tech?.impact)
+    .filter(({ i }) => isIssueItem(i) && i.tech?.impact && !i.tech.sameAs) // cùng nguyên nhân gốc: chỉ hiện một lần
     .sort((a, b) => URG_RANK[a.i.tech!.impact!.urgency] - URG_RANK[b.i.tech!.impact!.urgency] || (SEV_RANK[a.i.tech!.severity] ?? 9) - (SEV_RANK[b.i.tech!.severity] ?? 9))
     .slice(0, 3);
   if (ranked.length === 0) return null;
@@ -39,7 +39,7 @@ export function TopActions({ items, onPick }: { items: AItem[]; onPick: (n: numb
 
 /** Minh bạch điểm số: điểm tối đa, từng khoản bị trừ (lớn nhất trước), và điểm cuối. */
 export function ScoreBreakdown({ items, score, ceiling }: { items: AItem[]; score: number; ceiling: number }) {
-  const deductions = items.filter((i) => i.status !== "pass" && (i.tech?.penalty ?? 0) > 0).sort((a, b) => b.tech!.penalty! - a.tech!.penalty!);
+  const deductions = items.filter((i) => isIssueItem(i) && (i.tech?.penalty ?? 0) > 0).sort((a, b) => b.tech!.penalty! - a.tech!.penalty!);
   const total = Math.round(deductions.reduce((s, i) => s + i.tech!.penalty!, 0) * 10) / 10;
   const raw = Math.max(0, Math.round(100 - total));
   const capped = score < Math.min(raw, ceiling);
@@ -94,9 +94,9 @@ export function CoverageStrip({ cta }: { cta: string }) {
 
 /** Bộ lọc trạng thái cho danh sách (mặc định chỉ hiện mục cần xử lý). */
 export function StatusFilterBar({ value, onChange, counts }: { value: StatusFilter; onChange: (v: StatusFilter) => void; counts: Record<StatusFilter, number> }) {
-  const opts: [StatusFilter, string][] = [["issues", "Cần xử lý"], ["pass", "Đạt"], ["all", "Tất cả"]];
+  const opts = ([["issues", "Cần xử lý"], ["notes", "Tham khảo"], ["pass", "Đạt"], ["all", "Tất cả"]] as [StatusFilter, string][]).filter(([k]) => k !== "notes" || counts.notes > 0);
   return (
-    <div role="group" aria-label="Lọc theo trạng thái" className="flex gap-1.5 border-b border-line bg-white px-3 py-2">
+    <div role="group" aria-label="Lọc theo trạng thái" className="flex flex-wrap gap-1.5 border-b border-line bg-white px-3 py-2">
       {opts.map(([k, label]) => (
         <button key={k} type="button" aria-pressed={value === k} onClick={() => onChange(k)}
           className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${value === k ? "border-fg bg-fg text-white" : "border-line-strong bg-white text-muted hover:border-fg/40 hover:text-fg"}`}>{label} <span className="num opacity-70">{counts[k]}</span></button>

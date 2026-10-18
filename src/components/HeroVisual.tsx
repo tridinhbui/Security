@@ -10,7 +10,6 @@ const STEPS: { t: string; v: string; log: string; tone?: "ok" }[] = [
   { t: "Kiểm tra tài nguyên phía client", v: "1.9s", log: "6 script · 0 source map lộ" },
   { t: "Đánh giá dịch vụ bên thứ ba", v: "0.6s", log: "Không có trình theo dõi quảng cáo", tone: "ok" },
 ];
-const TOTAL = 41;
 
 function Node({ className, name, ms }: { className: string; name: string; ms: string }) {
   return (
@@ -26,7 +25,7 @@ function Node({ className, name, ms }: { className: string; name: string; ms: st
  * và các lớp có chiều sâu phản ứng với con trỏ/cuộn (xem HeroStage). Chỉ trang trí nên ẩn khỏi trình đọc màn hình.
  * Vòng lặp chỉ chạy khi hero đang nhìn thấy; người dùng giảm chuyển động nhận một khung tĩnh.
  */
-export function HeroVisual() {
+export function HeroVisual({ total: TOTAL }: { total: number }) {
   const reduced = useReducedMotion();
   const root = useRef<HTMLDivElement>(null);
   const [k, setK] = useState(2); // số giai đoạn đã xong
