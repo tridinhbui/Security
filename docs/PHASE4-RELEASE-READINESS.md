@@ -40,13 +40,11 @@ Không merge, không deploy, không bật auto-merge. Production giữ nguyên.
 
 **#1 → #2 (sau review) → #3 xếp chồng lên #2.** Không merge #3 vào `main` ở trạng thái hiện tại.
 
-Đã chuẩn bị **cục bộ** (commit `b55999c` trên nhánh cục bộ `sca-stacked`, chưa push): cherry-pick riêng commit nội dung của #3 (`4e1a241`) lên đầu `phase-3.2-release-ready`, chỉ còn **1 commit** thuộc #3. Giải quyết 3 xung đột: `explain.ts` và `impact.ts` giữ văn bản của #2 (đã sửa cùng lỗi); `explain-more.ts` giữ bản của #3 cho `long-validity` (đủ hơn: sửa cả mục “Sửa đúng thì”). Kết quả trên nhánh xếp chồng: **45 file test, 1085 test PASS**, typecheck PASS, build PASS.
+Đã chuẩn bị (commit `b55999c`, nay đã push): cherry-pick riêng commit nội dung của #3 (`4e1a241`) lên đầu `phase-3.2-release-ready`, chỉ còn **1 commit** thuộc #3. Giải quyết 3 xung đột: `explain.ts` và `impact.ts` giữ văn bản của #2 (đã sửa cùng lỗi); `explain-more.ts` giữ bản của #3 cho `long-validity` (đủ hơn: sửa cả mục “Sửa đúng thì”). Kết quả trên nhánh xếp chồng: **45 file test, 1085 test PASS**, typecheck PASS, build PASS.
 
 **Công việc song song phát hiện sau khi hoàn thành phân tích trên:** repo cục bộ có thêm nhánh `integration/release-candidate` (`d6a8a22`, do một phiên khác tạo, chạy trong worktree riêng, chưa có trên remote) gồm `a074815` (tích hợp #1), toàn bộ #2, `f7c2b71` (nội dung của #3 áp lại), `9440bce` (nút sao chép trên thiết bị cảm ứng) và `FINAL-RELEASE-READINESS.md`. Đây là lời giải khác cho cùng vấn đề xếp chồng. **Tôi chưa review nhánh này và không dựa vào nó**; nó không chứa các sửa nội dung Phase 4 của tôi (`77f132e`: CSP `isDev`, Vercel/Supabase, báo cáo này). Trước khi chọn một phương án, nên đối chiếu hai nhánh để không có hai nguồn sự thật.
 
-**Việc cần người có quyền làm** (phiên này bị bộ phân loại quyền chặn mọi lệnh `git push`, kể cả đẩy sang nhánh mới, nên **chưa làm**):
-1. Đưa nhánh xếp chồng lên remote và để PR #3 trỏ vào đó, hoặc đóng #3 và mở PR mới từ nhánh xếp chồng với base `phase-3.2-release-ready`. Phương án giữ nguyên PR #3 cần `git push --force-with-lease` lên `security-content-audit` (thao tác ghi đè lịch sử nhánh của chính PR, nên cần bạn cho phép) rồi `gh pr edit 3 --base phase-3.2-release-ready`. Đầu cũ của #3 là `4e1a241`, vẫn còn ở nhánh cục bộ `security-content-audit` và ở remote cho tới khi bị ghi đè.
-2. Nhánh cục bộ `phase-3.2-validation` (`cfd5359`, chưa push) là bản trùng của #2, có thể bỏ.
+**Đã thực hiện (được chủ repo cho phép):** `git push --force-with-lease` lên `security-content-audit` (đầu cũ `4e1a241` → `21fbace`) và `gh pr edit 3 --base phase-3.2-release-ready`. PR #3 nay: base `phase-3.2-release-ready`, 3 commit riêng (nội dung, Phase 4, ghi chú), 15 file (+1168/−6), mergeable. Đầu cũ `4e1a241` không còn trên remote. Nhánh cục bộ `phase-3.2-validation` (`cfd5359`, chưa push) là bản trùng của #2, có thể bỏ.
 
 ## 2. CI
 
@@ -121,7 +119,7 @@ Sai sót nội dung phát hiện khi đối chiếu, **đã sửa** trong `deep-
 | # | Phát hiện | Bằng chứng | Cần làm |
 |---|---|---|---|
 | P0-1 | **Workers Builds failure, nguyên nhân UNKNOWN**; xuất hiện trên `main`, trên commit chỉ-tài-liệu và trên cả ba PR | §2 | Chủ tài khoản đọc log hoặc cấp OAuth. Giữ nguyên production tới khi rõ nguyên nhân và có một build thành công |
-| P0-2 | **PR #3 như đã push không merge được an toàn**: chứa code #2 chưa review (`cfd5359`), kèm báo cáo QA cũ làm xung đột #1, xung đột 5 file với #2 | §1 | Đưa nhánh xếp chồng (đã chuẩn bị cục bộ) lên remote và đổi base; việc này cần quyền `git push` mà phiên này bị chặn |
+| P0-2 (ĐÃ XỬ LÝ) | **PR #3 trước đó không merge được an toàn**: chứa code #2 chưa review (`cfd5359`), kèm báo cáo QA cũ làm xung đột #1, xung đột 5 file với #2 | §1 | Đã đẩy nhánh xếp chồng và đổi base (xem §1) |
 | P0-3 (cổng review) | **PR #2 chưa được review code bảo mật** (API bình chọn, băm IP, admin). Tiêu đề PR cũng ghi “DO NOT MERGE before review” | §1 | Review có người chịu trách nhiệm trước khi merge; #3 chỉ nên vào sau #2 |
 
 ### P1
@@ -158,7 +156,7 @@ Giới hạn: so sánh vi phân dùng bộ cấu hình của fixtures; không ph
 ## 8. Kế hoạch merge đề xuất (mỗi bước cần bạn đồng ý, không bước nào tự động)
 
 1. **Gỡ P0-1**: đọc log Workers Builds (build `63b4c1a5-…` và `e02e4cb`), sửa nguyên nhân hoặc ghi nhận chính thức là check không đáng tin. Không merge gì vào `main` trước khi biết một lần merge sẽ tạo bản dựng thế nào, vì mỗi commit trên `main` kích hoạt Workers Builds và đổi `/api/version`.
-2. **Xử lý P0-2**: đẩy nhánh xếp chồng, đổi base PR #3 sang `phase-3.2-release-ready` (hoặc mở PR mới). Sau bước này #3 chỉ còn 1 commit riêng.
+2. **P0-2 đã xử lý**: nhánh xếp chồng đã push, base PR #3 là `phase-3.2-release-ready`.
 3. **Merge #1** (chỉ tài liệu, độc lập, đã sạch) khi P0-1 đã được hiểu. Nếu muốn tránh một bản dựng không cần thiết, gộp #1 vào cùng đợt với #2.
 4. **Review #2** (P0-3), sửa theo review, merge `main`. GitHub sẽ tự đổi base của PR xếp chồng.
 5. **Merge #3** (đã xếp chồng, 1 commit). Chạy lại `npm test`, typecheck, build trên kết quả sau cùng.
