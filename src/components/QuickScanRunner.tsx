@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CopyButton } from "./CopyButton";
 import { ExportButtons, headline, ProblemPane, TriageStrip } from "./QuickAnalyst";
 import { StepsView, type ExplainData } from "./ExplainView";
@@ -13,7 +13,8 @@ import { ScanStage } from "./ScanStage";
 import { ScoreRing } from "./motion/ScoreRing";
 import { Typed } from "./motion/Typed";
 
-type Status = "pass" | "warning" | "fail" | "info" | "unknown";
+type Status = "pass" | "warning" | "fail" | "info" | "unknown" | "not_applicable";
+interface Coverage { areas: { id: string; label: string; state: "checked" | "unknown" | "not_applicable" | "out_of_scope" }[]; applicable: number; checked: number; percent: number; complete: boolean }
 const isIssue = (s: Status) => s === "fail" || s === "warning";
 interface Tech { ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string; fixSteps: string[]; fix: { label: string; language: string; code: string }[]; references: { title: string; url: string }[]; impact?: { today: string; worst: string; who: string; urgency: "now" | "week" | "later" }; statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null; penalty?: number; title?: string; summary?: string; explain?: ExplainData }
 interface Item { id: string; group?: string; label: string; status: Status; text: string; tech?: Tech }
@@ -26,12 +27,12 @@ interface Recon {
 const URGENCY: Record<string, { label: string; cls: string }> = { now: { label: "Sửa ngay hôm nay", cls: "chip-crit" }, week: { label: "Sửa trong tuần này", cls: "chip-med" }, later: { label: "Sửa khi rảnh", cls: "chip-info" } };
 const SEV: Record<string, string> = { critical: "nghiêm trọng", high: "cao", medium: "trung bình", low: "thấp", info: "thông tin" };
 const CONF: Record<string, string> = { high: "cao", medium: "vừa", low: "thấp" };
-interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean; recon?: Recon; ceiling?: number; gaps?: string[] }
+interface Result { host: string; score: number; grade: string; counts: Record<Status, number>; items: Item[]; cached?: boolean; recon?: Recon; ceiling?: number; gaps?: string[]; coverage?: Coverage }
 
 /** Ba lớp người mới cần phân biệt: cần sửa (mức Trung bình trở lên) · nên cải thiện (mức Thấp) · tham khảo; cộng mục chưa kiểm tra được (không phải lỗi). */
 const CHIP: Record<Status, { cls: string; label: string }> = {
   pass: { cls: "chip-ok", label: "Đạt" }, warning: { cls: "chip-med", label: "Nên cải thiện" }, fail: { cls: "chip-crit", label: "Cần sửa" },
-  info: { cls: "chip-info", label: "Tham khảo" }, unknown: { cls: "chip-info", label: "Chưa kiểm tra" },
+  info: { cls: "chip-info", label: "Tham khảo" }, unknown: { cls: "chip-info", label: "Chưa kiểm tra" }, not_applicable: { cls: "chip-info", label: "Không áp dụng" },
 };
 
 /** Các bước Mật Mật “đang làm bên trong” (bám theo các nhóm kiểm tra thật). Thời gian và số dòng nhật ký chỉ mang tính minh hoạ tiến trình. */
@@ -69,7 +70,7 @@ const LIKE: Record<string, string> = {
   mixed: "Như cửa hàng khoá chắc nhưng vẫn để một cửa sổ mở toang.",
   sri: "SRI là con dấu niêm phong hàng nhập từ nhà cung cấp bên ngoài, bị tráo là biết ngay.",
 };
-const TAIL: Record<Status, string> = { pass: "Chỗ này bạn làm tốt rồi 🎉", warning: "Chỉ là chỗ nhỏ, sửa khi rảnh nhé.", fail: "Chỗ này nên sửa sớm nha!", info: "Đây là thông tin để bạn biết, không phải lỗi.", unknown: "Lần này mình chưa kiểm tra được mục này, nên không tính là lỗi hay đạt. Thử quét lại sau nhé." };
+const TAIL: Record<Status, string> = { pass: "Chỗ này bạn làm tốt rồi 🎉", warning: "Chỉ là chỗ nhỏ, sửa khi rảnh nhé.", fail: "Chỗ này nên sửa sớm nha!", info: "Đây là thông tin để bạn biết, không phải lỗi.", not_applicable: "Mục này không áp dụng cho website của bạn, nên không tính điểm.", unknown: "Lần này mình chưa kiểm tra được mục này, nên không tính là lỗi hay đạt. Thử quét lại sau nhé." };
 
 /** Prompt đơn giản để dán vào AI viết code (Cursor, Claude Code…): chỉ liệt kê các mục chưa đạt, lỗi trước. Ghép chuỗi, không gọi AI. */
 function buildPrompt(r: Result): string {
@@ -90,7 +91,8 @@ function buildPrompt(r: Result): string {
 function CopyPrompt({ r }: { r: Result }) {
   const [ok, setOk] = useState(false);
   return (
-    <button type="button" className="btn-primary" onClick={async () => { try { await navigator.clipboard.writeText(buildPrompt(r)); setOk(true); setTimeout(() => setOk(false), 2200); } catch { /* trình duyệt chặn clipboard */ } }}>
+    // Nút phụ: người không dùng công cụ AI viết code vẫn có đường chính là “Nên làm trước” → giải thích → cách sửa.
+    <button type="button" className="btn-ghost btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(buildPrompt(r)); setOk(true); setTimeout(() => setOk(false), 2200); } catch { /* trình duyệt chặn clipboard */ } }}>
       {ok ? "Đã copy ✓ Dán vào Cursor / Claude Code" : "Copy prompt cho AI sửa giúp"}
     </button>
   );
@@ -128,14 +130,28 @@ function Thinking({ host, done }: { host: string; done: boolean }) {
  * Gọi /api/quick-scan (backend thật, không dữ liệu giả) rồi hiển thị: điểm 0–100, từng mục Đạt/Cảnh báo/Lỗi bằng tiếng Việt,
  * và lời mời quét đầy đủ. URL người dùng nhập được giữ nguyên trong liên kết đăng ký/đăng nhập để tự điền sau khi vào tài khoản.
  */
+/** Phạm vi quét: con số RIÊNG, không trộn vào điểm. Bấm để xem nhóm nào đã/chưa kiểm tra. */
+const AREA_STATE: Record<Coverage["areas"][number]["state"], { label: string; cls: string }> = {
+  checked: { label: "Đã kiểm tra", cls: "text-ok" }, unknown: { label: "Chưa kiểm tra được", cls: "text-med" },
+  not_applicable: { label: "Không áp dụng", cls: "text-faint" }, out_of_scope: { label: "Chỉ có ở quét đầy đủ", cls: "text-faint" },
+};
+function CoverageLine({ c }: { c: Coverage }) {
+  return (
+    <details className="mt-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs">
+      <summary className="cursor-pointer font-medium">Phạm vi quét: đã kiểm tra {c.checked}/{c.applicable} nhóm{c.complete ? "" : " · chưa đầy đủ nên không xếp hạng A"}</summary>
+      <ul className="mt-1.5 space-y-0.5">{c.areas.map((a) => <li key={a.id} className="flex justify-between gap-3"><span className="text-muted">{a.label}</span><span className={AREA_STATE[a.state].cls}>{AREA_STATE[a.state].label}</span></li>)}</ul>
+    </details>
+  );
+}
+
 /** Cột giải pháp: tóm tắt việc cần làm, các bước, rồi lệnh/cấu hình chép thẳng được. Mục đã đạt thì nói rõ không cần làm gì. */
 function Solution({ item, cta }: { item: Item; cta: string }) {
   if (item.status === "unknown") return <p className="mt-2 text-[15px] leading-relaxed text-muted">Chưa có gì để sửa: lần quét này không đủ dữ liệu để kết luận mục này. Hãy quét lại sau ít phút; nếu vẫn vậy, có thể website chặn công cụ tự động hoặc dịch vụ tra cứu tạm thời lỗi.</p>;
-  if (item.status === "info") {
+  if (item.status === "info" || item.status === "not_applicable") {
     const steps = item.tech?.explain?.steps ?? [];
     return (
       <div className="mt-2 space-y-3">
-        <p className="text-[15px] leading-relaxed text-muted">Không bắt buộc sửa. Đây là thông tin tham khảo, không trừ điểm.</p>
+        <p className="text-[15px] leading-relaxed text-muted">{item.status === "not_applicable" ? "Không cần làm gì: mục này không áp dụng cho website của bạn và không tính điểm." : "Không bắt buộc sửa. Đây là thông tin tham khảo, không trừ điểm."}</p>
         {steps.length > 0 && <StepsView steps={steps} expect={item.tech!.explain!.expect} verify={item.tech!.explain!.verify} />}
       </div>
     );
@@ -200,6 +216,8 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
   const [selected, setSelected] = useState(0);
   const [tab, setTab] = useState<"findings" | "recon" | "score">("findings");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("issues");
+  const detailRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const { setReport, askAbout: askFocus } = useMatMat();
   const askAbout = (item: Item, host: string, line?: string) => askFocus({ finding: toFinding(item), host, line });
   useEffect(() => {
@@ -256,6 +274,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
         const hasIssue = r.counts.warning + r.counts.fail > 0;
         const flt: StatusFilter = hasIssue ? statusFilter : "all";
         const sel = r.items[Math.min(selected, r.items.length - 1)];
+        // Danh sách + chi tiết: trên điện thoại KHÔNG có khung cao cố định hay vùng cuộn lồng nhau (danh sách rồi chi tiết nối tiếp, trang cuộn tự nhiên); từ md trở lên mới chia cột có cuộn riêng.
         return (
           <div className="space-y-4">
             {/* hàng trên: tóm tắt + lời mời quét kỹ hơn nằm cạnh nhau */}
@@ -267,12 +286,13 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                     <p className="mono truncate text-sm text-muted">{r.host}</p>
                     <div className="mt-2 flex flex-wrap gap-2"><span className="chip-crit">{r.counts.fail} Cần sửa</span><span className="chip-med">{r.counts.warning} Nên cải thiện</span><span className="chip-ok">{r.counts.pass} Đạt</span>{(r.counts.unknown ?? 0) > 0 && <span className="chip-info">{r.counts.unknown} Chưa kiểm tra</span>}</div>
                     <p className="mt-2 text-xs leading-relaxed text-faint">Điểm chỉ phản ánh các mục VibeSec kiểm tra được từ bên ngoài, không phải chứng nhận website an toàn.</p>
+                    {r.coverage && <CoverageLine c={r.coverage} />}
                     {r.gaps && r.gaps.length > 0 && <div className="mt-2 rounded-lg border border-med/30 bg-med/5 px-3 py-2 text-xs leading-relaxed"><p className="font-medium text-med">Lần quét này chưa kiểm tra được:</p><ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">{r.gaps.map((g) => <li key={g}>{g}</li>)}</ul></div>}
                     {hasIssue && <div className="mt-3"><CopyPrompt r={r} /></div>}
                   </div>
                 </div>
                 <MatMatSays className="mt-4" text={summaryText(r)} cps={85} />
-                <TopActions items={r.items} onPick={(n) => { setStatusFilter("issues"); setTab("findings"); setSelected(n); }} />
+                <TopActions items={r.items} onPick={(n) => { setStatusFilter("issues"); setTab("findings"); setSelected(n); requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
               </div>
 
               <div className="panel reveal flex flex-col justify-between gap-4 bg-surface p-5 sm:p-6" style={{ ["--i" as string]: 2 }}>
@@ -283,7 +303,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                 <div className="flex flex-col items-start gap-2">
                   <Link href={cta} className="btn-primary">Quét đầy đủ miễn phí<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
                   {!authed && <Link href={`/login?next=${encodeURIComponent(fullScanPath)}`} className="text-sm text-muted hover:text-fg">Đã có tài khoản? Đăng nhập</Link>}
-                  <p className="text-xs text-faint">Quét nhanh chỉ xem trang chủ nên điểm tối đa là 90.{r.cached ? " Kết quả lưu tạm vài giờ." : ""}</p>
+                  <p className="text-xs text-faint">Quét nhanh chỉ xem trang chủ nên điểm tối đa là {r.ceiling ?? 89} (hạng A chỉ dành cho lượt quét đầy đủ).{r.cached ? " Kết quả lưu tạm vài giờ." : ""}</p>
                 </div>
               </div>
             </div>
@@ -298,12 +318,12 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                 <div className="ml-auto self-center pb-1"><ExportButtons result={r} /></div>
               </div>
               {tab === "findings" && <TriageStrip items={r.items} />}
-              {tab === "score" ? <div className="grid max-h-[40rem] gap-4 overflow-y-auto p-4 lg:grid-cols-2"><ScoreBreakdown items={r.items} score={r.score} ceiling={r.ceiling ?? 90} /><CoverageStrip cta={cta} /></div> : tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
-              <div className="grid h-[44rem] grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[36rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
-                <div className="flex min-h-0 flex-col border-b border-line md:border-b-0 md:border-r">
+              {tab === "score" ? <div className="grid max-h-[40rem] gap-4 overflow-y-auto p-4 lg:grid-cols-2"><ScoreBreakdown items={r.items} score={r.score} ceiling={r.ceiling ?? 89} /><CoverageStrip cta={cta} /></div> : tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
+              <div className="grid grid-cols-[minmax(0,1fr)] md:h-[44rem] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[36rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+                <div ref={listRef} className="flex scroll-mt-20 flex-col border-b border-line md:min-h-0 md:border-b-0 md:border-r">
                 <StatusFilterBar value={flt} onChange={(v) => { setStatusFilter(v); const first = r.items.findIndex((x) => filterMatch(v, x)); if (first >= 0) setSelected(first); }}
                   counts={{ issues: r.items.filter((x) => filterMatch("issues", x)).length, notes: r.items.filter((x) => filterMatch("notes", x)).length, pass: r.items.filter((x) => filterMatch("pass", x)).length, all: r.items.length }} />
-                <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto" role="listbox" aria-label="Các mục kiểm tra" tabIndex={0}
+                <ul className="divide-y divide-line md:min-h-0 md:flex-1 md:overflow-y-auto" role="listbox" aria-label="Các mục kiểm tra" tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
                     e.preventDefault();
@@ -314,7 +334,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   }}>
                   {r.items.map((i, n) => ({ i, n })).filter(({ i }) => filterMatch(flt, i)).map(({ i, n }) => (
                     <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
-                      <button type="button" onClick={() => setSelected(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
+                      <button type="button" onClick={() => { setSelected(n); if (window.matchMedia("(max-width: 767px)").matches) requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
                         <span className={`${CHIP[i.status].cls} mt-0.5 w-[6.75rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
                         <span className="min-w-0 text-sm"><span className="block font-medium leading-snug">{headline(i).title}</span><span className="line-clamp-2 text-muted">{i.status === "pass" ? i.text : headline(i).sub}</span></span>
                       </button>
@@ -323,14 +343,15 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                 </ul>
                 </div>
                 {sel && (
-                  <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden lg:col-span-2 lg:grid-cols-2 lg:grid-rows-1" aria-live="polite">
+                  <div ref={detailRef} className="grid scroll-mt-20 grid-cols-[minmax(0,1fr)] md:min-h-0 md:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:overflow-hidden lg:col-span-2 lg:grid-cols-2 lg:grid-rows-1" aria-live="polite">
                     {/* vấn đề */}
-                    <div className="min-h-0 overflow-y-auto bg-white p-5">
+                    <div className="bg-white p-5 md:min-h-0 md:overflow-y-auto">
+                      <button type="button" onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="mb-3 text-sm font-medium text-accent md:hidden">↑ Về danh sách mục</button>
                       <ProblemPane item={sel} host={r.host} onAsk={(line) => askAbout(sel, r.host, line)} />
                       <MatMatSays key={`${selected}:${sel.id}`} className="mt-4" cps={85} text={`${LIKE[sel.group ?? ""] ?? "Đây là một chỗ trên website mình vừa kiểm tra."}\n${TAIL[sel.status]}`} />
                     </div>
                     {/* giải pháp: luôn hiện, song song với vấn đề */}
-                    <div className="min-h-0 overflow-y-auto border-t border-line bg-accent-soft/40 p-5 lg:border-l lg:border-t-0">
+                    <div className="border-t border-line bg-accent-soft/40 p-5 md:min-h-0 md:overflow-y-auto lg:border-l lg:border-t-0">
                       <p className="eyebrow !text-accent">giải pháp</p>
                       <Solution item={sel} cta={cta} />
                     </div>

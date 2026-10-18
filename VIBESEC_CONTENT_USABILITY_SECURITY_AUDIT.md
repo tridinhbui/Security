@@ -270,3 +270,114 @@ Trọng số: Dễ hiểu 30% · Tiếng Việt tự nhiên 20% · Chính xác 2
 2. Quét thụ động không thấy phân quyền, logic nghiệp vụ, database, mã phía máy chủ: điểm cao **không** phải chứng nhận an toàn (đã ghi ở mọi nơi hiển thị điểm).
 3. Các thay đổi chấm điểm (gộp nguyên nhân gốc, trần theo phạm vi, mức độ A7/A8/A9) làm điểm của một số website thay đổi sau khi deploy; cache cũ tự hết hiệu lực nhờ `ENGINE_VERSION = 10`.
 4. Danh sách §3.3 chưa sửa.
+
+
+---
+
+# Đợt 2 (2026-10-18): độ chính xác, phạm vi quét, OWASP 2025, độ tin cậy
+
+Nhánh `improve/accuracy-coverage-ux`. Mọi mục dưới đây có test chạy được; “giả lập” nghĩa là phản hồi HTTP/DNS được dựng trong test, **không phải** quét website thật.
+
+## 12.1 Điểm bảo mật tách khỏi phạm vi quét (P0)
+
+| Trước | Sau |
+|---|---|
+| Quét nhanh tối đa 90 → **hạng A** dù chỉ xem trang chủ | Tối đa **89 (hạng B)**. Hạng A chỉ khi **mọi nhóm kiểm tra áp dụng được** đều đã được kiểm tra |
+| Một nhóm không có dữ liệu (HTTPS lỗi, DNS lỗi) → các luật im lặng, điểm vẫn có thể 96/A | Trần 89 và hiện “Phạm vi quét: đã kiểm tra X/Y nhóm · chưa đầy đủ nên không xếp hạng A”, bấm để xem từng nhóm |
+| Ba trạng thái (đạt / lỗi / thông tin), “chưa kiểm tra được” và “không áp dụng” lẫn vào nhau | Bốn loại kết quả tách biệt: **ĐẠT · CHƯA ĐẠT · CHƯA KIỂM TRA ĐƯỢC · KHÔNG ÁP DỤNG** (cộng “tham khảo”) |
+
+- 8 nhóm: HTTPS và chuyển hướng · chứng chỉ/TLS · header/CSP · cookie · CORS · nội dung trang · DNS/email · tệp công khai. “Không áp dụng” không tính vào mẫu số. Ở quét nhanh, chứng chỉ chi tiết là “chỉ có ở quét đầy đủ”.
+- **Không áp dụng** được lưu là `status: "info"` với khoá fingerprint bắt đầu bằng `na-` (vd. `config.dns-email-security|na-platform`, `cookies.flags|na-no-cookies`). Cách này **không cần đổi lược đồ CSDL**: bảng `findings` có ràng buộc `CHECK (status IN ('fail','pass','info','unknown'))`, và một migration chạy trên D1 production có thể làm hỏng việc lưu lượt quét nếu code mới deploy trước. Phạm vi được tính lại từ chính các phát hiện, nên báo cáo đã lưu cũng hiển thị được.
+- “Không có cookie nào” trước đây là **ĐẠT**, nay là **KHÔNG ÁP DỤNG** (VibeSec không đăng nhập nên không thấy cookie sau đăng nhập).
+- Lộ trình sửa (`buildRoadmap`) coi mục đã xử lý là ĐẠT thay vì xoá, để không làm nhóm đó trông như “chưa kiểm tra được”.
+
+Kiểm chứng thật trên chính website VibeSec (quét nhanh, đường mạng thật, bản dev của nhánh này): **89/B**, “đã kiểm tra 5/6 nhóm” — HTTPS, header, CORS, nội dung, tệp: đã kiểm tra · chứng chỉ: chỉ có ở quét đầy đủ · cookie, DNS: không áp dụng (không đặt cookie; tên miền con của `workers.dev`).
+
+## 12.2 Độ chính xác luật
+
+| ID | Vấn đề | Sửa | Test |
+|---|---|---|---|
+| A12 | SPF: `~all` bị luật cơ bản nói “đạt, chặt chẽ” còn luật sâu báo yếu; thiếu `all` không bị báo; `+all` mức Trung bình ở luật này, Cao ở luật kia | Một bộ phân tích dùng chung (`rules/spf.ts`): `-all`/`~all` đạt ở **cả hai**; `?all` và **thiếu `all`** (mặc định trung lập, RFC 7208) bị báo ở cả hai; `redirect=` không suy đoán; cùng mức độ | 6 cấu hình × 2 luật |
+| A13 | Trang 404 thử nghiệm trả 3xx vẫn bị so header | Chỉ so khi mã ≥ 400 | — |
+| A14 | Không có cookie → “Đạt” | → “Không áp dụng” | benchmark #15 |
+| SEV | TRACE mức Trung bình (trình duyệt hiện đại chặn TRACE từ fetch/XHR) | Thấp | `hardening.test.ts` |
+| SEV | Hạn chứng chỉ dài: luật cơ bản Thấp, luật sâu Trung bình | Thấp ở cả hai | — |
+| CSP trùng | Đã gộp ở đợt 1 | Thêm kiểm chứng end-to-end: 2 mục hiển thị, chỉ 1 mục trừ điểm | benchmark #13 |
+
+## 12.3 Benchmark 16 cấu hình theo nền tảng (giả lập toàn bộ luồng quét nhanh)
+
+`src/lib/scanner/__tests__/platform-scenarios.test.ts` — mỗi cấu hình có đáp án viết tay (phải báo / không được báo):
+
+| # | Cấu hình | Kết quả kiểm chứng |
+|---|---|---|
+| 1 | Cloudflare proxy, cookie `__cf_bm`, cache HIT, `server: cloudflare` | Không báo rò rỉ phiên, không báo lộ phiên bản; không hạng A (quét nhanh) |
+| 2 | Cloudflare “Just a moment…” 403 | Từ chối chấm điểm |
+| 3 | `*.vercel.app` mặc định, không header bảo mật | DNS/email: không áp dụng; thiếu CSP/chống nhúng vẫn bị báo; không đòi HSTS preload |
+| 4 | `*.netlify.app` với `_headers` chặt | Không lỗi nào quy cho chủ website |
+| 5 | Tên miền riêng, SPF `~all`, DMARC `p=none` | SPF đạt; DMARC `p=none` bị báo |
+| 6 | DNS-over-HTTPS lỗi hoàn toàn | Không bịa lỗi DNS; nhóm DNS “chưa kiểm tra được”; có ghi chú phạm vi |
+| 7 | Chỉ HTTP | Từ chối chấm điểm, hướng dẫn bật HTTPS |
+| 8 | Không kết nối được | “Chưa quét được”, không 0/F |
+| 9–10 | `.dev` vs `.com` không chuyển hướng HTTP | `.dev`: tham khảo · `.com`: lỗi thật |
+| 11 | Header lặp do hai lớp proxy | Không báo sai |
+| 12–13 | CSP strict (nonce + strict-dynamic) vs `'unsafe-inline'` | Đạt vs báo (một khoản trừ) |
+| 14–15 | Cookie phiên thiếu cờ vs không có cookie | Báo vs không áp dụng |
+| 16 | Website chuẩn trên tên miền riêng | 0 lỗi, 89/B |
+
+**Không làm:** quét website thật của Cloudflare/Vercel/Netlify hay của người khác (không có quyền). Website thật duy nhất được quét là VibeSec (§12.1).
+
+## 12.4 Độ tin cậy
+
+| Hạng mục | Kết quả |
+|---|---|
+| **Quét đồng thời (lỗi thật, đã sửa)** | Quét nhanh “đếm rồi mới ghi” → **8 yêu cầu song song tới cùng một website đều được quét dù hạn mức 3/giờ** (đã tái hiện bằng test). Nay giữ chỗ trước rồi đếm theo thứ tự id: đúng 3 lượt chạy, 5 lượt nhận 429, chỗ giữ của lượt bị từ chối được xoá. Cùng một IP gửi 5 yêu cầu song song với hạn mức 2 → đúng 2. Quét đầy đủ đã dùng một câu `INSERT … SELECT … WHERE` nguyên tử nên không bị lỗi này. |
+| SSRF | 227 test hiện có (IP nội bộ, metadata, DNS rebinding, chuyển hướng tới địa chỉ nội bộ, cổng lạ) vẫn đạt |
+| Cache | Kết quả “không kết nối được / bị chặn / không có HTTPS” không được lưu (test); `ENGINE_VERSION` 10 → 11 để kết quả chấm theo cách cũ không bị dùng lại |
+| Timeout | DoH 4 giây/truy vấn; ngân sách quét nhanh 14 request / 2 MB / 12 giây (test hiện có) |
+
+## 12.5 Lỗi Workers Builds trên nhánh PR (điều tra, chưa sửa — cần chủ tài khoản)
+
+Không đọc được log trên Cloudflare (công cụ Cloudflare cần OAuth). Bằng chứng từ GitHub Checks và tài liệu Cloudflare:
+
+- **100% build trên nhánh không phải `main` thất bại, mỗi lần dưới 100 giây** (build trên `main` mất 3–4,5 phút). Tài liệu Cloudflare ghi lệnh mặc định của nhánh không phải production là `wrangler versions upload`, lệnh này **không** triển khai container, và Worker có Durable Objects/Containers **không** có URL xem trước. **Giả thuyết mạnh nhất**: bước xem trước (preview) thất bại phía máy chủ với Worker có Containers. `wrangler versions upload --dry-run` chạy cục bộ thì qua, nên chưa xác nhận.
+- Hai lần thất bại trên `main` (`f718cf0`, `a1b6fa4`) chạy đủ thời gian và code của `a1b6fa4` **vẫn được phục vụ**. Điều này khớp với tài liệu: Worker được kích hoạt trước bước image/rollout của container, nên lỗi ở bước sau vẫn đánh dấu build thất bại. Bước cụ thể bị lỗi chưa xác nhận.
+- **Việc chủ tài khoản nên làm** (không áp dụng tự động):
+  1. Mở log build PR (vd. `4800dc63…`) và `79927e71…` để xác nhận.
+  2. Tắt “Enable Preview Builds” (Settings → Build → Branch control), vì CI của GitHub đã chạy `wrangler deploy --dry-run`. Hoặc đổi lệnh preview thành `npx wrangler deploy --dry-run --containers-rollout=none`. **Không** dùng `wrangler deploy` cho nhánh: lệnh này cuộn container production.
+
+## 12.6 OWASP Top 10:2025 (đã kiểm chứng trước khi đổi)
+
+- **Nguồn chính thức:** README của repo `OWASP/Top10` ghi “OWASP Top 10 2025 - RELEASED … (Final)” và “2021 - SUPERSEDED” (tôi tự kiểm lại). Tên 10 hạng mục và danh sách CWE của từng hạng mục lấy từ `2025/docs/en` trong cùng repo.
+- **Đã đổi:**
+  - `OWASP_MAP`: 54 luật có ánh xạ 2025; 9 luật cố ý không ánh xạ vì không thuộc rủi ro nào (hiệu năng, thông tin tham khảo, quyền riêng tư). Test khoá cả danh sách này.
+  - Bảng độ phủ: 9/10 hạng mục, vì SSRF đã gộp vào A01 và A10 mới (“xử lý sai tình huống bất thường”) thấy được một phần qua trang lỗi.
+  - Liên kết từng hạng mục và nhãn trang chủ đổi theo 2025.
+- **Ánh xạ sai đã sửa:**
+  - `adv.web-storage-secrets` sang A01 (CWE-922).
+  - `exposure.secrets` sang A07 (CWE-798).
+  - `config.suspicious-redirects` sang A04. Luật này kiểm hạ cấp HTTPS→HTTP, không phải open redirect, nên CWE-601 / ASVS 5.1.5 / WSTG-CLNT-04 đổi thành CWE-319 / 9.1.1 / WSTG-CRYP-03.
+  - `browser.form-targets` bỏ A08.
+- **ASVS:** bản 5.0.0 đã phát hành (GitHub release 2025-05-30) nhưng **chưa kiểm chứng mã yêu cầu 5.0** tương ứng, nên **giữ 4.0.3** có ghi rõ phiên bản. Việc chuyển sang 5.0 để thành một việc riêng.
+- **Chưa kiểm chứng:**
+  - Ngày phát hành chính thức của Top 10:2025.
+  - Tên tiếng Việt của các hạng mục (OWASP chưa có bản tiếng Việt; tên trong VibeSec là bản dịch của chúng tôi).
+
+## 12.7 Giao diện
+
+- **Điện thoại (sửa lỗi P2 của đợt 1):**
+  - Danh sách phát hiện và phần chi tiết không còn nằm trong khung cao cố định với hai vùng cuộn lồng nhau. Trang cuộn tự nhiên, danh sách rồi chi tiết nối tiếp nhau.
+  - Chạm một mục là cuộn tới phần chi tiết; nút “↑ Về danh sách mục” để quay lại.
+  - Kiểm chứng ở 375px: 0 vùng cuộn lồng nhau, 0 phần tử tràn. Đợt này phát hiện và sửa thêm một lỗi cột chi tiết rộng 413px trong khung 391px.
+  - Desktop giữ bố cục chia cột như cũ.
+- **Đường đi chính cho người mới:** “Nên làm trước” có câu hướng dẫn và bấm vào là cuộn tới giải thích. Nút “Copy prompt cho AI” chuyển thành nút phụ.
+
+## 12.8 Kiểm thử đợt 2
+
+| Kiểm thử | Kết quả |
+|---|---|
+| `npm run typecheck` | PASS |
+| `vitest` | **PASS — 48 tệp, 1147 test** (đợt 1: 1116) |
+| `build:cf` + `wrangler deploy --dry-run` | PASS |
+| E2E trình duyệt: quét thử thật website VibeSec → phạm vi → lọc → chi tiết; desktop + 375px | PASS |
+| Quét website thật của nền tảng/người khác | Không làm (không có quyền) — thay bằng 16 cấu hình giả lập |
+| Kiểm thử người dùng thật | Chưa làm |

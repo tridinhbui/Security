@@ -5,12 +5,13 @@ import { glossaryFor, PLAIN_TITLES } from "@/lib/beginner";
 import type { TargetView } from "@/lib/db-types";
 import { formatDate, scoreColor, SEV_BAR, SEV_CHIP, SEV_COLOR, SEV_RAIL } from "@/lib/format";
 import { topRisks } from "@/lib/scanner/score";
+import { AREA_STATE_LABEL, scanCoverage } from "@/lib/scanner/scan-coverage";
 import { buildRoadmap, buildSummary, CONFIDENCE_FACTOR, EFFORT_LABEL, effortFor, OWASP_MAP, scoringTable, toMarkdown } from "@/lib/guidance";
 import { CATEGORY_LABEL, CONFIDENCE_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { CATEGORIES, SEVERITIES, type Finding, type Severity } from "@/lib/scanner/types";
 import { buildAllPrompt, buildFixPrompt } from "@/lib/ai-prompt";
 import { attackChains } from "@/lib/chains";
-import { asvsPosture, ASVS_URL, cweUrl, owaspCoverage, standardsFor, wstgUrl } from "@/lib/standards";
+import { asvsPosture, ASVS_URL, cweUrl, owaspCoverage, owaspUrl, standardsFor, wstgUrl } from "@/lib/standards";
 import { FEYNMAN, plainScore, PLAIN_SEV } from "@/lib/feynman";
 import { CopyButton } from "./CopyButton";
 import { FeedbackModal } from "./matmat/FeedbackModal";
@@ -95,6 +96,14 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
   const urgent = issues.filter((f) => f.severity === "critical" || f.severity === "high");
   /** 3 việc nên làm trước: mỗi nguyên nhân gốc một lần (CSP yếu không chiếm 2/3 vị trí). */
   const firstThree = useMemo(() => topRisks(data.findings, 3), [data.findings]);
+  /** Phạm vi quét tính lại từ chính các phát hiện (cả với báo cáo đã lưu): tách khỏi điểm bảo mật. */
+  const coverage = useMemo(() => scanCoverage(data.findings), [data.findings]);
+  const coverageNote = (
+    <details className="mt-2 text-left text-[11px] leading-snug text-faint">
+      <summary className="cursor-pointer">Phạm vi quét: {coverage.checked}/{coverage.applicable} nhóm{coverage.complete ? "" : " (chưa đầy đủ)"}</summary>
+      <ul className="mt-1 space-y-0.5">{coverage.areas.map((a) => <li key={a.id} className="flex justify-between gap-2"><span>{a.label}</span><span>{AREA_STATE_LABEL[a.state]}</span></li>)}</ul>
+    </details>
+  );
   const counts = SEVERITIES.filter((s) => s !== "info").map((s) => ({ s, n: data.severityCounts[s] ?? 0 }));
   const totalIssues = counts.reduce((a, c) => a + c.n, 0);
 
@@ -168,7 +177,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
         {beginner && (
           <section className="reveal mt-8 rounded-2xl border border-line bg-white p-5 shadow-card sm:p-7" style={stagger(2)} aria-label="Tóm tắt">
             <div className="grid items-center gap-6 md:grid-cols-[auto_1fr] md:gap-10">
-              <div className="mx-auto text-center"><ScoreRing score={data.score} grade={data.grade} size={150} /><p className="mx-auto mt-2 max-w-[13rem] text-[11px] leading-snug text-faint">Điểm phản ánh các mục VibeSec kiểm tra được từ bên ngoài, không phải chứng nhận website an toàn.</p></div>
+              <div className="mx-auto text-center"><ScoreRing score={data.score} grade={data.grade} size={150} /><p className="mx-auto mt-2 max-w-[13rem] text-[11px] leading-snug text-faint">Điểm phản ánh các mục VibeSec kiểm tra được từ bên ngoài, không phải chứng nhận website an toàn.</p><div className="mx-auto max-w-[13rem]">{coverageNote}</div></div>
               <div className="min-w-0">
                 <MatMatSays text={`Mình xem giúp bạn rồi nè! ${plainScore(data.score, issues.length, urgent.length)}`} />
                 {issues.length > 0 && (
@@ -201,7 +210,8 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
         {!beginner && <section className="reveal mt-10 grid items-center gap-10 lg:grid-cols-[auto_1fr] lg:gap-16" style={stagger(2)} aria-label="Điểm tổng thể">
           <ScoreRing score={data.score} grade={data.grade} />
           <div>
-            <p className="mono mb-4 text-xs text-faint">Không website nào đạt 100: quét thụ động có điểm tối đa là 96 (90 nếu phạm vi quét bị hạn chế).</p>
+            <p className="mono mb-4 text-xs text-faint">Không website nào đạt 100: quét thụ động có điểm tối đa là 96; nếu phạm vi quét chưa đầy đủ thì tối đa 89 (không xếp hạng A).</p>
+            <div className="mb-4 max-w-sm">{coverageNote}</div>
             <h2 className="eyebrow">phân bố mức độ</h2>
             <div className="mt-3 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`${totalIssues} vấn đề: ${counts.map((c) => `${c.n} ${SEV_LABEL[c.s]}`).join(", ")}`}>
               {totalIssues === 0 ? <div className="h-full w-full bg-ok" /> : counts.filter((c) => c.n).map((c) => <div key={c.s} className={`h-full ${SEV_BAR[c.s]} transition-[flex-grow] duration-700`} style={{ flexGrow: c.n }} />)}
@@ -356,7 +366,7 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
           {beginner ? (
             <details className="group"><summary className="flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-fg"><Chevron />Báo cáo này phủ những hạng mục nào của OWASP Top 10?</summary><OwaspCoverage findings={data.findings} /></details>
           ) : (
-            <><h2 className="text-2xl font-semibold tracking-tight">Độ phủ OWASP Top 10 (2021)</h2><OwaspCoverage findings={data.findings} /></>
+            <><h2 className="text-2xl font-semibold tracking-tight">Độ phủ OWASP Top 10:2025</h2><OwaspCoverage findings={data.findings} /></>
           )}
         </section>
 
@@ -668,7 +678,7 @@ function Standards({ ruleId, owasp }: { ruleId: string; owasp?: string[] }) {
   return (
     <Section title="Chuẩn tham chiếu">
       <div className="flex flex-wrap gap-1.5">
-        {owasp?.map((o) => <a key={o} href="https://owasp.org/Top10/" target="_blank" rel="noopener noreferrer" className={chip} title="OWASP Top 10 (2021)">{o.split(" – ")[0]}<span className="hidden sm:inline"> · {o.split(" – ")[1]}</span></a>)}
+        {owasp?.map((o) => <a key={o} href={owaspUrl(o)} target="_blank" rel="noopener noreferrer" className={chip} title="OWASP Top 10:2025">{o.split(" – ")[0]}<span className="hidden sm:inline"> · {o.split(" – ")[1]}</span></a>)}
         {st.cwe.map((c) => <a key={c} href={cweUrl(c)} target="_blank" rel="noopener noreferrer" className={chip} title="MITRE CWE">CWE-{c}</a>)}
         {st.asvs.map((a) => <a key={a} href={ASVS_URL} target="_blank" rel="noopener noreferrer" className={chip} title="OWASP ASVS 4.0.3">ASVS {a}</a>)}
         {st.wstg.map((w) => <a key={w} href={wstgUrl(w)} target="_blank" rel="noopener noreferrer" className={chip} title="OWASP Web Security Testing Guide">{w}</a>)}
@@ -677,7 +687,7 @@ function Standards({ ruleId, owasp }: { ruleId: string; owasp?: string[] }) {
   );
 }
 
-/** Độ phủ OWASP Top 10 (2021): mỗi hạng mục có bao nhiêu kiểm tra, đang lỗi/đạt, và nói thẳng hạng mục nào quét thụ động không đánh giá được. */
+/** Độ phủ OWASP Top 10:2025: mỗi hạng mục có bao nhiêu kiểm tra, đang lỗi/đạt, và nói thẳng hạng mục nào quét thụ động không đánh giá được. */
 function OwaspCoverage({ findings }: { findings: Finding[] }) {
   const rows = owaspCoverage(findings, OWASP_MAP);
   const reach = { good: "Đánh giá tốt", partial: "Đánh giá một phần", none: "Không đánh giá được" } as const;
@@ -689,7 +699,7 @@ function OwaspCoverage({ findings }: { findings: Finding[] }) {
           const tone = r.failing > 0 ? "border-crit/30 bg-crit/5" : r.checks > 0 ? "border-ok/30 bg-ok/5" : "border-line bg-surface";
           return (
             <li key={r.code} className={`rounded-xl border p-3.5 ${tone}`}>
-              <p className="mono text-[11px] font-semibold text-faint">{r.code}:2021</p>
+              <p className="mono text-[11px] font-semibold text-faint">{r.code}:2025</p>
               <p className="mt-0.5 text-[14px] font-medium leading-snug">{r.name}</p>
               <p className="mt-2 text-[13px]">
                 {r.checks === 0 ? <span className="text-faint">0 kiểm tra</span> : <><span className={r.failing ? "font-semibold text-crit" : "text-ok"}>{r.failing} lỗi</span> <span className="text-muted">· {r.passing} đạt</span></>}
