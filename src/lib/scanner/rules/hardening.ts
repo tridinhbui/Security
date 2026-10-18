@@ -1,7 +1,8 @@
 import { headerFix } from "../remediation";
 import type { Finding, Rule } from "../types";
 import { header, headerEvidence, isHtml, livePage, makeFinding, MDN, OWASP, pass, truncate } from "../util";
-import { collectCookies, SESSION_NAME } from "./cookies";
+import { hstsPreloadedTld } from "../platform-domain";
+import { collectCookies, hasSessionLikeCookie, SESSION_NAME } from "./cookies";
 
 /**
  * Luật "tăng cường" (hardening): phân tích sâu hơn các dữ liệu đã thu. Không luật nào gửi request riêng
@@ -27,6 +28,8 @@ const hstsPreload: Rule = {
         summary: "Header có preload nhưng thiếu includeSubDomains hoặc max-age dưới 1 năm nên không được nhận vào danh sách preload.", explanation: "Danh sách preload yêu cầu max-age ≥ 31536000, includeSubDomains và preload. Thiếu một điều kiện thì cờ preload không có tác dụng.",
         evidence: [headerEvidence(h.headers, "strict-transport-security")], remediation: headerFix("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload", obs.platforms) })];
     }
+    // Không áp dụng: đuôi tên miền đã preload toàn bộ (vd. .dev), hoặc tên miền con của nền tảng (chủ website không thể tự đăng ký preload).
+    if (!pre && (hstsPreloadedTld(obs.target.host) || obs.platformSuffix)) return [];
     if (!pre) {
       return [makeFinding({ ruleId: this.id, key: "missing", title: "Chưa sẵn sàng danh sách HSTS preload", category: this.category, severity: "low", confidence: "low", status: "fail", affectedUrl: h.finalUrl, references: refs,
         summary: "HSTS đã bật nhưng chưa có preload, nên lần truy cập ĐẦU TIÊN của khách vẫn có thể đi qua HTTP.", explanation: "Danh sách preload được cài sẵn trong trình duyệt: khách không cần từng ghé website mới được bảo vệ. Đây là bước tăng cường cuối cùng, nhưng khó gỡ nếu sau này cần quay lại HTTP nên chỉ làm khi mọi tên miền con đều chạy HTTPS.",
@@ -74,7 +77,7 @@ const cachePolicy: Rule = {
     if (!p || !isHtml(p.contentType)) return [];
     const cc = header(p.headers, "cache-control");
     const cookies = (p.chain.at(-1)?.headers["set-cookie"]);
-    const hasCookie = Array.isArray(cookies) ? cookies.length > 0 : !!cookies;
+    const hasCookie = hasSessionLikeCookie(Array.isArray(cookies) ? cookies : cookies ? [cookies] : []); // cookie của CDN/ngôn ngữ không tính
     const refs = [MDN("Web/HTTP/Guides/Caching", "MDN: HTTP caching"), OWASP("HTTP_Headers_Cheat_Sheet.html", "OWASP HTTP Headers")];
     if (!cc) return [makeFinding({ ruleId: this.id, key: "missing", title: "Trang HTML không khai báo Cache-Control", category: this.category, severity: "low", confidence: "low", status: "fail", affectedUrl: p.finalUrl, references: refs,
       summary: "Phản hồi không có Cache-Control nên proxy/trình duyệt tự quyết định có lưu hay không.", explanation: "Nếu trang có nội dung riêng tư, bộ nhớ đệm dùng chung có thể lưu và phát lại cho người khác. Luôn khai báo rõ ràng chính sách mong muốn.",

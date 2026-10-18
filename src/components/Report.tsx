@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { glossaryFor, PLAIN_TITLES } from "@/lib/beginner";
 import type { TargetView } from "@/lib/db-types";
 import { formatDate, scoreColor, SEV_BAR, SEV_CHIP, SEV_COLOR, SEV_RAIL } from "@/lib/format";
+import { topRisks } from "@/lib/scanner/score";
 import { buildRoadmap, buildSummary, CONFIDENCE_FACTOR, EFFORT_LABEL, effortFor, OWASP_MAP, scoringTable, toMarkdown } from "@/lib/guidance";
 import { CATEGORY_LABEL, CONFIDENCE_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { CATEGORIES, SEVERITIES, type Finding, type Severity } from "@/lib/scanner/types";
@@ -92,6 +93,8 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
     }, 60);
   }
   const urgent = issues.filter((f) => f.severity === "critical" || f.severity === "high");
+  /** 3 việc nên làm trước: mỗi nguyên nhân gốc một lần (CSP yếu không chiếm 2/3 vị trí). */
+  const firstThree = useMemo(() => topRisks(data.findings, 3), [data.findings]);
   const counts = SEVERITIES.filter((s) => s !== "info").map((s) => ({ s, n: data.severityCounts[s] ?? 0 }));
   const totalIssues = counts.reduce((a, c) => a + c.n, 0);
 
@@ -165,18 +168,19 @@ export function Report({ data, actions }: { data: ReportData; actions?: React.Re
         {beginner && (
           <section className="reveal mt-8 rounded-2xl border border-line bg-white p-5 shadow-card sm:p-7" style={stagger(2)} aria-label="Tóm tắt">
             <div className="grid items-center gap-6 md:grid-cols-[auto_1fr] md:gap-10">
-              <div className="mx-auto"><ScoreRing score={data.score} grade={data.grade} size={150} /></div>
+              <div className="mx-auto text-center"><ScoreRing score={data.score} grade={data.grade} size={150} /><p className="mx-auto mt-2 max-w-[13rem] text-[11px] leading-snug text-faint">Điểm phản ánh các mục VibeSec kiểm tra được từ bên ngoài, không phải chứng nhận website an toàn.</p></div>
               <div className="min-w-0">
                 <MatMatSays text={`Mình xem giúp bạn rồi nè! ${plainScore(data.score, issues.length, urgent.length)}`} />
                 {issues.length > 0 && (
                   <div className="mt-5">
-                    <h2 className="text-[15px] font-semibold">{Math.min(3, issues.length)} việc nên làm trước</h2>
+                    <h2 className="text-[15px] font-semibold">{firstThree.length} việc nên làm trước</h2>
                     <ol className="mt-2 divide-y divide-line rounded-xl border border-line">
-                      {issues.slice(0, 3).map((f, i) => (
+                      {firstThree.map((f, i) => (
                         <li key={f.fingerprint}>
                           <button onClick={() => jumpTo(f)} className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-surface">
                             <span className="mono grid size-6 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent">{i + 1}</span>
-                            <span className="min-w-0 flex-1 leading-snug">{displayTitle(f, mode)}</span>
+                            {/* Tiêu đề dễ hiểu dạng câu hỏi + câu trả lời cụ thể, để người mới không phải đoán “có” hay “không” là xấu. */}
+                            <span className="min-w-0 flex-1 leading-snug">{displayTitle(f, mode)}<span className="mt-0.5 block text-xs text-muted">Kết quả: {f.title}</span></span>
                             <span className={`${SEV_CHIP[f.severity]} hidden shrink-0 sm:inline-flex`}>{SEV_LABEL[f.severity]}</span>
                           </button>
                         </li>
@@ -626,7 +630,11 @@ function PromptButton({ text, label = "Copy prompt cho AI", big = false }: { tex
   const [ok, setOk] = useState(false);
   return (
     <>
-      <pre tabIndex={0} aria-label="Nội dung prompt" className="mono max-h-56 w-full basis-full overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-[12.5px] leading-6 text-fg/90">{text}</pre>
+      {/* Prompt thô gấp lại: người không dùng AI viết code không bị một khối chữ kỹ thuật chặn giữa phần tóm tắt. */}
+      <details className="w-full basis-full">
+        <summary className="cursor-pointer text-[13px] text-muted hover:text-fg">Xem nội dung prompt (dành cho người dùng Cursor / Claude Code / ChatGPT)</summary>
+  <pre tabIndex={0} aria-label="Nội dung prompt" className="mono max-h-56 w-full basis-full overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface p-3 text-[12.5px] leading-6 text-fg/90">{text}</pre>
+      </details>
       <button type="button" className={`btn-primary ${big ? "" : "btn-sm"}`} onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); } catch { /* clipboard bị chặn */ } }}>
         {ok ? "Đã copy prompt ✓" : label}
       </button>

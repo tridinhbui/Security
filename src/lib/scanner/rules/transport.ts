@@ -1,5 +1,6 @@
 import { headerFix, httpsRedirectFix, RECOMMENDED } from "../remediation";
 import type { Finding, Observations, Rule } from "../types";
+import { hstsPreloadedTld } from "../platform-domain";
 import { header, headerEvidence, makeFinding, MDN, pass } from "../util";
 
 const CAT = "Transport Security" as const;
@@ -16,7 +17,7 @@ const CERT_LABELS: Record<string, string> = {
 };
 
 /** Mã lỗi cho biết chắc chắn là "không có HTTPS" (khác với lỗi mạng chập chờn). */
-const NO_TLS_CODES = new Set(["ECONNREFUSED", "EPROTO", "ERR_SSL_WRONG_VERSION_NUMBER", "ERR_SSL_PROTOCOL_ERROR"]);
+export const NO_TLS_CODES = new Set(["ECONNREFUSED", "EPROTO", "ERR_SSL_WRONG_VERSION_NUMBER", "ERR_SSL_PROTOCOL_ERROR"]);
 
 const httpsAvailable: Rule = {
   id: "tls.https-available",
@@ -50,7 +51,8 @@ const httpsAvailable: Rule = {
       if (NO_TLS_CODES.has(h.error.code)) {
         return [
           makeFinding({
-            ruleId: this.id, title: "Website không hỗ trợ HTTPS", category: CAT, severity: "high", confidence: "high", status: "fail",
+            // Nghiêm trọng: không có HTTPS thì mọi biện pháp khác (cookie Secure, HSTS, CSP…) đều vô nghĩa trên đường truyền; một website như vậy không được đạt hạng C.
+            ruleId: this.id, title: "Website không hỗ trợ HTTPS", category: CAT, severity: "critical", confidence: "high", status: "fail",
             affectedUrl: url, references: refs,
             summary: "Website này không chấp nhận kết nối HTTPS.",
             explanation: "Không có HTTPS, mọi dữ liệu người dùng gửi và nhận — kể cả mật khẩu — đều có thể bị đọc hoặc sửa bởi bất kỳ ai trên đường truyền.",
@@ -223,6 +225,15 @@ const httpRedirect: Rule = {
       return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: url, summary: "Request HTTP được chuyển hướng sang HTTPS.", explanation: "Khách bắt đầu bằng http:// sẽ được đưa sang phiên bản an toàn.", evidence: [`${first?.status} ${url} → ${h.finalUrl}`] })];
     }
     if (!httpsOk) return []; // HTTPS không hoạt động → báo ở tls.https-available
+    const tld = hstsPreloadedTld(obs.target.host);
+    if (tld) {
+      // Đuôi .dev/.app…: trình duyệt KHÔNG BAO GIỜ gửi request http:// tới các tên miền này, nên khách dùng trình duyệt không thể vào bản HTTP. Không phải lỗi.
+      return [makeFinding({ ruleId: this.id, key: "preloaded-tld", title: `HTTP không chuyển hướng, nhưng trình duyệt luôn dùng HTTPS cho đuôi .${tld}`, category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: url,
+        references: [{ title: "HSTS preload list", url: "https://hstspreload.org/" }],
+        summary: `Bản http:// trả ${h.status} mà không chuyển hướng. Tuy vậy, cả đuôi .${tld} nằm trong danh sách HSTS cài sẵn của trình duyệt, nên Chrome, Edge, Firefox, Safari luôn tự mở https://. Chỉ công cụ không phải trình duyệt (curl, ứng dụng tự viết) mới vào được bản HTTP.`,
+        explanation: "Thêm chuyển hướng 301 vẫn là cấu hình gọn gàng, nhưng không cấp bách.",
+        evidence: [`GET ${url} → ${h.status}`, headerEvidence(h.headers, "location"), `Đuôi tên miền .${tld} được preload HSTS toàn bộ`], remediation: httpsRedirectFix(obs.platforms) })];
+    }
     return [makeFinding({
       ruleId: this.id, title: "HTTP không được chuyển hướng sang HTTPS", category: CAT, severity: "medium", confidence: "high", status: "fail", affectedUrl: url,
       references: [MDN("Web/Security/Transport_Layer_Security", "MDN: TLS")],
@@ -277,6 +288,13 @@ const hsts: Rule = {
     const url = h.finalUrl;
     const v = header(h.headers, "strict-transport-security");
     const refs = [MDN("Web/HTTP/Reference/Headers/Strict-Transport-Security", "MDN: Strict-Transport-Security")];
+    const tld = hstsPreloadedTld(obs.target.host);
+    if (!v && tld) {
+      return [makeFinding({ ruleId: this.id, key: "preloaded-tld", title: `Không có header HSTS, nhưng đuôi .${tld} đã được trình duyệt bảo vệ sẵn`, category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: url, references: refs,
+        summary: `Phản hồi không có Strict-Transport-Security, nhưng cả đuôi .${tld} nằm trong danh sách HSTS cài sẵn của trình duyệt, nên trình duyệt đã luôn dùng HTTPS cho website này.`,
+        explanation: "Thêm header vẫn là cấu hình tốt (cho công cụ không phải trình duyệt), nhưng không phải lỗi.",
+        evidence: [headerEvidence(h.headers, "strict-transport-security"), `Đuôi tên miền .${tld} được preload HSTS toàn bộ`], remediation: headerFix("Strict-Transport-Security", RECOMMENDED.hsts, obs.platforms) })];
+    }
     if (!v) {
       return [makeFinding({
         ruleId: this.id, title: "Thiếu header HSTS", category: CAT, severity: "medium", confidence: "high", status: "fail", affectedUrl: url, references: refs,
@@ -325,11 +343,13 @@ const insecureLogin: Rule = {
         }));
       }
       if (f.method === "get") {
+        const implicit = f.methodExplicit === false;
         out.push(makeFinding({
-          ruleId: this.id, title: "Form mật khẩu dùng phương thức GET", category: CAT, severity: "high", confidence: "high", status: "fail", affectedUrl: pageUrl, key: "method-get",
-          summary: "Một form mật khẩu gửi dữ liệu bằng phương thức GET.",
+          // Không ghi method: chỉ là GET nếu form được gửi trực tiếp. Form React/Next thường do JavaScript gửi bằng POST, nên mức độ và độ tin cậy thấp hơn.
+          ruleId: this.id, title: implicit ? "Form mật khẩu không khai báo phương thức gửi" : "Form mật khẩu dùng phương thức GET", category: CAT, severity: implicit ? "medium" : "high", confidence: implicit ? "low" : "high", status: "fail", affectedUrl: pageUrl, key: "method-get",
+          summary: implicit ? "Một form có ô mật khẩu không ghi method, nên nếu được gửi trực tiếp, trình duyệt sẽ dùng GET (mật khẩu nằm trên URL). Nếu form do JavaScript xử lý (phổ biến ở React/Next.js) thì có thể không sao." : "Một form mật khẩu gửi dữ liệu bằng phương thức GET.",
           explanation: "GET đặt mật khẩu ngay trên URL, nơi nó lưu vào lịch sử trình duyệt, nhật ký máy chủ và header referrer.",
-          technical: `<form method="get"> chứa input[type=password].`, evidence: [`action của form: ${f.action}`, "method: get"],
+          technical: `<form method="get"> chứa input[type=password].`, evidence: [`action của form: ${f.action}`, implicit ? "method: (không ghi — mặc định GET)" : "method: get"],
           remediation: { summary: 'Dùng method="post" cho mọi form mang thông tin đăng nhập.', snippets: [] },
         }));
       }

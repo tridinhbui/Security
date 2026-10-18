@@ -69,6 +69,17 @@ const PATTERNS: Pattern[] = [
     accept: (m) => !PLACEHOLDER.test(m),
   },
   {
+    // Khoá API kiểu mới của Supabase (thay cho JWT service_role): bỏ qua Row Level Security, chỉ được tồn tại trên máy chủ.
+    id: "supabase-secret-key", label: "Khoá bí mật Supabase (sb_secret_)", severity: "critical", confidence: "high",
+    re: /\bsb_secret_[A-Za-z0-9_-]{20,}/g,
+    note: "Khoá sb_secret_ có toàn quyền với dự án Supabase, bỏ qua Row Level Security. Không bao giờ được nằm trong mã gửi xuống trình duyệt.",
+  },
+  {
+    id: "supabase-publishable-key", label: "Khoá công khai Supabase (sb_publishable_)", severity: "info", confidence: "high", publicByDesign: true,
+    re: /\bsb_publishable_[A-Za-z0-9_-]{20,}/g,
+    note: "Khoá publishable được thiết kế để công khai; an toàn chỉ khi mọi bảng đã bật Row Level Security.",
+  },
+  {
     id: "stripe-live-secret", label: "Khoá bí mật Stripe (live)", severity: "critical", confidence: "high",
     re: /\b(?:sk|rk)_live_[0-9a-zA-Z]{24,}\b/g,
     note: "Khoá Stripe live (secret/restricted) cấp quyền gọi API vào tài khoản Stripe của bạn.",

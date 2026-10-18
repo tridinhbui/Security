@@ -39,7 +39,7 @@ describe("luật nâng cao", () => {
     hdr(o)["cache-control"] = "public, max-age=300";
     expect(f(o, "adv.shared-cache-leak")[0]!.severity).toBe("medium");
     hdr(o)["age"] = "120";
-    expect(f(o, "adv.shared-cache-leak")[0]!.severity).toBe("high");
+    expect(f(o, "adv.shared-cache-leak")[0]).toMatchObject({ severity: "medium", fingerprint: "adv.shared-cache-leak|hit" }); // chưa chứng minh cookie bị phát lại → không để mức Cao
     hdr(o)["cache-control"] = "private, no-store";
     expect(f(o, "adv.shared-cache-leak")).toEqual([]);
   });

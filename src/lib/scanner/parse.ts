@@ -76,6 +76,7 @@ export function parseHtml(html: string, baseUrl: string): ParsedHtml {
     forms.push({
       action,
       method: ($(el).attr("method") ?? "get").toLowerCase(),
+      methodExplicit: $(el).attr("method") !== undefined,
       hasPassword: $(el).find('input[type="password" i]').length > 0,
     });
   });

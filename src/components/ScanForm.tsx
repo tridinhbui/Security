@@ -70,7 +70,7 @@ export function ScanForm({ authed, initialUrl = "", autoStart = false, size = "l
           <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-fg" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 8 5 4-5 4" /><path d="M13 17h6" /></svg>
           <input
             id="scan-url" name="url" type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false}
-            placeholder="Nhập URL để quét (ví dụ: https://example.com)" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy} maxLength={2048}
+            placeholder="vd. tenmien.vn" value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy} maxLength={2048}
             aria-invalid={!!error} aria-describedby={error ? "scan-error" : undefined}
             className={`min-w-0 flex-1 bg-transparent text-fg placeholder:text-faint focus:outline-none ${big ? "h-12 text-[15px]" : "h-10 text-[15px]"}`}
           />

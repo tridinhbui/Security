@@ -95,6 +95,8 @@ export interface ResourceRef {
 export interface FormRef {
   action: string; // absolute
   method: string;
+  /** false khi form không ghi method (trình duyệt mặc định GET, nhưng form React/Next thường do JavaScript gửi bằng POST). */
+  methodExplicit?: boolean;
   hasPassword: boolean;
 }
 
@@ -179,6 +181,8 @@ export interface Observations {
   sensitivePage: FetchRecord | null;
   methods: MethodsProbe | null;
   dns: DnsInfo | null;
+  /** Hậu tố nền tảng khi website nằm trên tên miền con của nền tảng (vd. "vercel.app"); khi đó không tra DNS/email của tên miền gốc. */
+  platformSuffix?: string | null;
   legacyTls: { tls10: boolean | null; tls11: boolean | null; h2?: boolean | null } | null;
   platforms: Platform[];
   technologies: string[];

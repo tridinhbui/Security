@@ -7,6 +7,7 @@ import { createWorkerFetcher } from "../ssrf/worker-fetch";
 import { collect } from "../scanner/collect-core";
 import { createDohDnsLookup } from "../scanner/dns-doh";
 import { buildReport } from "../scanner/pipeline";
+import { refuseIfBlocked } from "../scanner/coverage";
 import { ScanRefusedError } from "../scanner/report";
 import type { TlsInspection } from "../scanner/tls-inspect";
 import { createNdjsonScanner, requestTls, type ScannerClient } from "./scanner-client";
@@ -72,6 +73,7 @@ export function createHybridScanner(d: HybridDeps): ScannerClient {
       }
 
       await onStage("generating_report");
+      refuseIfBlocked(obs);
       return buildReport(url, target, obs, budget, started, quick);
     },
   };

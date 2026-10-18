@@ -1,6 +1,7 @@
 import type { Finding, Observations, Rule } from "../types";
 import { header, livePage, makeFinding, MDN, OWASP, pass, setCookies, truncate } from "../util";
-import { collectCookies, SESSION_NAME } from "./cookies";
+import { strongestCsp } from "./headers";
+import { collectCookies, hasSessionLikeCookie, SESSION_NAME } from "./cookies";
 
 /**
  * Luật NÂNG CAO (chỉ chạy ở chế độ quét đầy đủ). Toàn bộ là phân tích thụ động, xác định, trên dữ liệu đã thu:
@@ -41,7 +42,8 @@ const cspAnalysis = adv({
   category: "Headers",
   run(obs) {
     const p = livePage(obs);
-    const raw = p ? header(p.headers, "content-security-policy") : undefined;
+    const rawAll = p ? header(p.headers, "content-security-policy") : undefined;
+    const raw = rawAll ? strongestCsp(rawAll) : undefined; // nhiều chính sách: phân tích chính sách chặt nhất (giới hạn thực tế)
     if (!p || !raw) return [];
     const d = parseCsp(raw);
     const scriptSrc = d.get("script-src") ?? d.get("default-src") ?? [];
@@ -77,7 +79,8 @@ const cacheLeak = adv({
     const p = livePage(obs);
     if (!p) return [];
     const sc = setCookies(p.headers);
-    if (!sc.length) return [];
+    // Chỉ cookie trông như PHIÊN mới đáng lo khi bị cache dùng chung; cookie của CDN (vd. __cf_bm) hay ngôn ngữ thì không.
+    if (!sc.length || !hasSessionLikeCookie(sc)) return [];
     const cc = (header(p.headers, "cache-control") ?? "").toLowerCase();
     const age = Number(header(p.headers, "age") ?? NaN);
     const hit = /hit/i.test(header(p.headers, "cf-cache-status") ?? "") || /hit/i.test(header(p.headers, "x-cache") ?? "") || (!Number.isNaN(age) && age > 0);
@@ -86,7 +89,7 @@ const cacheLeak = adv({
     const vary = (header(p.headers, "vary") ?? "").toLowerCase();
     const refs = [OWASP("Session_Management_Cheat_Sheet.html", "OWASP: Session Management"), MDN("Web/HTTP/Guides/Caching", "MDN: HTTP caching")];
     const ev = [`Set-Cookie: ${sc.length} cookie (giá trị đã che)`, `Cache-Control: ${cc || "(không có)"}`, `Age: ${Number.isNaN(age) ? "(không có)" : age}`, `Vary: ${vary || "(không có)"}`];
-    if (hit && !blocked) return [makeFinding({ ruleId: this.id, key: "hit", title: "Phản hồi có cookie đã bị cache dùng chung phục vụ lại", category: this.category, severity: "high", confidence: "medium", status: "fail", affectedUrl: p.finalUrl, references: refs,
+    if (hit && !blocked) return [makeFinding({ ruleId: this.id, key: "hit", title: "Phản hồi có cookie đã bị cache dùng chung phục vụ lại", category: this.category, severity: "medium", confidence: "medium", status: "fail", affectedUrl: p.finalUrl, references: refs,
       summary: "Trang chủ vừa gửi Set-Cookie vừa được CDN/proxy trả từ bộ nhớ đệm (cache HIT).", explanation: "Nếu cookie phiên của người này bị cache, người truy cập kế tiếp có thể nhận chính cookie đó và vào thẳng tài khoản của họ.", evidence: ev,
       technical: "Dấu hiệu HIT lấy từ Age, X-Cache hoặc CF-Cache-Status; chưa chứng minh cookie bị phát lại." })];
     if (shared && !blocked && !/\bcookie\b/.test(vary)) return [makeFinding({ ruleId: this.id, key: "public", title: "Trang cho phép cache dùng chung nhưng lại đặt cookie", category: this.category, severity: "medium", confidence: "medium", status: "fail", affectedUrl: p.finalUrl, references: refs,
@@ -378,7 +381,8 @@ const formGet = adv({
   title: "Form mật khẩu không dùng GET",
   category: "Browser Security",
   run(obs) {
-    const bad = obs.html?.forms.filter((f) => f.hasPassword && f.method.toLowerCase() === "get") ?? [];
+    // Chỉ method="get" ghi rõ; trường hợp không ghi method do tls.insecure-login-form báo (độ tin cậy thấp), tránh trừ điểm hai lần.
+    const bad = obs.html?.forms.filter((f) => f.hasPassword && f.method.toLowerCase() === "get" && f.methodExplicit !== false) ?? [];
     if (!bad.length) return [];
     return [makeFinding({ ruleId: this.id, title: "Form có ô mật khẩu gửi bằng GET", category: this.category, severity: "high", confidence: "high", status: "fail",
       references: [OWASP("Authentication_Cheat_Sheet.html", "OWASP: Authentication")], summary: "Form đăng nhập dùng method GET nên mật khẩu nằm ngay trên URL.", explanation: "URL được lưu trong lịch sử trình duyệt, nhật ký máy chủ, proxy và header Referer, nên mật khẩu bị ghi lại ở nhiều nơi.", evidence: bad.map((f) => `<form method="get" action="${truncate(f.action, 120)}">`) })];

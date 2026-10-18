@@ -10,12 +10,15 @@ export type Urgency = "now" | "week" | "later";
 export interface ATech {
   ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[]; fixSummary: string;
   impact?: { today: string; worst: string; who: string; urgency: Urgency };
-  penalty?: number;
+  penalty?: number; sameAs?: string;
   statement?: string; sub?: string; origin?: { kind: string; label: string; meaning: string; rootCause: string }; repro?: string | null;
   references?: { title: string; url: string }[];
   title?: string; explain?: ExplainData;
 }
-export interface AItem { id: string; label: string; status: "pass" | "warning" | "fail"; text: string; tech?: ATech }
+export type AStatus = "pass" | "warning" | "fail" | "info" | "unknown";
+export interface AItem { id: string; label: string; status: AStatus; text: string; tech?: ATech }
+/** Chỉ “cần sửa” và “nên cải thiện” là việc phải làm; “tham khảo” và “chưa kiểm tra được” thì không. */
+export const isIssueItem = (i: Pick<AItem, "status">) => i.status === "fail" || i.status === "warning";
 
 export const URGENCY: Record<Urgency, { label: string; cls: string }> = { now: { label: "Xử lý ngay hôm nay", cls: "chip-crit" }, week: { label: "Xử lý trong tuần này", cls: "chip-med" }, later: { label: "Xử lý khi rảnh", cls: "chip-info" } };
 const SEV: Record<string, string> = { critical: "nghiêm trọng", high: "cao", medium: "trung bình", low: "thấp", info: "thông tin" };
@@ -39,6 +42,7 @@ export function ProblemPane({ item, host, onAsk }: { item: AItem; host?: string;
       <p className="eyebrow">vấn đề · {item.label}</p>
       <h3 className="mt-2 text-[17px] font-semibold leading-snug">{h.title}</h3>
       {item.status !== "pass" && t?.statement && <p className="mt-1 text-[13px] leading-snug text-faint">{t.statement}</p>}
+      {t?.sameAs && <p className="mt-2 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] leading-snug text-muted">Cùng nguyên nhân với “{t.sameAs}”. Sửa mục đó là xong cả mục này; điểm chỉ bị trừ một lần.</p>}
       <div className="mt-3">
         {item.status !== "pass" && e ? <ExplainSections e={e} /> : <p className="text-[15px] leading-relaxed text-muted">{h.sub}</p>}
       </div>
@@ -82,7 +86,7 @@ export function ProblemPane({ item, host, onAsk }: { item: AItem; host?: string;
 
 /** Phân loại ưu tiên: bao nhiêu mục cần xử lý hôm nay / tuần này / khi rảnh, và phân bố theo nguồn gốc lỗi. */
 export function TriageStrip({ items }: { items: AItem[] }) {
-  const bad = items.filter((i) => i.status !== "pass" && i.tech);
+  const bad = items.filter((i) => isIssueItem(i) && i.tech);
   if (bad.length === 0) return null;
   const by = <K extends string>(f: (i: AItem) => K | undefined) => bad.reduce<Record<string, number>>((m, i) => { const k = f(i); if (k) m[k] = (m[k] ?? 0) + 1; return m; }, {});
   const urg = by((i) => i.tech?.impact?.urgency);
@@ -99,8 +103,8 @@ export function TriageStrip({ items }: { items: AItem[] }) {
 }
 
 function toMarkdown(host: string, score: number, grade: string, items: AItem[]): string {
-  const L: string[] = [`# Kết quả quét nhanh — ${host}`, "", `Điểm: **${score}/100** (hạng ${grade}). Quét thụ động, chỉ trang chủ.`, ""];
-  const bad = items.filter((i) => i.status !== "pass");
+  const L: string[] = [`# Kết quả quét nhanh — ${host}`, "", `Điểm: **${score}/100** (hạng ${grade}). Quét thụ động, chỉ trang chủ. Điểm chỉ phản ánh các mục VibeSec kiểm tra được, không phải chứng nhận website an toàn.`, ""];
+  const bad = items.filter(isIssueItem);
   L.push(`## Phát hiện cần xử lý (${bad.length})`, "");
   bad.forEach((i, n) => {
     const t = i.tech, h = headline(i);
@@ -114,6 +118,8 @@ function toMarkdown(host: string, score: number, grade: string, items: AItem[]):
     if (t?.fixSummary) L.push("", `Giải pháp: ${t.fixSummary}`);
     L.push("");
   });
+  const notes = items.filter((i) => i.status === "info" || i.status === "unknown");
+  if (notes.length) L.push(`## Tham khảo / chưa kiểm tra được (${notes.length})`, "", ...notes.map((i) => `- ${i.status === "unknown" ? "[Chưa kiểm tra được] " : ""}${i.label}: ${i.text}`), "");
   const ok = items.filter((i) => i.status === "pass");
   L.push(`## Đạt (${ok.length})`, "", ...ok.map((i) => `- ${i.label}: ${i.text}`), "");
   return L.join("\n");

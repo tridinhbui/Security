@@ -5,6 +5,15 @@ import { header, isHtml, livePage, makeFinding, MDN, pass, setCookies } from "..
 const CAT = "Cookies & Sessions" as const;
 export const SESSION_NAME = /(sess|sid\b|^sid|auth|token|jwt|login|remember|identity|connect\.sid|next-auth|__session|sb-.*-auth)/i;
 const CSRF_NAME = /csrf|xsrf/i;
+/** Cookie hạ tầng của CDN/chống bot (không chứa phiên người dùng) và cookie tuỳ chọn hiển thị: CDN được phép cache chúng. */
+const INFRA_COOKIE = /^(__cf_bm|_cfuvid|cf_clearance|__cflb|__cfruid|cf_chl_\w*|AWSALB\w*|AWSELB\w*|NEXT_LOCALE|locale|lang)$/i;
+/** Từ các dòng Set-Cookie, có cookie nào trông như cookie PHIÊN (nếu bị cache dùng chung thì có thể lộ phiên) không? */
+export function hasSessionLikeCookie(setCookieLines: string[]): boolean {
+  return setCookieLines.some((l) => {
+    const name = l.split("=")[0]!.trim();
+    return !!name && !INFRA_COOKIE.test(name) && SESSION_NAME.test(name) && !CSRF_NAME.test(name);
+  });
+}
 
 export interface ParsedCookie {
   name: string;
@@ -33,7 +42,7 @@ export function parseSetCookie(raw: string, source: string): ParsedCookie | null
     else if (key === "samesite") c.sameSite = (["lax", "strict", "none"].includes(val.toLowerCase()) ? val.toLowerCase() : null) as ParsedCookie["sameSite"];
     else if (key === "path") c.path = val;
     else if (key === "domain") c.domain = val;
-    else if (key === "max-age" && /^\d+$/.test(val)) c.maxAgeDays = Number(val) / 86400;
+    else if (key === "max-age" && /^-?\d+$/.test(val)) c.maxAgeDays = Number(val) / 86400;
     else if (key === "expires" && !Number.isNaN(Date.parse(val))) c.expiresInDays = (Date.parse(val) - Date.now()) / 86_400_000;
   }
   return c;
@@ -41,11 +50,14 @@ export function parseSetCookie(raw: string, source: string): ParsedCookie | null
 
 export function collectCookies(obs: Observations): ParsedCookie[] {
   const seen = new Map<string, ParsedCookie>();
-  const records = [obs.https, obs.sensitivePage, obs.page].filter((r): r is NonNullable<typeof r> => !!r);
+  // Gồm cả chuỗi chuyển hướng http:// (cookie phiên đặt qua HTTP thuần đã lộ trên đường truyền); bản HTTPS đọc sau nên ghi đè cùng tên.
+  const records = [obs.http, obs.https, obs.sensitivePage, obs.page].filter((r): r is NonNullable<typeof r> => !!r);
   for (const r of records) {
     for (const hop of r.chain) {
       for (const raw of setCookies(hop.headers)) {
         const c = parseSetCookie(raw, hop.url);
+        // Cookie bị XOÁ (Max-Age ≤ 0 hoặc Expires trong quá khứ, vd. khi đăng xuất) không còn tồn tại trong trình duyệt: không đánh giá cờ của nó.
+        if (c && ((c.maxAgeDays !== null && c.maxAgeDays <= 0) || (c.maxAgeDays === null && c.expiresInDays !== null && c.expiresInDays < 0))) { seen.delete(c.name); continue; }
         if (c) seen.set(c.name, c);
       }
     }

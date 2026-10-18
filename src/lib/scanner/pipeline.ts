@@ -7,6 +7,7 @@ import { ALL_RULES, BASIC_RULES } from "./rules";
 import { evaluate } from "./evaluate";
 import { redactHeaders, type RedactedTarget, type ScanReport } from "./report";
 import { calculateScore, prioritize, SCORE_DISCLAIMER, topRisks } from "./score";
+import { coverageGaps } from "./coverage";
 import type { Observations } from "./types";
 
 /** Phần thuần (không I/O) của một lượt quét: Observations → báo cáo. Dùng chung cho container và Worker. */
@@ -27,7 +28,9 @@ export function buildReport(input: string, target: NormalizedTarget, obs: Observ
   const rules = quick ? BASIC_RULES : ALL_RULES;
   const { findings: raw, errors } = evaluate(obs, rules);
   const findings = attachFixCommands(raw, { host: target.host, platforms: obs.platforms });
-  const score = calculateScore(findings, { limitedCoverage: quick || obs.limits.hitLimit !== null });
+  const gaps = coverageGaps(obs, { quick });
+  // Thiếu dữ liệu ở nhóm kiểm tra nào thì điểm không được trông như điểm của một lượt quét đầy đủ.
+  const score = calculateScore(findings, { limitedCoverage: quick || obs.limits.hitLimit !== null || gaps.length > 0 });
   return {
     version: 1,
     engineVersion: ENGINE_VERSION,
@@ -40,7 +43,7 @@ export function buildReport(input: string, target: NormalizedTarget, obs: Observ
     platforms: obs.platforms,
     technologies: obs.technologies,
     targets: targetsFrom(obs),
-    stats: { requests: budget.used, hitLimit: obs.limits.hitLimit, rulesRun: rules.length, ruleErrors: errors, ...(quick ? { quick: true } : {}) },
+    stats: { requests: budget.used, hitLimit: obs.limits.hitLimit, rulesRun: rules.length, ruleErrors: errors, ...(quick ? { quick: true } : {}), ...(gaps.length ? { coverageGaps: gaps.map((x) => x.text) } : {}) },
     disclaimer: SCORE_DISCLAIMER,
   };
 }

@@ -39,8 +39,8 @@ const ICONS: Record<(typeof CATEGORIES)[number], React.ReactNode> = {
 
 const STEPS = [
   { n: "01", t: "Dán một URL", d: "Chỉ cần tên miền. Chúng tôi chuẩn hoá và chặn mọi địa chỉ nội bộ ngay từ đầu." },
-  { n: "02", t: "Quét thụ động", d: "Chín giai đoạn: phân giải, TLS, header, endpoint công khai, rủi ro phía trình duyệt, cấu hình, chấm điểm." },
-  { n: "03", t: "Nhận báo cáo & cách sửa", d: "Điểm 0–100, bằng chứng cụ thể và cấu hình sao chép được cho đúng hệ thống của bạn." },
+  { n: "02", t: "Chỉ đọc, không tấn công", d: "VibeSec xem những gì ai trên mạng cũng thấy: ổ khoá HTTPS, các “biển báo an toàn” website gửi cho trình duyệt (header), cookie, bản ghi email của tên miền và những thứ lỡ để lộ." },
+  { n: "03", t: "Biết sửa gì trước, ai sửa, sửa ra sao", d: "Mỗi vấn đề có lời giải thích tiếng Việt, mức ưu tiên, người cần làm (lập trình viên, hosting hay người quản lý tên miền), các bước sửa và cách tự kiểm tra lại." },
 ];
 
 export default async function Home() {
@@ -56,12 +56,12 @@ export default async function Home() {
         <div aria-hidden className="hero-orbs"><span className="orb orb-a" /><span className="orb orb-b" /><span className="orb orb-c" /><span className="cursor-glow" /></div>
         <div className="container-x relative grid items-center gap-8 pb-16 pt-14 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:pb-24">
           <div className="depth-copy">
-            <p className="reveal eyebrow">external attack surface scanner</p>
+            <p className="reveal eyebrow">kiểm tra bảo mật website · không cần biết kỹ thuật</p>
             <h1 className="mt-7 text-[2.8rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-[4.2rem]">
-              <SplitText lines={[[{ text: "Nhìn website" }], [{ text: "như một attacker.", className: "headline-live" }]]} />
+              <SplitText lines={[[{ text: "Website của bạn" }], [{ text: "đang hở chỗ nào?", className: "headline-live" }]]} />
             </h1>
             <p className="reveal mt-7 max-w-xl text-[17px] leading-[1.8] text-muted" style={{ ["--i" as string]: 2 }}>
-              VibeSec tự động chạy {ALL_RULES.length} kiểm tra bảo mật, phân tích bề mặt tấn công công khai của bất kỳ website nào, và hướng dẫn cách khắc phục — đơn giản, rõ ràng, không cần kiến thức chuyên sâu.
+              Dán địa chỉ website của bạn. VibeSec nhìn website giống như một người lạ trên mạng, chỉ ra những chỗ cấu hình chưa an toàn, giải thích bằng tiếng Việt dễ hiểu và hướng dẫn sửa từng bước. {ALL_RULES.length} kiểm tra, không cần kiến thức bảo mật.
             </p>
             <div className="reveal mt-9 max-w-[640px]" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} label={user ? undefined : "Quét miễn phí"} /></div>
             <ul className="reveal mt-6 flex flex-wrap gap-3" style={{ ["--i" as string]: 4 }}>
@@ -70,9 +70,9 @@ export default async function Home() {
               <li className="pill"><span className="size-2 rounded-full bg-faint" />Không khai thác lỗ hổng</li>
             </ul>
             <MatMatSays className="mt-6 max-w-xl" text="Mình là Mật Mật 🐾 Mình sẽ đi xem website của bạn giống như một người khách tò mò, rồi kể lại cho bạn nghe thật dễ hiểu: chỗ nào chưa khoá cửa và nên sửa thế nào. Không cần biết kỹ thuật đâu!" />
-            {!user && <p className="mt-4 text-sm text-faint">Cần tài khoản miễn phí để chống lạm dụng.</p>}
+            {!user && <p className="mt-4 text-sm text-faint">Quét nhanh không cần tài khoản. Tạo tài khoản miễn phí để quét đầy đủ và lưu lịch sử.</p>}
           </div>
-          <HeroVisual />
+          <HeroVisual total={ALL_RULES.length} />
         </div>
       </HeroStage>
 

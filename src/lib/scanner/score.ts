@@ -36,14 +36,58 @@ export interface ScoreResult {
   failed: number;
 }
 
+/**
+ * NGUYÊN NHÂN GỐC: một số luật phân tích sâu (adv.*) soi lại đúng cấu hình mà luật cơ bản đã báo (vd. 'unsafe-inline' trong CSP được cả
+ * headers.csp và adv.csp-analysis báo). Mỗi nguyên nhân gốc chỉ bị trừ điểm MỘT lần (khoản nặng nhất trong nhóm) và chỉ khoản đó được
+ * tính trần điểm; các phát hiện còn lại vẫn hiển thị như bằng chứng bổ sung.
+ */
+export function rootCause(f: Pick<Finding, "ruleId" | "fingerprint">): string {
+  const key = f.fingerprint.split("|")[1] ?? "";
+  switch (f.ruleId) {
+    case "headers.csp": case "adv.csp-analysis": return "csp";
+    case "adv.form-method": return "password-form-get";
+    case "tls.insecure-login-form": return key === "method-get" ? "password-form-get" : f.fingerprint;
+    case "adv.redirect-chain": return "redirect-chain";
+    case "config.suspicious-redirects": return /^(downgrade|long):/.test(key) ? "redirect-chain" : f.fingerprint;
+    case "adv.spf-deep": return "spf";
+    case "adv.dmarc-deep": return "dmarc";
+    case "config.dns-email-security": return key.startsWith("spf") ? "spf" : key.startsWith("dmarc") ? "dmarc" : f.fingerprint;
+    case "adv.certificate-hygiene": return "cert-lifetime";
+    case "tls.certificate-strength": return key === "long-validity" ? "cert-lifetime" : f.fingerprint;
+    case "adv.shared-cache-leak": return "shared-cache-cookie";
+    case "headers.cache-policy": return key === "cookie-cacheable" ? "shared-cache-cookie" : f.fingerprint;
+    default: return f.fingerprint;
+  }
+}
+
+/** Khoản trừ thực tế của từng phát hiện (theo fingerprint) sau khi gộp nguyên nhân gốc, và phát hiện nào là bản trùng của phát hiện nào. */
+export function effectivePenalties(findings: Finding[]): { penalty: Map<string, number>; duplicateOf: Map<string, string> } {
+  const best = new Map<string, Finding>();
+  for (const f of findings) {
+    if (f.status !== "fail") continue;
+    const r = rootCause(f), cur = best.get(r);
+    if (!cur || penalty(f) > penalty(cur)) best.set(r, f);
+  }
+  const out = new Map<string, number>(), dup = new Map<string, string>();
+  for (const f of findings) {
+    if (f.status !== "fail") { out.set(f.fingerprint, 0); continue; }
+    const owner = best.get(rootCause(f))!;
+    if (owner === f) out.set(f.fingerprint, penalty(f));
+    else { out.set(f.fingerprint, 0); dup.set(f.fingerprint, owner.title); }
+  }
+  return { penalty: out, duplicateOf: dup };
+}
+
 export function calculateScore(findings: Finding[], opts: { limitedCoverage?: boolean } = {}): ScoreResult {
   const ceiling = opts.limitedCoverage ? LIMITED_COVERAGE_CEILING : PASSIVE_SCORE_CEILING;
   const fails = findings.filter((f) => f.status === "fail");
+  const eff = effectivePenalties(findings);
+  const counted = fails.filter((f) => !eff.duplicateOf.has(f.fingerprint));
   let total = 0;
-  for (const f of findings) total += penalty(f);
+  for (const f of findings) total += eff.penalty.get(f.fingerprint) ?? 0;
   let score = Math.max(0, 100 - total);
-  if (fails.some((f) => f.severity === "critical")) score = Math.min(score, 59);
-  else if (fails.some((f) => f.severity === "high")) score = Math.min(score, 79);
+  if (counted.some((f) => f.severity === "critical")) score = Math.min(score, 59);
+  else if (counted.some((f) => f.severity === "high")) score = Math.min(score, 79);
   score = Math.round(Math.min(score, ceiling));
 
   const categoryScores = {} as Record<Category, number | null>;
@@ -54,7 +98,7 @@ export function calculateScore(findings: Finding[], opts: { limitedCoverage?: bo
       continue;
     }
     // Category scores are intentionally harsher (×1.5): fewer checks per category.
-    const p = inCat.reduce((a, f) => a + penalty(f), 0) * 1.5;
+    const p = inCat.reduce((a, f) => a + (eff.penalty.get(f.fingerprint) ?? 0), 0) * 1.5;
     categoryScores[c] = Math.round(Math.min(ceiling, Math.max(0, 100 - p)));
   }
 
@@ -81,8 +125,10 @@ export function prioritize(findings: Finding[]): Finding[] {
   );
 }
 
+/** Việc nên làm trước: mỗi nguyên nhân gốc chỉ xuất hiện một lần (không để 2/3 vị trí ưu tiên cùng nói về một chỗ CSP). */
 export function topRisks(findings: Finding[], n = 3): Finding[] {
-  return prioritize(findings.filter((f) => f.status === "fail" && f.severity !== "info")).slice(0, n);
+  const seen = new Set<string>();
+  return prioritize(findings.filter((f) => f.status === "fail" && f.severity !== "info")).filter((f) => { const r = rootCause(f); if (seen.has(r)) return false; seen.add(r); return true; }).slice(0, n);
 }
 
 export const SCORE_DISCLAIMER =

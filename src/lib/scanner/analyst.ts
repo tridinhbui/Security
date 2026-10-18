@@ -1,3 +1,5 @@
+import { dnsApex } from "./platform-domain";
+
 /**
  * Góc nhìn của analyst cho từng phát hiện:
  *  - statement / sub: câu khẳng định nói thẳng sự việc (không phải câu hỏi), để đọc lướt là hiểu issue ngay;
@@ -103,6 +105,7 @@ const HOST_OK = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
 export function reproFor(ruleId: string, host: string): string | null {
   if (!HOST_OK.test(host)) return null;
   const apex = host.replace(/^www\./, "");
+  const zone = dnsApex(host); // đúng tên miền mà kiểm tra DNS đã tra
   const h = HEADER_OF[ruleId];
   if (h) return `curl -sI https://${host}/ | grep -iE "^(${h}):"`;
   switch (ruleId) {
@@ -113,7 +116,7 @@ export function reproFor(ruleId: string, host: string): string | null {
     case "tls.cipher-suite": return `openssl s_client -connect ${host}:443 -servername ${host} </dev/null 2>/dev/null | grep -E "Protocol|Cipher"`;
     case "cookies.flags": case "cookies.prefix": case "adv.cookie-scope": case "adv.shared-cache-leak": return `curl -sI https://${host}/ | grep -i "^set-cookie:"   # đối chiếu cờ Secure / HttpOnly / SameSite`;
     case "browser.cors": return `curl -sI -H "Origin: https://origin-la.example" https://${host}/ | grep -i "^access-control"`;
-    case "config.dns-email-security": case "adv.spf-deep": case "adv.dmarc-deep": return `dig +short TXT ${apex}; dig +short TXT _dmarc.${apex}; dig +short CAA ${apex}; dig +short DS ${apex}`;
+    case "config.dns-email-security": case "adv.spf-deep": case "adv.dmarc-deep": return `dig +short TXT ${zone}; dig +short TXT _dmarc.${zone}; dig +short CAA ${zone}; dig +short DS ${zone}`;
     case "exposure.security-txt": return `curl -si https://${host}/.well-known/security.txt | head -5`;
     case "exposure.robots-txt": return `curl -s https://${host}/robots.txt | head -20`;
     case "tls.certificate-strength": return `echo | openssl s_client -servername ${host} -connect ${host}:443 2>/dev/null | openssl x509 -noout -text | grep -E "Public-Key|Signature Algorithm|Not (Before|After)"`;

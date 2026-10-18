@@ -6,7 +6,7 @@ import { collect } from "./collect-core";
 import { createDohDnsLookup } from "./dns-doh";
 import { evaluate } from "./evaluate";
 import { ALL_RULES } from "./rules";
-import { calculateScore, penalty, type Grade } from "./score";
+import { calculateScore, effectivePenalties, type Grade } from "./score";
 import type { TlsInfo } from "../ssrf/types";
 import type { Finding, Observations } from "./types";
 import { attachFixCommands } from "./fixes";
@@ -16,6 +16,8 @@ import { header } from "./util";
 import { IMPACT, urgencyFor, type Urgency } from "./impact";
 import { ANALYST, originFor, reproFor, type Origin } from "./analyst";
 import { explain, type Explanation } from "./explain";
+import { ScanRefusedError } from "./report";
+import { coverageGaps, refuseIfBlocked } from "./coverage";
 
 /**
  * QUÉT NHANH MIỄN PHÍ (không cần tài khoản). Chạy hoàn toàn trong Worker, thụ động và rất nhẹ:
@@ -49,11 +51,18 @@ export const QUICK_RULES: Record<string, { group: QuickGroup }> = {
 };
 export type QuickGroup = "headers" | "https" | "redirect" | "cookies" | "csp" | "cors" | "dns" | "exposure" | "securitytxt" | "mixed" | "sri";
 export const GROUP_LABEL: Record<QuickGroup, string> = {
-  headers: "Header bảo mật", https: "HTTPS / SSL", redirect: "Chuyển hướng HTTP → HTTPS", cookies: "Cookie", csp: "CSP", cors: "CORS",
-  dns: "SPF / DMARC / CAA", exposure: "Lộ thông tin", securitytxt: "security.txt", mixed: "Nội dung hỗn hợp (mixed content)", sri: "Script bên ngoài / SRI",
+  // Tiếng Việt trước, tên kỹ thuật trong ngoặc: người mới hiểu đây là gì, người kỹ thuật vẫn tìm đúng thuật ngữ.
+  headers: "Biển báo an toàn cho trình duyệt (header)", https: "Ổ khoá HTTPS", redirect: "Chuyển http:// sang https://", cookies: "Cookie đăng nhập", csp: "Chính sách chặn mã lạ (CSP)", cors: "Quyền đọc dữ liệu từ website khác (CORS)",
+  dns: "Chống giả mạo email & tên miền (SPF / DMARC / CAA)", exposure: "Thông tin lỡ để lộ", securitytxt: "Kênh nhận báo lỗi bảo mật (security.txt)", mixed: "Tải nội dung qua kết nối không mã hoá (mixed content)", sri: "Script từ bên ngoài (SRI)",
 };
 
-export type QuickStatus = "pass" | "warning" | "fail";
+/**
+ * pass = đạt · warning = nên cải thiện (mức Thấp) · fail = cần sửa (Trung bình trở lên)
+ * info = thông tin tham khảo, không phải lỗi · unknown = CHƯA KIỂM TRA ĐƯỢC (thiếu dữ liệu) — không bao giờ bị tính là lỗi hay đạt.
+ */
+export type QuickStatus = "pass" | "warning" | "fail" | "info" | "unknown";
+/** Chỉ "fail" và "warning" là việc cần làm; "info"/"unknown" không trừ điểm và không được đếm là vấn đề. */
+export const isIssue = (s: QuickStatus) => s === "fail" || s === "warning";
 /** Chi tiết kỹ thuật + giải pháp của một mục (chỉ dữ liệu đã được che; không bao giờ có giá trị cookie hay bí mật). */
 export interface QuickTech {
   ruleId: string; severity: string; confidence: string; evidence: string[]; owasp: string[];
@@ -62,8 +71,10 @@ export interface QuickTech {
   references: { title: string; url: string }[];
   /** "Nếu để 1 ngày thì sao?" — chỉ có ở mục chưa đạt. */
   impact?: { today: string; worst: string; who: string; urgency: Urgency };
-  /** Số điểm bị trừ do phát hiện này (trọng số mức độ × hệ số tin cậy). */
+  /** Số điểm bị trừ do phát hiện này (trọng số mức độ × hệ số tin cậy); 0 nếu cùng nguyên nhân gốc với một phát hiện khác. */
   penalty?: number;
+  /** Tiêu đề phát hiện chính khi mục này chỉ là bằng chứng bổ sung cho cùng một nguyên nhân gốc (không trừ điểm thêm). */
+  sameAs?: string;
   /** Góc nhìn analyst: câu khẳng định + câu phụ, nguồn gốc lỗi, và lệnh chỉ-đọc để tự tái hiện. */
   statement?: string; sub?: string; origin?: Origin; repro?: string | null;
   /** Tiêu đề CỤ THỂ của phát hiện này (không phải câu chung của luật). */
@@ -85,25 +96,34 @@ export interface QuickResult {
   host: string; score: number; grade: Grade; scannedAt: string; counts: Record<QuickStatus, number>; items: QuickItem[]; recon?: QuickRecon; /** Điểm tối đa của lượt quét này. */ ceiling?: number;
   /** Lượt quét nhanh có phạm vi giới hạn: điểm tối đa 90. */
   limited: true; requests: number;
+  /** Phần chưa kiểm tra được trong lượt quét này (vd. không tra được DNS). */
+  gaps?: string[];
 }
+
+export const UNREACHABLE_MESSAGE = "Chưa quét được: VibeSec không kết nối được tới website qua HTTPS lẫn HTTP. Đây không phải kết quả bảo mật. Hãy kiểm tra: (1) địa chỉ gõ đúng chưa; (2) mở thử bằng trình duyệt xem website có đang chạy không; (3) website có chặn công cụ tự động (tường lửa, chống bot) không. Sau đó thử lại.";
+
+export const HTTPS_UNAVAILABLE_MESSAGE = "Chưa chấm điểm: website mở được bằng http:// nhưng bản https:// không kết nối được trong lần quét này. Nếu website CHƯA có HTTPS (ổ khoá trên thanh địa chỉ), đây là việc cần làm đầu tiên: bật HTTPS ở hosting/CDN (thường miễn phí và chỉ vài cú bấm), rồi quét lại. Nếu website ĐÃ có HTTPS, có thể do mạng tạm thời: hãy thử lại sau ít phút hoặc dùng quét đầy đủ.";
 
 const short = (s: string, n = 170) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
-/** Mức độ → Đạt / Cảnh báo / Lỗi. Chỉ Thấp là cảnh báo; Trung bình trở lên là lỗi. */
-export function toStatus(f: Pick<Finding, "status" | "severity">): QuickStatus | null {
+/** Mức độ → Đạt / Nên cải thiện / Cần sửa. Chỉ Thấp là “nên cải thiện”; Trung bình trở lên là “cần sửa”. Ghi chú và mục chưa kiểm tra được giữ nguyên trạng thái riêng. */
+export function toStatus(f: Pick<Finding, "status" | "severity">): QuickStatus {
   if (f.status === "pass") return "pass";
-  if (f.status !== "fail") return null; // ghi chú / chưa kiểm tra được: không hiển thị
+  if (f.status === "unknown") return "unknown";
+  if (f.status === "info") return "info";
   return f.severity === "low" || f.severity === "info" ? "warning" : "fail";
 }
 
 const clip = (x: string, n: number) => (x.length > n ? `${x.slice(0, n - 1)}…` : x);
 export function toItems(findings: Finding[], host = ""): QuickItem[] {
   const out: QuickItem[] = [];
+  const eff = effectivePenalties(findings.filter((f) => f.ruleId in QUICK_RULES));
   for (const f of findings) {
     const meta = QUICK_RULES[f.ruleId];
     const status = toStatus(f);
-    if (!meta || !status) continue;
-    const bad = status !== "pass";
+    if (!meta) continue;
+    const bad = isIssue(status);
+    const note = status === "info" || status === "unknown";
     const tech: QuickTech = {
       ruleId: f.ruleId, severity: f.severity, confidence: f.confidence,
       evidence: f.evidence.slice(0, 5).map((e) => clip(e, 220)),
@@ -112,13 +132,14 @@ export function toItems(findings: Finding[], host = ""): QuickItem[] {
       fixSteps: bad ? (f.remediation?.steps ?? []).slice(0, 4).map((x) => clip(x, 220)) : [],
       fix: bad ? (f.remediation?.snippets ?? []).slice(0, 4).map((x) => ({ label: clip(x.label, 90), language: x.language, code: clip(x.code, 900) })) : [],
       references: f.references.slice(0, 3),
-      ...(bad ? { penalty: Math.round(penalty(f) * 10) / 10, title: f.title, summary: f.summary, explain: (({ specific: _s, ...e }) => e)(explain(f, host || "example.com")) } : {}),
+      ...(bad ? { penalty: Math.round((eff.penalty.get(f.fingerprint) ?? 0) * 10) / 10, ...(eff.duplicateOf.has(f.fingerprint) ? { sameAs: eff.duplicateOf.get(f.fingerprint) } : {}) } : {}),
+      ...(bad || note ? { title: f.title, summary: f.summary, explain: (({ specific: _s, ...e }) => e)(explain(f, host || "example.com")) } : {}),
       ...(bad && ANALYST[f.ruleId] ? { statement: ANALYST[f.ruleId]!.statement, sub: ANALYST[f.ruleId]!.sub, origin: originFor(f.ruleId, f.title), repro: host ? reproFor(f.ruleId, host) : null } : {}),
       ...(bad && IMPACT[f.ruleId] ? { impact: { today: IMPACT[f.ruleId]!.today, worst: IMPACT[f.ruleId]!.worst, who: IMPACT[f.ruleId]!.who, urgency: urgencyFor(f.ruleId, f.severity) } } : {}),
     };
-    out.push({ id: f.fingerprint, group: meta.group, label: GROUP_LABEL[meta.group], status, text: short(status === "pass" ? f.summary : `${f.title}. ${f.summary}`), tech });
+    out.push({ id: f.fingerprint, group: meta.group, label: GROUP_LABEL[meta.group], status, text: short(status === "pass" || note ? f.summary : `${f.title}. ${f.summary}`), tech });
   }
-  const order: Record<QuickStatus, number> = { fail: 0, warning: 1, pass: 2 };
+  const order: Record<QuickStatus, number> = { fail: 0, warning: 1, unknown: 2, info: 3, pass: 4 };
   return out.sort((a, b) => order[a.status] - order[b.status] || a.label.localeCompare(b.label));
 }
 
@@ -159,6 +180,12 @@ export async function runQuickScan(input: string, deps: QuickDeps): Promise<Quic
 
   const blocked = obs.https?.error?.blocked ? obs.https.error : obs.http?.error?.blocked ? obs.http.error : null;
   if (!obs.page && blocked) throw new SsrfError(blocked.code as SsrfError["code"], blocked.message, blocked.detail);
+  // Không kết nối được: KHÔNG chấm điểm (một điểm 0/F sẽ biến “chưa kiểm tra được” thành “lỗi bảo mật”) và không lưu vào bộ nhớ đệm.
+  if (!obs.page) throw new ScanRefusedError("unreachable", UNREACHABLE_MESSAGE, (obs.https?.error ?? obs.http?.error)?.code);
+  // HTTPS không mở được nhưng HTTP có: Worker không phân biệt được “không có HTTPS” với “lỗi mạng tạm thời”, nên không chấm điểm
+  // (nếu chấm, website chỉ có HTTP có thể ra hạng A vì mọi kiểm tra HTTPS đều im lặng).
+  if (obs.https?.error && !obs.https.error.blocked) throw new ScanRefusedError("https_unavailable", HTTPS_UNAVAILABLE_MESSAGE, obs.https.error.code);
+  refuseIfBlocked(obs);
 
   if (obs.https && !obs.https.error && deps.tlsFor) {
     const tls = await deps.tlsFor(target.host).catch(() => null);
@@ -172,12 +199,8 @@ export async function runQuickScan(input: string, deps: QuickDeps): Promise<Quic
   const items = toItems(attachFixCommands(findings, { host: target.host, platforms: obs.platforms }), target.host);
   // Luật SRI im lặng khi không có gì để báo; với trang HTML đã phân tích được, hiển thị rõ là "đạt" thay vì bỏ trống mục này.
   if (obs.html && !items.some((i) => i.group === "sri")) items.push({ id: "sri-none", group: "sri", label: GROUP_LABEL.sri, status: "pass", text: "Không thấy script hay stylesheet từ CDN công cộng nào thiếu mã kiểm tra toàn vẹn (SRI)." });
-  const counts = { pass: 0, warning: 0, fail: 0 } as Record<QuickStatus, number>;
+  const counts = { pass: 0, warning: 0, fail: 0, info: 0, unknown: 0 } as Record<QuickStatus, number>;
   for (const i of items) counts[i.status]++;
-  if (!obs.page) {
-    // Không kết nối được: đừng trả điểm cao cho một website không tới được.
-    return { host: target.host, score: 0, grade: "F", scannedAt: obs.scannedAt, counts: { pass: 0, warning: 0, fail: 1 }, requests: budget.used, limited: true,
-      items: [{ id: "unreachable", group: "https", label: GROUP_LABEL.https, status: "fail", text: "Không kết nối được tới website qua HTTPS lẫn HTTP. Hãy kiểm tra địa chỉ và chắc chắn website đang hoạt động." }] };
-  }
-  return { host: target.host, score: score.score, grade: score.grade, scannedAt: obs.scannedAt, counts, items, limited: true, requests: budget.used, recon: buildRecon(obs), ceiling: score.ceiling };
+  const gaps = coverageGaps(obs, { quick: true }).map((x) => x.text);
+  return { host: target.host, score: score.score, grade: score.grade, scannedAt: obs.scannedAt, counts, items, limited: true, requests: budget.used, recon: buildRecon(obs), ceiling: score.ceiling, ...(gaps.length ? { gaps } : {}) };
 }

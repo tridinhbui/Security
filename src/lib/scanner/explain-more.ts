@@ -1,4 +1,5 @@
 import type { Finding } from "./types";
+import { dnsApex } from "./platform-domain";
 import type { Role, Step } from "./explain";
 
 /**
@@ -75,6 +76,24 @@ export const T2: Record<string, Tpl2> = {
     };
   },
 
+  "tls.http-to-https-redirect": (f) => key(f) !== "preloaded-tld" ? null : {
+    saw: clip(f.summary, 260),
+    why: "Danh sách HSTS cài sẵn là danh sách tên miền mà trình duyệt luôn tự đổi http:// thành https:// trước khi gửi bất cứ thứ gì. Cả đuôi tên miền này nằm trong danh sách đó.",
+    consequence: "Khách dùng trình duyệt không thể vào bản không mã hoá. Mục này không trừ điểm.",
+    steps: [S("host", "Không bắt buộc: có thể bật chuyển hướng 301 từ http:// sang https:// cho gọn (vd. Cloudflare: “Always Use HTTPS”).")],
+    expect: "Không cần sửa. Nếu bật chuyển hướng: curl -sI http://… trả 301 và Location bắt đầu bằng https://.",
+    certainty: "confirmed", caveat: "Danh sách đuôi được preload là danh sách bảo thủ do VibeSec duy trì; công cụ không phải trình duyệt vẫn vào được bản HTTP.",
+    verify: "curl -sI http://HOST/ | grep -iE '^(HTTP|location)'",
+  },
+  "tls.hsts": (f) => key(f) !== "preloaded-tld" ? null : {
+    saw: clip(f.summary, 260),
+    why: "HSTS dặn trình duyệt chỉ dùng HTTPS. Với đuôi tên miền đã được preload toàn bộ, trình duyệt đã làm điều đó sẵn, nên thiếu header không tạo ra lỗ hổng cho khách dùng trình duyệt.",
+    consequence: "Không có rủi ro thực tế với trình duyệt. Mục này không trừ điểm.",
+    steps: [S("host", "Không bắt buộc: thêm Strict-Transport-Security: max-age=63072000 cho đầy đủ.")],
+    expect: "Không cần sửa.", certainty: "confirmed", caveat: "Chỉ áp dụng cho trình duyệt; công cụ không phải trình duyệt không dùng danh sách preload.",
+    verify: "curl -sI https://HOST/ | grep -i strict-transport",
+  },
+
   /* ───────── CORS ───────── */
   "browser.cors": (f) => {
     const acao = ev(f, "Access-Control-Allow-Origin"), acac = ev(f, "Access-Control-Allow-Credentials")?.toLowerCase();
@@ -108,6 +127,15 @@ export const T2: Record<string, Tpl2> = {
       steps, expect: "Origin lạ không còn được lặp lại trong Access-Control-Allow-Origin.", caveat, certainty: "confirmed", verify,
       note: (l) => /^Origin gửi đi/i.test(l) ? "Địa chỉ website giả (không tồn tại) mà chúng tôi dùng làm origin thử." : /allow-origin/i.test(l) ? "Giá trị máy chủ trả lại. Trùng với origin giả ở trên nghĩa là máy chủ chấp nhận mà không kiểm tra." : undefined,
     };
+  },
+
+  "exposure.security-txt": (f) => key(f) !== "unknown" ? null : {
+    saw: clip(f.summary, 220),
+    why: "Yêu cầu tới tệp security.txt không có câu trả lời rõ ràng (hết thời gian chờ, bị chặn hoặc lỗi máy chủ), nên không thể nói website có hay không có tệp này.",
+    consequence: "Chưa có kết luận. Mục này không trừ điểm.",
+    steps: [S("owner", "Quét lại sau ít phút. Nếu vẫn vậy, mở thử địa chỉ /.well-known/security.txt bằng trình duyệt.")],
+    expect: "Lần quét sau trả lời rõ: có tệp (200) hoặc không có (404).", certainty: "inconclusive",
+    caveat: "Không được hiểu là website thiếu security.txt.", verify: "curl -sI https://HOST/.well-known/security.txt",
   },
 
   /* ───────── Cookies ───────── */
@@ -220,6 +248,7 @@ export const T2: Record<string, Tpl2> = {
   },
   "tls.insecure-login-form": (f) => {
     const k = key(f);
+    if (k === "method-get" && /không ghi method/.test(f.summary)) return { saw: "Một form có ô mật khẩu không ghi thuộc tính method. Nếu được gửi trực tiếp (không qua JavaScript), trình duyệt dùng GET và đặt mật khẩu lên URL.", why: "URL có mật khẩu sẽ nằm trong lịch sử trình duyệt, nhật ký máy chủ và header Referer.", consequence: "Nếu form thật sự gửi bằng GET, mật khẩu có thể nằm lại ở nhiều nơi. Nếu form do JavaScript gửi bằng POST (thường gặp ở React/Next.js) thì không có rủi ro này.", steps: [S("dev", "Thêm method=\"post\" vào thẻ <form> đăng nhập, kể cả khi đã xử lý bằng JavaScript (phòng khi JavaScript chưa tải xong mà người dùng đã bấm Enter).")], expect: "Thẻ <form> đăng nhập có method=\"post\".", certainty: "potential", caveat: "VibeSec không chạy JavaScript nên không biết form có được JavaScript gửi bằng POST hay không.", verify: "curl -s https://HOST/ | grep -io '<form[^>]*>'" };
     if (k === "method-get") return { saw: "Một form có ô mật khẩu gửi dữ liệu bằng GET.", why: "GET đặt dữ liệu form vào địa chỉ URL, nên mật khẩu xuất hiện trong lịch sử trình duyệt, nhật ký máy chủ và header Referer.", consequence: "Mật khẩu có thể nằm lại trong nhật ký và lịch sử mà nhiều người đọc được.", steps: [S("dev", "Đổi form sang method=\"post\".")], expect: "Form đăng nhập dùng method=\"post\".", certainty: "confirmed", caveat: "Đã thấy trong HTML của trang; chưa xác nhận máy chủ có thật sự ghi mật khẩu vào nhật ký.", verify: "curl -s https://HOST/ | grep -i '<form'" };
     if (k === "page-http") return { saw: "Một trang có ô mật khẩu được phục vụ qua http:// không mã hoá.", why: "Trang HTTP có thể bị sửa trên đường đi, ví dụ thay form để gửi mật khẩu cho kẻ khác.", consequence: "Người cùng mạng có thể đọc hoặc đánh tráo trang đăng nhập.", steps: [S("host", "Phục vụ trang đăng nhập chỉ qua HTTPS và chuyển hướng HTTP sang HTTPS.")], expect: "Trang đăng nhập chỉ mở qua https://.", certainty: "confirmed", caveat: "Chỉ ảnh hưởng người dùng truy cập bằng http:// trên mạng không tin cậy.", verify: "curl -sI http://HOST/login" };
     return { saw: "Một form có ô mật khẩu gửi dữ liệu tới địa chỉ http://.", why: "Địa chỉ nhận form không có mã hoá nên mật khẩu đi nguyên văn trên đường truyền.", consequence: "Người cùng mạng đọc được mật khẩu khách vừa nhập.", steps: [S("dev", "Đổi action của form sang https:// (hoặc đường dẫn tương đối trên trang HTTPS).")], expect: "action của form bắt đầu bằng https:// hoặc /.", certainty: "confirmed", caveat: "Máy chủ có thể chuyển hướng sang HTTPS trước khi nhận, nhưng dữ liệu đã bị gửi đi rồi.", verify: "curl -s https://HOST/ | grep -i '<form'" };
@@ -256,11 +285,23 @@ export const T2: Record<string, Tpl2> = {
 
   /* ───────── DNS / Email ───────── */
   "config.dns-email-security": (f, host) => {
-    const d = host.replace(/^www\./, "");
+    const d = dnsApex(host);
     const k = key(f);
     const dig = `dig +short TXT ${d}`;
     const base = (t: TplOut): TplOut => ({ certainty: "confirmed", caveat: "Kết quả từ bộ phân giải DNS công khai; DNS vừa đổi có thể cần chờ vài giờ để cập nhật. Chúng tôi không biết tên miền này có thật sự gửi email hay không.", ...t });
     switch (k) {
+      case "platform": {
+        const suffix = /Hậu tố nền tảng[^:]*:\s*(\S+)/.exec(f.evidence.join("\n"))?.[1] ?? "nền tảng";
+        return {
+          saw: `Website đang chạy trên tên miền con của ${suffix} (tên miền do nền tảng sở hữu, không phải của bạn).`,
+          why: `SPF, DMARC, CAA, DNSSEC là các bản ghi DNS đặt ở tên miền gốc. Tên miền gốc ${suffix} thuộc nền tảng, nên bạn không thêm hay sửa được các bản ghi này, và chúng không nói lên điều gì về cấu hình của bạn.`,
+          consequence: "Không có việc gì cần làm lúc này. Mục này không trừ điểm.",
+          steps: [S("owner", "Khi chuyển sang tên miền riêng (vd. tencongty.vn), quét lại: lúc đó VibeSec sẽ kiểm tra SPF/DMARC/CAA của tên miền đó và hướng dẫn cách thêm.")],
+          expect: "Không cần sửa. Với tên miền riêng, quét lại để kiểm tra các bản ghi email/DNS.",
+          certainty: "confirmed", caveat: "Nhận biết tên miền nền tảng dựa trên danh sách Public Suffix List; nền tảng mới chưa có trong danh sách có thể chưa được nhận ra.",
+          verify: suffix === "nền tảng" ? "Quét lại sau khi chuyển sang tên miền riêng." : `dig +short NS ${suffix}   # máy chủ tên thuộc nền tảng, không phải của bạn`,
+        };
+      }
       case "dmarc-pct": return base({ saw: clip(f.summary, 200), why: "pct nhỏ hơn 100 nghĩa là chỉ một phần thư vi phạm bị xử lý.", consequence: "Một phần thư giả vẫn lọt vào.", steps: [S("dns", "Tăng pct lên 100 khi chắc thư hợp lệ đều qua được.")], expect: "Bản ghi DMARC không còn pct<100 hoặc pct=100.", verify: `dig +short TXT _dmarc.${d}`, certainty: "potential", caveat: "pct<100 hợp lệ khi đang triển khai dần." });
       case "spf-plus-all": return base({ saw: "SPF kết thúc bằng +all (hoặc all không dấu): mọi máy chủ trên Internet đều được coi là hợp lệ.", why: "Với +all, bước kiểm tra SPF luôn cho qua, tức là SPF vô hiệu.", consequence: "Ai cũng gửi được thư mạo tên miền mà SPF vẫn báo hợp lệ.", steps: [S("dns", "Đổi +all thành -all (hoặc ~all khi thử nghiệm) sau khi liệt kê đủ nguồn gửi hợp lệ.")], expect: "SPF kết thúc bằng -all hoặc ~all.", verify: dig });
       case "spf-neutral": return base({ saw: "SPF kết thúc bằng ?all (trung lập).", why: "?all không khẳng định thư từ nguồn lạ là hợp lệ hay giả, nên không giúp chặn.", consequence: "Thư giả không bị đánh dấu.", steps: [S("dns", "Đổi ?all thành ~all hoặc -all.")], expect: "SPF kết thúc bằng ~all hoặc -all.", verify: dig });

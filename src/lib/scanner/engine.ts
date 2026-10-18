@@ -5,6 +5,7 @@ import { normalizeTargetUrl, SsrfError } from "../ssrf/url";
 import { collect, type CollectDeps, type ScanStage } from "./collect";
 import { evaluate } from "./evaluate";
 import { buildReport } from "./pipeline";
+import { refuseIfBlocked } from "./coverage";
 import { redactHeaders, ScanRefusedError, type RedactedTarget, type ScanReport } from "./report";
 
 export interface RunScanOptions {
@@ -44,6 +45,7 @@ export async function runScan(input: string, opts: RunScanOptions = {}): Promise
   }
 
   await opts.onStage?.("generating_report");
+  refuseIfBlocked(obs);
   return buildReport(input, target, obs, budget, started, opts.quick);
 }
 

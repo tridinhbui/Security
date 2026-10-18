@@ -1,4 +1,5 @@
 import { getDomain } from "tldts";
+import { platformSuffix } from "./platform-domain";
 import { BudgetError, type ScanBudget } from "../ssrf/budget";
 import type { FetchRecord, SafeFetch } from "../ssrf/types";
 import type { NormalizedTarget } from "../ssrf/url";
@@ -92,7 +93,9 @@ export async function collect(target: NormalizedTarget, input: string, deps: Col
   ]);
   noteLimit(obs.https); noteLimit(obs.http);
 
-  const domain = getDomain(target.host);
+  // Tên miền con của nền tảng (vd. x.vercel.app): bản ghi DNS/email của tên miền gốc là của nền tảng, không tra và không quy cho chủ website.
+  obs.platformSuffix = platformSuffix(target.host);
+  const domain = obs.platformSuffix ? null : getDomain(target.host);
   const probe = deps.probeLegacyTls;
   const probeH2 = deps.probeHttp2;
   const dnsJob = domain && deps.lookupDns ? deps.lookupDns(domain, target.host).catch(() => null) : Promise.resolve(null);

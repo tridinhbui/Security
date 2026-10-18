@@ -35,10 +35,10 @@ describe("rule registry", () => {
 // ---------------------------------------------------------------- transport
 describe("tls.https-available", () => {
   const id = "tls.https-available";
-  it("fails High when port 443 refuses", () => {
+  it("fails Critical when port 443 refuses (không có HTTPS thì không được đạt hạng C)", () => {
     const o = baseline();
     o.https = rec({ status: null, error: { code: "ECONNREFUSED", message: "x" } });
-    expect(failing(o, id)[0]).toMatchObject({ severity: "high", confidence: "high" });
+    expect(failing(o, id)[0]).toMatchObject({ severity: "critical", confidence: "high" });
   });
   it.each([["CERT_HAS_EXPIRED", "hết hạn"], ["DEPTH_ZERO_SELF_SIGNED_CERT", "tự ký"], ["ERR_TLS_CERT_ALTNAME_INVALID", "không khớp"]])("untrusted cert %s", (code, text) => {
     const o = baseline();
@@ -235,9 +235,14 @@ describe("headers.x-content-type-options", () => {
     expect(failing(o, id)[0]).toMatchObject({ severity: "low" });
   });
   it("wrong value handled by headers.broken", () => {
-    const o = baseline(); hdr(o)["x-content-type-options"] = "nosniff, nosniff2";
+    const o = baseline(); hdr(o)["x-content-type-options"] = "nosnif";
     expect(failing(o, id)).toHaveLength(0);
     expect(failing(o, "headers.broken")).toHaveLength(1);
+  });
+  it("giá trị lặp/nhiều giá trị: trình duyệt chỉ đọc giá trị đầu (Fetch spec) → “nosniff, nosniff2” vẫn là nosniff", () => {
+    const o = baseline(); hdr(o)["x-content-type-options"] = "nosniff, nosniff2";
+    expect(failing(o, id)).toHaveLength(0);
+    expect(failing(o, "headers.broken")).toHaveLength(0);
   });
   it("passes (case-insensitive)", () => {
     const o = baseline(); hdr(o)["x-content-type-options"] = " NoSniff ";
