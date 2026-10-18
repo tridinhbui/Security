@@ -34,7 +34,7 @@ describe("quickScan — chạy thật, không dữ liệu giả", () => {
     const r = out.result;
     expect(r.host).toBe("site.com");
     expect(r.score).toBeGreaterThanOrEqual(0); expect(r.score).toBeLessThanOrEqual(90); // quét nhanh: trần 90
-    expect(r.counts.fail + r.counts.warning + r.counts.pass + r.counts.info + r.counts.unknown).toBe(r.items.length);
+    expect(r.counts.fail + r.counts.warning + r.counts.pass + r.counts.info + r.counts.unknown + r.counts.not_applicable).toBe(r.items.length);
     const issue = (s: string) => s === "fail" || s === "warning";
     const byGroup = (g: string, s?: string) => r.items.filter((i) => i.group === g && (!s || i.status === s));
     expect(byGroup("cookies", "fail").length + byGroup("cookies", "warning").length).toBeGreaterThan(0); // cookie sid thiếu cờ
@@ -47,7 +47,7 @@ describe("quickScan — chạy thật, không dữ liệu giả", () => {
     expect(r.items.find((i) => i.group === "csp")!.label).toMatch(/^Chính sách chặn mã lạ \(CSP\)$/);
     expect(r.items.every((i) => i.text.length > 0 && i.text.length <= 171)).toBe(true);
     // cần sửa xếp trước, rồi nên cải thiện, chưa kiểm tra, tham khảo, đạt
-    const ranks = r.items.map((i) => ({ fail: 0, warning: 1, unknown: 2, info: 3, pass: 4 })[i.status]);
+    const ranks = r.items.map((i) => ({ fail: 0, warning: 1, unknown: 2, info: 3, not_applicable: 4, pass: 5 })[i.status]);
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   });
 
@@ -119,5 +119,27 @@ describe("quickScan — chạy thật, không dữ liệu giả", () => {
   it("đầu vào rỗng/quá dài → 400; IP chỉ lưu dạng băm do bên gọi truyền vào", async () => {
     expect(await t.run("")).toMatchObject({ ok: false, status: 400 });
     expect(await t.run("a".repeat(3000))).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe("quickScan — yêu cầu đồng thời không lách được hạn mức", () => {
+  const slowFetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.startsWith("https://cloudflare-dns.com/")) return new Response(JSON.stringify({ Status: 0, Answer: [] }));
+    await new Promise((r) => setTimeout(r, 15));
+    return new Response("<html><head><title>x</title></head></html>", { headers: { "content-type": "text/html" } });
+  }) as typeof fetch;
+  it("8 yêu cầu song song (8 IP khác nhau) tới cùng một website, hạn mức 3/giờ → đúng 3 lượt quét thật (trước đây: 8)", async () => {
+    const db = createTestD1();
+    const outs = await Promise.all(Array.from({ length: 8 }, (_, i) => quickScan(db, { url: "site.com", ipHash: `ip${i}`, resolver, fetchImpl: slowFetch, limits: { ...quickLimits(), hostPerHour: 3 } })));
+    expect(outs.filter((o) => o.ok && !o.cached)).toHaveLength(3);
+    expect(outs.filter((o) => !o.ok && o.status === 429)).toHaveLength(5);
+    const rows = (db.sqlite.prepare("SELECT COUNT(*) c FROM quick_scan_log WHERE cached=0").get() as { c: number }).c;
+    expect(rows).toBe(3); // chỗ giữ của yêu cầu bị từ chối đã được xoá
+  });
+  it("cùng một IP gửi 5 yêu cầu song song tới 5 website, hạn mức 2/giờ → đúng 2 lượt", async () => {
+    const db = createTestD1();
+    const outs = await Promise.all(["a.com", "b.com", "c.com", "d.com", "e.com"].map((u) => quickScan(db, { url: u, ipHash: "same", resolver, fetchImpl: slowFetch, limits: { ...quickLimits(), freshPerHour: 2 } })));
+    expect(outs.filter((o) => o.ok)).toHaveLength(2);
   });
 });

@@ -45,12 +45,11 @@ export async function quickScan(db: D1Like, a: { url: string; ipHash: string; re
   const hit = await quick.getQuickCache<QuickResult>(db, host, ENGINE_VERSION);
   if (hit) { await quick.logQuickScan(db, a.ipHash, host, true).catch(() => undefined); return { ok: true, result: hit, cached: true }; }
 
-  if ((await quick.freshByIp(db, a.ipHash, quick.HOUR)) >= L.freshPerHour || (await quick.freshByIp(db, a.ipHash, quick.DAY)) >= L.freshPerDay)
-    return TOO_MANY("Bạn đã dùng hết lượt quét thử miễn phí. Hãy đăng nhập để tiếp tục, hoặc quay lại sau.");
-  if ((await quick.freshByHost(db, host, quick.HOUR)) >= L.hostPerHour) return TOO_MANY("Website này vừa được quét nhiều lần. Để tránh gây quá tải cho website, vui lòng chờ một lúc rồi thử lại.");
-  if ((await quick.freshGlobal(db, quick.DAY)) >= L.globalPerDay) return TOO_MANY("Quét thử miễn phí đang tạm đạt giới hạn trong ngày. Hãy đăng nhập để quét, hoặc quay lại vào ngày mai.");
-
-  await quick.logQuickScan(db, a.ipHash, host, false); // ghi TRƯỚC khi quét: các yêu cầu đồng thời không lách được hạn mức
+  // Giữ chỗ TRƯỚC rồi mới đếm (nguyên tử theo thứ tự id): các yêu cầu đồng thời không lách được hạn mức theo IP / tên miền / toàn hệ thống.
+  const slot = await quick.reserveFreshQuickScan(db, a.ipHash, host, L);
+  if (!slot.ok) return TOO_MANY(slot.hit === "ip" ? "Bạn đã dùng hết lượt quét thử miễn phí. Hãy đăng nhập để tiếp tục, hoặc quay lại sau."
+    : slot.hit === "host" ? "Website này vừa được quét nhiều lần. Để tránh gây quá tải cho website, vui lòng chờ một lúc rồi thử lại."
+    : "Quét thử miễn phí đang tạm đạt giới hạn trong ngày. Hãy đăng nhập để quét, hoặc quay lại vào ngày mai.");
   try {
     const result = await runQuickScan(a.url, {
       resolver: a.resolver, fetchImpl: a.fetchImpl, denyHosts: a.denyHosts,
