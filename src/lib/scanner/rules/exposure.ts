@@ -2,6 +2,11 @@ import { detectPublicConfig, detectSecrets } from "../secrets";
 import type { Finding, Observations, Rule, Severity } from "../types";
 import { makeFinding, MDN, OWASP, pass, pathOf, truncate } from "../util";
 
+/** Thăm dò tệp không cho câu trả lời “có/không” rõ ràng: lỗi mạng, hết giờ, bị chặn (401/403/429) hay lỗi máy chủ (5xx). 404/410 = chắc chắn không có. */
+function probeFailed(f: { status: number | null; error?: string }): boolean {
+  return !!f.error || f.status === null || f.status === 401 || f.status === 403 || f.status === 429 || f.status >= 500;
+}
+
 const CAT = "Exposure" as const;
 
 /** Mọi tài liệu văn bản công khai đã tải: HTML trang chủ, script inline, JS cùng origin. */
@@ -117,7 +122,7 @@ const robots: Rule = {
   category: CAT,
   run(obs) {
     const f = obs.files.robots;
-    if (!f) return [];
+    if (!f || probeFailed(f)) return []; // lỗi mạng/chặn: không biết có hay không, đừng nói “không có”
     if (!f.present) return [makeFinding({ ruleId: this.id, title: "Không có robots.txt", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: f.url, summary: "Website không có robots.txt.", explanation: "Không phải vấn đề bảo mật. robots.txt chỉ hướng dẫn các trình thu thập tuân thủ (và không bao giờ được dùng để giấu trang riêng tư).", evidence: [`GET ${f.url} → ${f.status ?? f.error ?? "n/a"}`], remediation: null })];
     const interesting = f.body.split(/\r?\n/).map((l) => /^\s*disallow\s*:\s*(\S+)/i.exec(l)?.[1]).filter((p): p is string => !!p && /(admin|backup|private|secret|internal|staging|\.git|\.env|config|dump|database|db\b|phpmyadmin)/i.test(p));
     if (interesting.length) {
@@ -133,7 +138,7 @@ const sitemap: Rule = {
   category: CAT,
   run(obs) {
     const f = obs.files.sitemap;
-    if (!f) return [];
+    if (!f || probeFailed(f)) return [];
     if (!f.present) return [makeFinding({ ruleId: this.id, title: "Không có sitemap.xml", category: CAT, severity: "info", confidence: "medium", status: "info", affectedUrl: f.url, summary: "Không có sitemap.xml ở vị trí mặc định.", explanation: "Không phải vấn đề bảo mật; sitemap giúp công cụ tìm kiếm. (Nó có thể nằm ở đường dẫn khác được nêu trong robots.txt.)", evidence: [`GET ${f.url} → ${f.status ?? f.error ?? "n/a"}`], remediation: null })];
     return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: f.url, summary: "sitemap.xml có mặt.", explanation: "Hãy chắc chắn nó chỉ liệt kê các trang dự định công khai.", evidence: [`${f.contentType || "không rõ loại"}, đã lấy mẫu ${f.body.length} byte`] })];
   },
@@ -147,6 +152,12 @@ const securityTxt: Rule = {
     const f = obs.files.securityTxt;
     if (!f) return [];
     const refs = [{ title: "RFC 9116: security.txt", url: "https://www.rfc-editor.org/rfc/rfc9116" }, { title: "securitytxt.org", url: "https://securitytxt.org/" }];
+    if (!f.present && probeFailed(f)) {
+      // Hết thời gian chờ, bị chặn (403) hay lỗi máy chủ: không chứng minh được là KHÔNG có tệp. Chưa kiểm tra được, không phải lỗi.
+      return [makeFinding({ ruleId: this.id, key: "unknown", title: "Chưa kiểm tra được security.txt", category: CAT, severity: "info", confidence: "low", status: "unknown", affectedUrl: f.url, references: refs,
+        summary: `Yêu cầu tới ${f.url} không có câu trả lời rõ ràng (${f.error ?? `mã ${f.status}`}), nên chưa biết website có security.txt hay không.`, explanation: "Có thể do mạng chập chờn hoặc tường lửa chặn công cụ tự động. Quét lại để kiểm tra.",
+        evidence: [`GET ${f.url} → ${f.error ?? f.status ?? "n/a"}`], remediation: null })];
+    }
     if (!f.present) {
       return [makeFinding({ ruleId: this.id, title: "Chưa công bố security.txt", category: CAT, severity: "low", confidence: "medium", status: "fail", affectedUrl: f.url, references: refs,
         summary: "Không có /.well-known/security.txt hướng dẫn nhà nghiên cứu cách báo cáo lỗ hổng.", explanation: "Không có đầu mối liên hệ, những nhà nghiên cứu thiện chí phát hiện lỗi có thể không biết liên lạc với bạn bằng cách nào.",

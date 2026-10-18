@@ -24,6 +24,35 @@ function scriptSources(csp: Csp): string[] | null {
   return csp.directives.get("script-src") ?? csp.directives.get("default-src") ?? null;
 }
 
+/**
+ * Nhiều header Content-Security-Policy (hoặc một header có dấu phẩy) = NHIỀU chính sách, trình duyệt áp dụng TẤT CẢ cùng lúc
+ * (một script phải được mọi chính sách cho phép). Không được đọc cả chuỗi như một chính sách duy nhất.
+ */
+export function cspPolicies(value: string): string[] {
+  return value.split(",").map((s) => s.trim()).filter(Boolean);
+}
+function cspWeakness(policy: string): number {
+  const sc = scriptSources(parseCsp(policy));
+  if (!sc) return 10;
+  const nonce = sc.some((s) => /^'(nonce-|sha(256|384|512)-)/.test(s)), sd = sc.includes("'strict-dynamic'");
+  return (sc.includes("'unsafe-inline'") && !nonce && !sd ? 2 : 0) + (!sd && sc.some((s) => s === "*" || s === "https:" || s === "http:") ? 2 : 0) + (sc.some((s) => s === "data:" || s === "blob:") ? 1 : 0) + (sc.includes("'unsafe-eval'") ? 1 : 0);
+}
+/** Chính sách chặt nhất trong các chính sách đang áp dụng: vì mọi chính sách đều phải cho phép, nó là giới hạn thực tế cho script. */
+export function strongestCsp(value: string): string {
+  const ps = cspPolicies(value);
+  return ps.reduce((best, p) => (cspWeakness(p) < cspWeakness(best) ? p : best), ps[0] ?? value);
+}
+/** X-Frame-Options lặp lại (vd. “SAMEORIGIN, SAMEORIGIN” do hai lớp proxy cùng thêm): hợp lệ khi mọi giá trị giống nhau (HTML spec). */
+export function xfoValue(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const vals = [...new Set(raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean))];
+  return vals.length === 1 ? vals[0] : raw.trim().toUpperCase();
+}
+/** X-Content-Type-Options: trình duyệt chỉ đọc giá trị ĐẦU TIÊN (Fetch spec), nên “nosniff, nosniff” vẫn là nosniff. */
+export function xctoValue(raw: string | undefined): string | undefined {
+  return raw === undefined ? undefined : (raw.split(",")[0] ?? "").trim().toLowerCase();
+}
+
 /** Các host công cộng thường bị lợi dụng để vượt qua CSP (JSONP, thư viện Angular, v.v.). */
 const BYPASS_HOSTS = /(^|\.)(ajax\.googleapis\.com|googleapis\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|accounts\.google\.com|[\w-]+\.cloudfront\.net|[\w-]+\.amazonaws\.com|[\w-]+\.herokuapp\.com|[\w-]+\.appspot\.com)$/i;
 
@@ -39,7 +68,7 @@ const csp: Rule = {
     const enforced = header(p.headers, "content-security-policy");
     const reportOnly = header(p.headers, "content-security-policy-report-only");
     const meta = obs.html?.metaCsp ?? null;
-    const policyText = enforced ?? meta;
+    const policyText = enforced ? strongestCsp(enforced) : meta;
 
     if (!policyText) {
       return [makeFinding({
@@ -97,8 +126,8 @@ const frameProtection: Rule = {
   run(obs) {
     const p = livePage(obs);
     if (!p || !isHtml(p.contentType)) return [];
-    const xfo = header(p.headers, "x-frame-options")?.trim().toUpperCase();
-    const fa = parseCsp(header(p.headers, "content-security-policy") ?? "").directives.get("frame-ancestors");
+    const xfo = xfoValue(header(p.headers, "x-frame-options"));
+    const fa = cspPolicies(header(p.headers, "content-security-policy") ?? "").map((x) => parseCsp(x).directives.get("frame-ancestors")).find(Boolean);
     const refs = [MDN("Web/HTTP/Reference/Headers/X-Frame-Options", "MDN: X-Frame-Options"), OWASP("Clickjacking_Defense_Cheat_Sheet.html", "OWASP Clickjacking Defense")];
     if (fa || xfo === "DENY" || xfo === "SAMEORIGIN") {
       return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: p.finalUrl, summary: "Website khác không thể nhúng trang này vào khung (frame).", explanation: "Chặn tấn công clickjacking (khung vô hình đánh lừa người dùng bấm nút).", evidence: [headerEvidence(p.headers, "x-frame-options"), `frame-ancestors: ${fa?.join(" ") ?? "(chưa đặt)"}`], references: refs })];
@@ -124,7 +153,7 @@ const xcto: Rule = {
   run(obs) {
     const p = livePage(obs);
     if (!p) return [];
-    const v = header(p.headers, "x-content-type-options")?.trim().toLowerCase();
+    const v = xctoValue(header(p.headers, "x-content-type-options"));
     const refs = [MDN("Web/HTTP/Reference/Headers/X-Content-Type-Options", "MDN: X-Content-Type-Options")];
     if (v === "nosniff") return [pass({ ruleId: this.id, title: this.title, category: CAT, affectedUrl: p.finalUrl, summary: "Trình duyệt được yêu cầu không tự đoán loại nội dung.", explanation: "Ngăn file người dùng tải lên bị hiểu nhầm thành script.", evidence: [headerEvidence(p.headers, "x-content-type-options")], references: refs })];
     if (v) return []; // sai giá trị → headers.broken
@@ -194,11 +223,11 @@ const brokenHeaders: Rule = {
       out.push(makeFinding({ ruleId: this.id, key, title, category: CAT, severity, confidence: "high", status: "fail", affectedUrl: url, summary, explanation: "Header có giá trị không hợp lệ thường bị trình duyệt bỏ qua, nên lớp bảo vệ bạn nghĩ mình đang có thực ra không hoạt động.", evidence, remediation: fix ?? null, references: [MDN("Web/HTTP/Reference/Headers", "MDN: HTTP headers")] }));
 
     const xfo = header(p.headers, "x-frame-options");
-    if (xfo && !["DENY", "SAMEORIGIN"].includes(xfo.trim().toUpperCase())) {
+    if (xfo && !["DENY", "SAMEORIGIN"].includes(xfoValue(xfo)!)) {
       add("xfo", "X-Frame-Options có giá trị không hợp lệ", "low", /allow-from/i.test(xfo) ? "ALLOW-FROM đã lỗi thời và bị trình duyệt hiện đại bỏ qua." : `"${truncate(xfo, 60)}" không phải giá trị hợp lệ của X-Frame-Options (hãy dùng DENY hoặc SAMEORIGIN).`, [headerEvidence(p.headers, "x-frame-options")], headerFix("X-Frame-Options", RECOMMENDED.xfo, obs.platforms, "Dùng DENY hoặc SAMEORIGIN, hoặc CSP frame-ancestors."));
     }
     const x = header(p.headers, "x-content-type-options");
-    if (x && x.trim().toLowerCase() !== "nosniff") add("xcto", "X-Content-Type-Options có giá trị không hợp lệ", "low", `"${truncate(x, 60)}" không hợp lệ; giá trị duy nhất được chấp nhận là nosniff.`, [headerEvidence(p.headers, "x-content-type-options")], headerFix("X-Content-Type-Options", RECOMMENDED.xcto, obs.platforms));
+    if (x && xctoValue(x) !== "nosniff") add("xcto", "X-Content-Type-Options có giá trị không hợp lệ", "low", `"${truncate(x, 60)}" không hợp lệ; giá trị duy nhất được chấp nhận là nosniff.`, [headerEvidence(p.headers, "x-content-type-options")], headerFix("X-Content-Type-Options", RECOMMENDED.xcto, obs.platforms));
 
     const hsts = header(obs.https && !obs.https.error ? obs.https.headers : undefined, "strict-transport-security");
     if (hsts) {

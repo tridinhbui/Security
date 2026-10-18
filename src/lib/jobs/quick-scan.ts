@@ -4,6 +4,7 @@ import * as repo from "../db/repo";
 import type { Resolver } from "../ssrf/dns";
 import { normalizeTargetUrl, SsrfError } from "../ssrf/url";
 import { runQuickScan, type QuickResult } from "../scanner/quick";
+import { ScanRefusedError } from "../scanner/report";
 import type { TlsInspection } from "../scanner/tls-inspect";
 import { ENGINE_VERSION } from "../scanner/version";
 
@@ -60,6 +61,8 @@ export async function quickScan(db: D1Like, a: { url: string; ipHash: string; re
     return { ok: true, result, cached: false };
   } catch (e) {
     if (e instanceof SsrfError) return { ok: false, status: 400, code: e.code, message: e.message };
+    // Không kết nối được: báo lỗi có hướng dẫn, không lưu bộ nhớ đệm (lần sau quét lại được ngay khi website hoạt động).
+    if (e instanceof ScanRefusedError) return { ok: false, status: e.code === "unreachable" ? 502 : 422, code: e.code, message: e.message };
     throw e;
   }
 }

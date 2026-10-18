@@ -1,4 +1,5 @@
 import { headerSnippets, RECOMMENDED } from "./remediation";
+import { dnsApex } from "./platform-domain";
 import type { Finding, Platform, Remediation, Snippet } from "./types";
 
 /**
@@ -217,7 +218,7 @@ export const FIXES: Record<string, FixFn> = {
   ],
   "config.suspicious-redirects": (c) => [S("Xem toàn bộ chuỗi chuyển hướng", "bash", `curl -sIL -o /dev/null -w "%{url_effective} -> %{http_code}\\n" http://${c.host}/ && curl -sIL http://${c.host}/ | grep -iE "^(HTTP|location)"`)],
   "config.dns-email-security": (c) => {
-    const d = c.host.replace(/^www\./, "");
+    const d = dnsApex(c.host);
     return [
       S("SPF (TXT tại gốc tên miền) — chọn MỘT: nếu tên miền KHÔNG gửi email", "text", `Tên: ${d}\nLoại: TXT\nGiá trị: v=spf1 -all`),
       S("SPF — nếu có gửi email: thay include bằng nhà cung cấp của bạn", "text", `Tên: ${d}\nLoại: TXT\nGiá trị: v=spf1 include:_spf.google.com ~all\n(Ví dụ cho Google Workspace — thay include bằng nhà cung cấp của bạn. Chỉ MỘT bản ghi SPF cho mỗi tên miền. Chỉ dán dòng “Giá trị”, không dán phần chú thích.)`),
@@ -304,14 +305,14 @@ Object.assign(FIXES, {
     S("Kiểm tra trang lỗi và trang chủ", "bash", `for p in / /vibesec-khong-ton-tai; do echo "== $p"; curl -sI https://${c.host}$p | grep -iE "^(HTTP|strict-transport|x-content-type|referrer-policy|content-security)"; done`),
   ],
   "adv.spf-deep": (c: FixCtx) => {
-    const d = c.host.replace(/^www\./, "");
+    const d = dnsApex(c.host);
     return [
       S("Bản ghi SPF chặt (thay include bằng nhà cung cấp email của bạn)", "text", `${d}  TXT  "v=spf1 include:_spf.EXAMPLE-MAIL-PROVIDER.com -all"`),
       S("Kiểm tra", "bash", `dig +short TXT ${d} | grep -i spf1`),
     ];
   },
   "adv.dmarc-deep": (c: FixCtx) => {
-    const d = c.host.replace(/^www\./, "");
+    const d = dnsApex(c.host);
     return [
       S("Lộ trình DMARC an toàn: theo dõi → cách ly → từ chối", "text", `_dmarc.${d}  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@${d}"\n# Bước 1 (bây giờ): p=none, chỉ thu báo cáo. Sau 2–4 tuần xem báo cáo, xác nhận mọi nguồn gửi hợp lệ (SPF/DKIM) đều đạt.\n# Bước 2: p=quarantine; pct=25, tăng dần lên 100. Bước 3: p=reject.\n# Chỉ thêm adkim=s; aspf=s khi chắc chắn mọi nguồn gửi dùng đúng tên miền chính; nếu không thư hợp lệ từ tên miền con/bên thứ ba sẽ bị đẩy vào spam.`),
       S("Kiểm tra", "bash", `dig +short TXT _dmarc.${d}`),

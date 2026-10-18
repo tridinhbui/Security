@@ -135,6 +135,13 @@ const dnsRule: Rule = {
   category: CAT,
   run(obs) {
     const d: DnsInfo | null = obs.dns;
+    if (!d && obs.platformSuffix) {
+      // KHÔNG ÁP DỤNG (không phải đạt, không phải lỗi): chủ website không quản lý DNS của tên miền nền tảng.
+      return [makeFinding({ ruleId: this.id, key: "platform", title: "Không áp dụng: website dùng tên miền con của nền tảng", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: null,
+        summary: `Website chạy trên tên miền con của ${obs.platformSuffix}. Các bản ghi SPF, DMARC, CAA, DNSSEC của ${obs.platformSuffix} do nền tảng quản lý, bạn không thêm hay sửa được, nên VibeSec không kiểm tra và không tính điểm các mục này.`,
+        explanation: "Chỉ khi dùng tên miền riêng (vd. tencongty.vn) thì bạn mới cần cấu hình SPF/DMARC/CAA.",
+        evidence: [`Hậu tố nền tảng (Public Suffix List): ${obs.platformSuffix}`], remediation: null })];
+    }
     if (!d || !d.domain) return [];
     const out: Finding[] = [];
     const dm = d.domain;

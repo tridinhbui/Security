@@ -7,7 +7,7 @@ import type { Finding, FindingStatus } from "../types";
 /** Biến thể (khoá fingerprint) mà từng luật thật sự phát ra; "" = không có khoá riêng. */
 const VARIANTS: Record<string, string[]> = {
   "headers.broken": ["xfo", "xcto", "hsts-no-maxage", "hsts-zero", "csp-unquoted", "csp-meta-ignored", "referrer", "permissions", "xss-protection"], "headers.deprecated": ["pragma"],
-  "headers.csp": ["", "x"], "browser.cors": [""], "cookies.flags": ["sid"], "config.dns-email-security": ["dmarc", "dmarc-policy", "dmarc-pct", "spf", "spf-plus-all", "spf-neutral", "spf-lookups", "spf-multiple", "caa", "dnssec", "mta-sts", "ns-single"],
+  "headers.csp": ["", "x"], "browser.cors": [""], "cookies.flags": ["sid"], "config.dns-email-security": ["platform", "dmarc", "dmarc-policy", "dmarc-pct", "spf", "spf-plus-all", "spf-neutral", "spf-lookups", "spf-multiple", "caa", "dnssec", "mta-sts", "ns-single"],
   "tls.certificate-strength": ["weak-key", "long-validity", "wildcard"], "tls.hsts-preload": ["invalid", "missing"], "tls.cipher-suite": ["weak", "legacy"],
   "tls.insecure-login-form": ["action:x.com/login", "method-get", "page-http"], "config.suspicious-redirects": ["downgrade:a", "long:a", "ip:a", "blocked:a", "meta-refresh", "cross-domain"],
   "headers.cache-policy": ["missing", "cookie-cacheable"], "config.http-methods": ["trace", "write-methods"], "exposure.public-config": ["sensitive-names", "list"],
@@ -165,5 +165,34 @@ describe("audit nội dung: không biến điểm cao hoặc cấu hình thành 
       const e = explain(mk(r.id, key, "fail", "Một mô tả cụ thể của phát hiện này."), "example.com");
       expect(`${e.saw} ${e.why} ${e.consequence} ${e.caveat}`, `${r.id}|${key}`).not.toMatch(absolute);
     }
+  });
+});
+
+describe("tên miền con của nền tảng: DNS/email là KHÔNG ÁP DỤNG (không đạt, không lỗi)", () => {
+  it.each(["myapp.vercel.app", "shop.netlify.app", "api.tridinhbui.workers.dev", "me.github.io", "proj.pages.dev"])("%s → một mục ‘tham khảo’, không trừ điểm, không tra DNS của nền tảng", (host) => {
+    const o = baseline();
+    o.target = { ...o.target, host, url: `https://${host}/`, origin: `https://${host}` };
+    o.dns = null; o.platformSuffix = host.split(".").slice(-2).join(".");
+    const fs = run(o).filter((f) => f.ruleId === "config.dns-email-security" || f.ruleId.startsWith("adv.spf") || f.ruleId.startsWith("adv.dmarc"));
+    expect(fs).toHaveLength(1);
+    expect(fs[0]).toMatchObject({ status: "info", severity: "info" });
+    const e = explain(fs[0]!, host);
+    expect(e.specific).toBe(true); expect(e.saw).toMatch(new RegExp(o.platformSuffix.replace(".", "\\.")));
+    expect(e.consequence).toMatch(/không trừ điểm/);
+  });
+  it("platformSuffix nhận đúng nền tảng nhưng KHÔNG nhầm tên miền riêng (kể cả .com.vn)", async () => {
+    const { platformSuffix, dnsApex } = await import("../platform-domain");
+    expect(platformSuffix("security.tridinhbui0901.workers.dev")).toBe("workers.dev");
+    expect(platformSuffix("x.vercel.app")).toBe("vercel.app");
+    expect(platformSuffix("shop.example.com.vn")).toBeNull();
+    expect(platformSuffix("www.example.com")).toBeNull();
+    expect(platformSuffix("vercel.app")).toBeNull();
+    expect(dnsApex("shop.example.com.vn")).toBe("example.com.vn");
+    expect(dnsApex("www.example.com")).toBe("example.com");
+  });
+  it("lời giải thích DNS nêu đúng tên miền đã tra (tên miền gốc), không phải tên miền con", () => {
+    const o = baseline(); o.dns = { ...o.dns!, caa: [] };
+    const f = run(o).find((x) => x.ruleId === "config.dns-email-security" && x.status === "fail")!;
+    expect(explain(f, "shop.example.com").saw).toMatch(/Tên miền example\.com /);
   });
 });

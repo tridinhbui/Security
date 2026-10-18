@@ -34,17 +34,20 @@ describe("quickScan — chạy thật, không dữ liệu giả", () => {
     const r = out.result;
     expect(r.host).toBe("site.com");
     expect(r.score).toBeGreaterThanOrEqual(0); expect(r.score).toBeLessThanOrEqual(90); // quét nhanh: trần 90
-    expect(r.counts.fail + r.counts.warning + r.counts.pass).toBe(r.items.length);
-    const byGroup = (g: string, s?: string) => r.items.filter((i) => i.label.includes(g) && (!s || i.status === s));
-    expect(byGroup("Cookie", "fail").length + byGroup("Cookie", "warning").length).toBeGreaterThan(0); // cookie sid thiếu cờ
-    expect(r.items.some((i) => i.label.startsWith("Nội dung hỗn hợp") && i.status !== "pass")).toBe(true); // ảnh http://
-    expect(r.items.some((i) => i.label.startsWith("Script bên ngoài") && i.status !== "pass")).toBe(true); // script CDN thiếu SRI
-    expect(r.items.some((i) => i.label === "CSP" && i.status === "fail")).toBe(true); // thiếu CSP
-    expect(r.items.some((i) => i.label === "Header bảo mật" && i.status !== "pass")).toBe(true);
-    expect(r.items.some((i) => i.label === "HTTPS / SSL" && i.status === "pass")).toBe(true);
+    expect(r.counts.fail + r.counts.warning + r.counts.pass + r.counts.info + r.counts.unknown).toBe(r.items.length);
+    const issue = (s: string) => s === "fail" || s === "warning";
+    const byGroup = (g: string, s?: string) => r.items.filter((i) => i.group === g && (!s || i.status === s));
+    expect(byGroup("cookies", "fail").length + byGroup("cookies", "warning").length).toBeGreaterThan(0); // cookie sid thiếu cờ
+    expect(r.items.some((i) => i.group === "mixed" && issue(i.status))).toBe(true); // ảnh http://
+    expect(r.items.some((i) => i.group === "sri" && issue(i.status))).toBe(true); // script CDN thiếu SRI
+    expect(r.items.some((i) => i.group === "csp" && i.status === "fail")).toBe(true); // thiếu CSP
+    expect(r.items.some((i) => i.group === "headers" && issue(i.status))).toBe(true);
+    expect(r.items.some((i) => i.group === "https" && i.status === "pass")).toBe(true);
+    // nhãn nhóm bằng tiếng Việt, tên kỹ thuật trong ngoặc
+    expect(r.items.find((i) => i.group === "csp")!.label).toMatch(/^Chính sách chặn mã lạ \(CSP\)$/);
     expect(r.items.every((i) => i.text.length > 0 && i.text.length <= 171)).toBe(true);
-    // lỗi xếp trước, đạt xếp sau
-    const ranks = r.items.map((i) => ({ fail: 0, warning: 1, pass: 2 }[i.status]));
+    // cần sửa xếp trước, rồi nên cải thiện, chưa kiểm tra, tham khảo, đạt
+    const ranks = r.items.map((i) => ({ fail: 0, warning: 1, unknown: 2, info: 3, pass: 4 })[i.status]);
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   });
 
@@ -68,12 +71,14 @@ describe("quickScan — chạy thật, không dữ liệu giả", () => {
     expect(fresh).toBe(1);
   });
 
-  it("website không tới được → điểm 0, không bịa kết quả", async () => {
+  it("website không tới được → báo “chưa quét được” (không chấm 0/F, không biến chưa-kiểm-tra thành lỗi) và không lưu bộ nhớ đệm", async () => {
     const down = setup({ https: () => { throw new TypeError("net"); } });
     const out = await down.run("site.com");
-    if (!out.ok) throw new Error(out.message);
-    expect(out.result.score).toBe(0);
-    expect(out.result.items[0]).toMatchObject({ status: "fail" });
+    expect(out).toMatchObject({ ok: false, status: 502, code: "unreachable" });
+    if (!out.ok) expect(out.message).toMatch(/không phải kết quả bảo mật/);
+    const n = down.fetched.length;
+    expect(await down.run("site.com")).toMatchObject({ ok: false, code: "unreachable" }); // không có bản lưu: thử lại thật
+    expect(down.fetched.length).toBeGreaterThan(n);
   });
 
   it("chặn SSRF: IP nội bộ, localhost, metadata, cổng lạ — không gửi request nào", async () => {

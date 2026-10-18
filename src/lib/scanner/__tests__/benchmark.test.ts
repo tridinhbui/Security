@@ -122,7 +122,7 @@ describe("tập đối chiếu: bộ quét thật trên website có đáp án bi
 
   it.each(SITES)("$name", async (site) => {
     const out = await runQuickScan(HOST, { resolver, fetchImpl: siteFetch(site) });
-    const flagged = new Set(out.items.filter((i) => i.status !== "pass").map((i) => i.tech!.ruleId));
+    const flagged = new Set(out.items.filter((i) => i.status === "fail" || i.status === "warning").map((i) => i.tech!.ruleId));
     const want = new Set(site.expect);
     for (const id of want) bump(id, flagged.has(id) ? "tp" : "fn");
     for (const id of flagged) if (!want.has(id)) bump(id, "fp");

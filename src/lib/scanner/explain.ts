@@ -1,4 +1,5 @@
 import type { Finding } from "./types";
+import { dnsApex } from "./platform-domain";
 import { IMPACT } from "./impact";
 import { reproFor } from "./analyst";
 import { T2, type Certainty } from "./explain-more";
@@ -104,7 +105,7 @@ const T: Record<string, Tpl> = {
   },
   "exposure.html-comments": (f) => ({ saw: `Trang có ${clip(f.summary, 160)}`, why: "Bình luận trong HTML ai cũng đọc được qua “Xem nguồn trang”. Từ khoá nhạy cảm (mật khẩu, token, TODO) cho thấy ghi chú nội bộ bị bỏ quên.", consequence: "Thông tin nội bộ hoặc cả thông tin đăng nhập bị bỏ quên có thể bị người lạ đọc.", steps: [{ who: "dev", text: "Xoá bình luận khỏi HTML production (minify HTML hoặc loại bỏ lúc build)." }], expect: "Không còn bình luận chứa từ khoá nhạy cảm." }),
   "config.dns-email-security": (f, host) => {
-    const k = key(f), d = host.replace(/^www\./, "");
+    const k = key(f), d = dnsApex(host);
     const dns = (text: string, what: string, expect: string) => ({ why: what, steps: [{ who: "dns" as Role, text }], expect });
     const base = { saw: clip(f.summary, 200) };
     switch (k) {

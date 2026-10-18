@@ -67,7 +67,7 @@ describe("runScan (end-to-end against a local site)", () => {
 
     const byRule = (id: string) => report.findings.filter((x) => x.ruleId === id);
     // HTTPS isn't served by this fixture
-    expect(byRule("tls.https-available")[0]).toMatchObject({ status: "fail", severity: "high" });
+    expect(byRule("tls.https-available")[0]).toMatchObject({ status: "fail", severity: "critical" });
     // Secret in public JS → Critical, with no raw value anywhere in the report
     expect(byRule("exposure.secrets")[0]).toMatchObject({ status: "fail", severity: "critical" });
     expect(JSON.stringify(report)).not.toContain(SECRET);

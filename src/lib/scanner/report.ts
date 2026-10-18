@@ -27,7 +27,7 @@ export interface ScanReport {
   platforms: Platform[];
   technologies: string[];
   targets: RedactedTarget[];
-  stats: { requests: number; hitLimit: string | null; rulesRun: number; ruleErrors: string[]; quick?: boolean };
+  stats: { requests: number; hitLimit: string | null; rulesRun: number; ruleErrors: string[]; quick?: boolean; /** Phần chưa kiểm tra được trong lượt quét này (điểm đã bị hạ trần tương ứng). */ coverageGaps?: string[] };
   disclaimer: string;
 }
 
