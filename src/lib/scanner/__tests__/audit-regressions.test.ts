@@ -173,3 +173,21 @@ describe("Quét nhanh: không chấm điểm khi dữ liệu không đại diệ
   });
 });
 
+describe("SPF: hai luật dùng chung một bộ phân tích, không bao giờ kết luận ngược nhau", () => {
+  const spfFindings = (spf: string) => { const o = baseline(); o.dns = { ...o.dns!, spf, mx: ["mx.example.com"] }; return run(o).filter((f) => f.ruleId === "adv.spf-deep" || (f.ruleId === "config.dns-email-security" && /spf/i.test(f.fingerprint + f.title))); };
+  it.each([
+    ["v=spf1 include:_spf.google.com -all", "pass"],
+    ["v=spf1 include:_spf.google.com ~all", "pass"],  // softfail: chấp nhận được ở CẢ HAI luật
+    ["v=spf1 include:_spf.google.com ?all", "fail"],
+    ["v=spf1 include:_spf.google.com", "fail"],        // thiếu all → mặc định trung lập: CẢ HAI luật báo
+    ["v=spf1 +all", "fail"],
+    ["v=spf1 redirect=_spf.example.net", "pass"],      // kết thúc nằm ở bản ghi khác: không suy đoán
+  ])("%s → cả hai luật: %s", (spf, want) => {
+    const fs = spfFindings(spf);
+    expect(fs.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(fs.map((f) => f.status)), spf).toEqual(new Set([want]));
+    const sev = new Set(fs.filter((f) => f.status === "fail").map((f) => f.severity));
+    expect(sev.size, `mức độ khác nhau giữa hai luật cho ${spf}`).toBeLessThanOrEqual(1);
+  });
+});
+

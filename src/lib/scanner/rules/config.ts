@@ -1,6 +1,7 @@
 import { getDomain } from "tldts";
 import type { DnsInfo, Finding, Observations, Rule } from "../types";
 import { header, headerEvidence, livePage, makeFinding, MDN, pass, truncate } from "../util";
+import { analyzeSpf, spfIssues } from "./spf";
 
 const CAT = "Configuration" as const;
 
@@ -120,9 +121,7 @@ const redirects: Rule = {
 // ------------------------------------------------------------------ DNS & bảo mật email
 
 /** Đếm số truy vấn DNS mà SPF kích hoạt (giới hạn của RFC 7208 là 10). */
-export function spfLookupCount(spf: string): number {
-  return (spf.match(/\b(include:|a(?=[:/\s]|$)|mx(?=[:/\s]|$)|ptr|exists:|redirect=)/gi) ?? []).length;
-}
+export { spfLookupCount } from "./spf";
 
 function dmarcPolicy(d: string): { p: string; pct: number; rua: boolean } {
   const tag = (k: string) => new RegExp(`(?:^|;)\\s*${k}\\s*=\\s*([^;\\s]+)`, "i").exec(d)?.[1];
@@ -137,7 +136,7 @@ const dnsRule: Rule = {
     const d: DnsInfo | null = obs.dns;
     if (!d && obs.platformSuffix) {
       // KHÔNG ÁP DỤNG (không phải đạt, không phải lỗi): chủ website không quản lý DNS của tên miền nền tảng.
-      return [makeFinding({ ruleId: this.id, key: "platform", title: "Không áp dụng: website dùng tên miền con của nền tảng", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: null,
+      return [makeFinding({ ruleId: this.id, key: "na-platform", title: "Không áp dụng: website dùng tên miền con của nền tảng", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: null,
         summary: `Website chạy trên tên miền con của ${obs.platformSuffix}. Các bản ghi SPF, DMARC, CAA, DNSSEC của ${obs.platformSuffix} do nền tảng quản lý, bạn không thêm hay sửa được, nên VibeSec không kiểm tra và không tính điểm các mục này.`,
         explanation: "Chỉ khi dùng tên miền riêng (vd. tencongty.vn) thì bạn mới cần cấu hình SPF/DMARC/CAA.",
         evidence: [`Hậu tố nền tảng (Public Suffix List): ${obs.platformSuffix}`], remediation: null })];
@@ -176,22 +175,14 @@ const dnsRule: Rule = {
         remediation: { summary: "Công bố bản ghi SPF liệt kê các nhà cung cấp email của bạn (hoặc v=spf1 -all nếu tên miền không gửi email).", snippets: [{ platform: "generic", label: `TXT ${dm} (tên miền không gửi email)`, language: "text", code: "v=spf1 -all" }] } }));
     } else if (typeof d.spf === "string") {
       const problems: Finding[] = [];
-      const qual = /([+~?-]?)all\b/i.exec(d.spf)?.[1] ?? "";
-      if (/(^|\s)\+all\b/i.test(d.spf) || /(^|\s)all\b/i.test(d.spf) && qual === "") {
-        problems.push(makeFinding({ ruleId: this.id, key: "spf-plus-all", title: "SPF cho phép bất kỳ ai gửi email thay mặt tên miền", category: CAT, severity: "medium", confidence: "high", status: "fail", affectedUrl: null, references: refs,
-          summary: "SPF kết thúc bằng +all (hoặc all không kèm dấu), nghĩa là mọi máy chủ trên Internet đều được coi là hợp lệ.", explanation: "Điều này vô hiệu hoá hoàn toàn SPF: kẻ tấn công gửi email mạo danh tên miền của bạn mà vẫn “đạt” kiểm tra.",
-          evidence: [truncate(d.spf, 200)], remediation: { summary: "Đổi +all thành -all (hoặc ~all trong giai đoạn thử nghiệm) sau khi liệt kê đủ các nguồn gửi hợp lệ.", snippets: [] } }));
-      } else if (/\?all\b/i.test(d.spf)) {
-        problems.push(makeFinding({ ruleId: this.id, key: "spf-neutral", title: "SPF ở mức trung lập (?all)", category: CAT, severity: "low", confidence: "high", status: "fail", affectedUrl: null, references: refs,
-          summary: "SPF kết thúc bằng ?all: không khẳng định thư từ nguồn khác là hợp lệ hay không.", explanation: "Mức trung lập không giúp chặn thư giả mạo.",
-          evidence: [truncate(d.spf, 200)], remediation: { summary: "Dùng ~all (soft fail) hoặc -all (hard fail).", snippets: [] } }));
-      }
-      const lookups = spfLookupCount(d.spf);
-      if (lookups > 10) {
-        problems.push(makeFinding({ ruleId: this.id, key: "spf-lookups", title: "SPF vượt giới hạn 10 truy vấn DNS", category: CAT, severity: "low", confidence: "medium", status: "fail", affectedUrl: null, references: refs,
-          summary: `Bản ghi SPF kích hoạt khoảng ${lookups} truy vấn DNS (giới hạn của RFC 7208 là 10).`, explanation: "Vượt giới hạn khiến SPF trả lỗi vĩnh viễn (permerror) và có thể bị coi như không có SPF.",
-          technical: "Đếm các cơ chế include/a/mx/ptr/exists/redirect ở cấp đầu tiên; include lồng nhau có thể làm con số thực tế còn lớn hơn.", evidence: [truncate(d.spf, 200)],
-          remediation: { summary: "Gộp/đơn giản hoá các include hoặc dùng dịch vụ “SPF flattening”.", snippets: [] } }));
+      const a = analyzeSpf(d.spf);
+      const TITLE: Record<string, string> = { "spf-plus-all": "SPF cho phép bất kỳ ai gửi email thay mặt tên miền", "spf-neutral": "SPF ở mức trung lập (?all)", "spf-no-all": "SPF thiếu phần kết thúc “all”", "spf-lookups": "SPF vượt giới hạn 10 truy vấn DNS", "spf-ptr": "SPF dùng cơ chế ptr đã bị khuyến cáo bỏ" };
+      const FIX: Record<string, string> = { "spf-plus-all": "Đổi +all thành -all (hoặc ~all trong giai đoạn thử nghiệm) sau khi liệt kê đủ các nguồn gửi hợp lệ.", "spf-neutral": "Dùng ~all (soft fail) hoặc -all (hard fail).", "spf-no-all": "Thêm ~all hoặc -all vào cuối bản ghi SPF.", "spf-lookups": "Gộp/đơn giản hoá các include hoặc dùng dịch vụ “SPF flattening”.", "spf-ptr": "Thay ptr bằng ip4/ip6/include của nhà cung cấp email." };
+      for (const i of spfIssues(a)) {
+        problems.push(makeFinding({ ruleId: this.id, key: i.key, title: TITLE[i.key]!, category: CAT, severity: i.severity, confidence: i.key === "spf-lookups" ? "medium" : "high", status: "fail", affectedUrl: null, references: refs,
+          summary: i.text, explanation: "SPF yếu hoặc lỗi khiến thư mạo danh tên miền của bạn dễ vào hộp thư người nhận.",
+          ...(i.key === "spf-lookups" ? { technical: "Đếm các cơ chế include/a/mx/ptr/exists/redirect ở cấp đầu tiên; include lồng nhau có thể làm con số thực tế còn lớn hơn." } : {}),
+          evidence: [truncate(d.spf, 200)], remediation: { summary: FIX[i.key]!, snippets: [] } }));
       }
       if ((d.spfRecords ?? 1) > 1) {
         problems.push(makeFinding({ ruleId: this.id, key: "spf-multiple", title: "Có nhiều hơn một bản ghi SPF", category: CAT, severity: "low", confidence: "high", status: "fail", affectedUrl: null, references: refs,
@@ -199,7 +190,7 @@ const dnsRule: Rule = {
           evidence: [`${d.spfRecords} bản ghi v=spf1 tại ${dm}`], remediation: { summary: "Gộp mọi cơ chế vào một bản ghi SPF duy nhất.", snippets: [] } }));
       }
       if (problems.length) out.push(...problems);
-      else out.push(pass({ ruleId: this.id, title: "Bản ghi SPF được công bố", category: CAT, summary: "SPF có mặt, đúng cú pháp và có kết thúc chặt chẽ.", explanation: "Máy chủ nhận thư có thể xác minh nguồn gửi hợp lệ.", evidence: [truncate(d.spf, 200)] }));
+      else out.push(pass({ ruleId: this.id, title: "Bản ghi SPF được công bố", category: CAT, summary: a.all === "~" ? "SPF có mặt, đúng cú pháp và kết thúc bằng ~all (softfail) — chấp nhận được; -all là mức chặt nhất." : a.all === "redirect" ? "SPF có mặt và chuyển (redirect=) sang bản ghi khác; phần kết thúc nằm ở bản ghi đó." : "SPF có mặt, đúng cú pháp và kết thúc bằng -all.", explanation: "Máy chủ nhận thư có thể xác minh nguồn gửi hợp lệ.", evidence: [truncate(d.spf, 200)], references: refs }));
     }
 
     // ---- CAA, DNSSEC, MTA-STS

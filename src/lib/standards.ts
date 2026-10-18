@@ -2,7 +2,7 @@ import type { Finding } from "./scanner/types";
 
 /**
  * Ánh xạ từng luật sang chuẩn tham chiếu quốc tế: CWE (MITRE), OWASP ASVS 4.0.3 và OWASP WSTG (Web Security Testing Guide).
- * Cùng với OWASP Top 10 (2021) trong guidance.ts. Đây là ánh xạ GẦN NHẤT về ý nghĩa của kiểm tra, không phải tuyên bố tuân thủ:
+ * Cùng với OWASP Top 10:2025 trong guidance.ts. Đây là ánh xạ GẦN NHẤT về ý nghĩa của kiểm tra, không phải tuyên bố tuân thủ:
  * quét thụ động từ bên ngoài không thể chứng minh một yêu cầu ASVS được đáp ứng đầy đủ.
  */
 export interface Standards { cwe: number[]; asvs: string[]; wstg: string[] }
@@ -54,7 +54,7 @@ export const STANDARDS: Record<string, Standards> = {
   // ---- cấu hình
   "config.server-disclosure": S([200], ["14.3.3"], ["WSTG-INFO-02"]),
   "config.technology": S([], [], ["WSTG-INFO-08"]),
-  "config.suspicious-redirects": S([601], ["5.1.5"], ["WSTG-CLNT-04"]),
+  "config.suspicious-redirects": S([319], ["9.1.1"], ["WSTG-CRYP-03"]), // hạ cấp HTTPS→HTTP / chuỗi chuyển hướng không an toàn (không phải kiểm tra open redirect)
   "config.dns-email-security": S([], [], []),
   "config.auth-surface": S([], [], []),
   "config.debug-headers": S([215], ["14.3.2"], ["WSTG-CONF-02"]),
@@ -88,19 +88,21 @@ export const cweUrl = (id: number) => `https://cwe.mitre.org/data/definitions/${
 export const wstgUrl = (id: string) => `https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/#${id.toLowerCase()}`;
 export const ASVS_URL = "https://github.com/OWASP/ASVS/blob/v4.0.3/4.0/en/0x00-Header.md";
 
-/** OWASP Top 10 (2021): mức độ mà quét thụ động từ bên ngoài có thể đánh giá. */
-export const OWASP_TOP10: { code: string; name: string; reach: "good" | "partial" | "none"; note: string }[] = [
-  { code: "A01", name: "Kiểm soát truy cập bị hỏng", reach: "partial", note: "Chỉ thấy CORS và chuyển hướng; không thử quyền truy cập thật." },
-  { code: "A02", name: "Lỗi mật mã học", reach: "good", note: "HTTPS/TLS, chứng chỉ, HSTS, cookie, khoá bí mật bị lộ." },
-  { code: "A03", name: "Injection", reach: "partial", note: "Chỉ đánh giá lớp giảm thiểu XSS (CSP) và dấu hiệu DOM XSS; không gửi payload." },
-  { code: "A04", name: "Thiết kế không an toàn", reach: "partial", note: "Chính sách cache, rò rỉ phiên qua cache dùng chung." },
-  { code: "A05", name: "Cấu hình bảo mật sai", reach: "good", note: "Header, trang lỗi, lộ phiên bản, debug, DNS/email." },
-  { code: "A06", name: "Thành phần lỗi thời", reach: "partial", note: "Phát hiện thư viện phía trình duyệt cũ; không thấy phần mềm phía máy chủ." },
-  { code: "A07", name: "Lỗi xác thực", reach: "partial", note: "Cờ cookie phiên, form mật khẩu; không thử đăng nhập." },
-  { code: "A08", name: "Lỗi toàn vẹn phần mềm & dữ liệu", reach: "partial", note: "SRI, chuỗi cung ứng script bên thứ ba." },
-  { code: "A09", name: "Lỗi ghi nhật ký & giám sát", reach: "none", note: "Không thể thấy từ bên ngoài." },
-  { code: "A10", name: "Giả mạo yêu cầu phía máy chủ (SSRF)", reach: "none", note: "Cần gửi payload nên bị loại trừ có chủ đích (quét không khai thác)." },
+/** OWASP Top 10:2025: mức độ mà quét thụ động từ bên ngoài có thể đánh giá. Tên tiếng Việt là bản dịch của VibeSec (OWASP chưa có bản tiếng Việt). */
+export const OWASP_TOP10: { code: string; name: string; slug: string; reach: "good" | "partial" | "none"; note: string }[] = [
+  { code: "A01", name: "Kiểm soát truy cập bị hỏng", slug: "A01_2025-Broken_Access_Control", reach: "partial", note: "Chỉ thấy CORS và postMessage lỏng; không thử truy cập trái phép hay SSRF (nay thuộc nhóm này)." },
+  { code: "A02", name: "Cấu hình bảo mật sai", slug: "A02_2025-Security_Misconfiguration", reach: "good", note: "Header bảo mật, cookie, lộ phiên bản, chế độ debug, DNS/email." },
+  { code: "A03", name: "Lỗi chuỗi cung ứng phần mềm", slug: "A03_2025-Software_Supply_Chain_Failures", reach: "partial", note: "Thấy thư viện JavaScript cũ và script CDN đáng ngờ; không thấy phụ thuộc phía máy chủ hay CI/CD." },
+  { code: "A04", name: "Lỗi mật mã học", slug: "A04_2025-Cryptographic_Failures", reach: "good", note: "HTTPS/TLS, chứng chỉ, HSTS, nội dung tải qua kết nối không mã hoá." },
+  { code: "A05", name: "Injection", slug: "A05_2025-Injection", reach: "partial", note: "Chỉ đánh giá lớp chặn XSS (CSP) và dấu hiệu DOM XSS; không gửi payload." },
+  { code: "A06", name: "Thiết kế không an toàn", slug: "A06_2025-Insecure_Design", reach: "partial", note: "Chỉ thấy chính sách cache trang nhạy cảm và form gửi mật khẩu bằng GET." },
+  { code: "A07", name: "Lỗi xác thực", slug: "A07_2025-Authentication_Failures", reach: "partial", note: "Cờ cookie phiên, form đăng nhập, khoá bí mật bị lộ; không thử đăng nhập." },
+  { code: "A08", name: "Lỗi toàn vẹn phần mềm và dữ liệu", slug: "A08_2025-Software_or_Data_Integrity_Failures", reach: "partial", note: "Kiểm tra SRI của script bên thứ ba; không thấy quy trình build hay cập nhật." },
+  { code: "A09", name: "Lỗi ghi nhật ký và cảnh báo", slug: "A09_2025-Security_Logging_and_Alerting_Failures", reach: "none", note: "Không thể thấy từ bên ngoài." },
+  { code: "A10", name: "Xử lý sai tình huống bất thường", slug: "A10_2025-Mishandling_of_Exceptional_Conditions", reach: "partial", note: "Chỉ thấy trang lỗi lộ stack trace hoặc thông tin nội bộ; không cố tình gây lỗi." },
 ];
+/** Trang chính thức của một hạng mục OWASP Top 10:2025 (vd. "A04"). */
+export const owaspUrl = (code: string) => { const t = OWASP_TOP10.find((x) => x.code === code.slice(0, 3)); return t ? `https://owasp.org/Top10/2025/${t.slug}/` : "https://owasp.org/Top10/2025/"; };
 
 export interface CoverageRow { code: string; name: string; reach: "good" | "partial" | "none"; note: string; checks: number; failing: number; passing: number }
 

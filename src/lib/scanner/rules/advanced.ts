@@ -1,6 +1,7 @@
 import type { Finding, Observations, Rule } from "../types";
 import { header, livePage, makeFinding, MDN, OWASP, pass, setCookies, truncate } from "../util";
 import { strongestCsp } from "./headers";
+import { analyzeSpf, spfIssues } from "./spf";
 import { collectCookies, hasSessionLikeCookie, SESSION_NAME } from "./cookies";
 
 /**
@@ -293,7 +294,8 @@ const headerConsistency = adv({
     const base = SEC_HEADERS.filter((h) => header(home.headers, h));
     if (!base.length) return [];
     const others: { label: string; rec: NonNullable<Observations["https"]> }[] = [];
-    if (obs.notFound && !obs.notFound.error && obs.notFound.status !== null) others.push({ label: "trang lỗi 404", rec: obs.notFound });
+    // Chỉ so trang lỗi thật (≥ 400): một chuyển hướng 3xx thường không mang header bảo mật và không phải trang người dùng xem.
+    if (obs.notFound && !obs.notFound.error && obs.notFound.status !== null && obs.notFound.status >= 400) others.push({ label: "trang lỗi 404", rec: obs.notFound });
     if (obs.sensitivePage && !obs.sensitivePage.error && obs.sensitivePage.status !== null) others.push({ label: "trang đăng nhập/tài khoản", rec: obs.sensitivePage });
     const alt = obs.altHost?.record;
     if (alt && !alt.error && alt.status !== null && alt.status >= 200 && alt.status < 300) others.push({ label: `tên miền ${obs.altHost!.host}`, rec: alt });
@@ -315,16 +317,12 @@ const spfDeep = adv({
   run(obs) {
     const spf = obs.dns?.spf;
     if (!spf) return [];
-    const issues: { t: string; sev: "high" | "medium" | "low" }[] = [];
-    if (/(^|\s)\+all\b/.test(spf) || /\sall\s*$/.test(spf) && !/[-~?]all/.test(spf)) issues.push({ t: "SPF kết thúc bằng +all: cho phép MỌI máy chủ gửi thư thay tên miền bạn.", sev: "high" });
-    else if (/\?all\b/.test(spf)) issues.push({ t: "SPF kết thúc bằng ?all (trung lập): không chặn được thư giả.", sev: "medium" });
-    else if (/~all\b/.test(spf)) issues.push({ t: "SPF dùng ~all (softfail): thư giả thường vẫn vào hộp thư. Nên dùng -all khi đã chắc chắn.", sev: "low" });
-    const lookups = (spf.match(/(^|\s)(include:|a(:|\s|$)|mx(:|\s|$)|ptr|exists:|redirect=)/g) ?? []).length;
-    if (lookups > 10) issues.push({ t: `Ước tính ${lookups} lần tra DNS (giới hạn 10): vượt giới hạn thì SPF bị coi là lỗi (permerror) và vô hiệu.`, sev: "medium" });
-    if (/(^|\s)ptr\b/.test(spf)) issues.push({ t: "Dùng cơ chế ptr (bị khuyến cáo bỏ, chậm và không đáng tin).", sev: "low" });
+    // Cùng bộ phân tích với config.dns-email-security: hai luật không bao giờ kết luận ngược nhau; “~all” không phải lỗi.
+    const a = analyzeSpf(spf);
+    const issues = spfIssues(a).map((x) => ({ t: x.text, sev: x.severity }));
     const refs = [{ title: "RFC 7208: SPF", url: "https://www.rfc-editor.org/rfc/rfc7208" }];
-    if (!issues.length) return [pass({ ruleId: this.id, title: this.title, category: this.category, summary: "SPF kết thúc bằng -all và nằm trong giới hạn tra DNS.", explanation: "Thư giả mạo tên miền bị từ chối đúng cách.", evidence: [truncate(spf, 200)], references: refs })];
-    const rank = { high: 2, medium: 1, low: 0 } as const;
+    if (!issues.length) return [pass({ ruleId: this.id, title: this.title, category: this.category, summary: a.all === "~" ? "SPF kết thúc bằng ~all (softfail, chấp nhận được) và nằm trong giới hạn tra DNS. Có thể siết lên -all khi đã chắc mọi nguồn gửi hợp lệ đều được liệt kê." : "SPF có phần kết thúc chặt và nằm trong giới hạn tra DNS.", explanation: "Thư giả mạo tên miền bị từ chối đúng cách.", evidence: [truncate(spf, 200)], references: refs })];
+    const rank = { medium: 1, low: 0 } as const;
     const worst = issues.reduce((a, b) => (rank[b.sev] > rank[a.sev] ? b : a)).sev;
     return [makeFinding({ ruleId: this.id, title: "SPF có điểm yếu", category: this.category, severity: worst, confidence: "high", status: "fail", references: refs,
       summary: `${issues.length} điểm yếu trong bản ghi SPF.`, explanation: "SPF yếu hoặc lỗi khiến kẻ lừa đảo gửi email mạo danh tên miền của bạn mà không bị chặn.", evidence: [...issues.map((i) => `• ${i.t}`), `SPF: ${truncate(spf, 200)}`] })];
@@ -363,7 +361,7 @@ const certHygiene = adv({
     const t = obs.https?.tls;
     if (!t) return [];
     const issues: { t: string; sev: "medium" | "low" }[] = [];
-    if (t.validityDays && t.validityDays > 398) issues.push({ t: `Chứng chỉ có hiệu lực ${t.validityDays} ngày (vượt giới hạn 398 ngày của chứng chỉ công khai; từ 15/3/2026 giới hạn mới là 200 ngày).`, sev: "medium" });
+    if (t.validityDays && t.validityDays > 398) issues.push({ t: `Chứng chỉ có hiệu lực ${t.validityDays} ngày (vượt giới hạn 398 ngày của chứng chỉ công khai; từ 15/3/2026 giới hạn mới là 200 ngày).`, sev: "low" });  // cùng mức Thấp với tls.certificate-strength (long-validity)
     if (t.selfSigned) issues.push({ t: "Chứng chỉ tự ký.", sev: "medium" });
     if (t.chainLength === 1 && !t.selfSigned) issues.push({ t: "Máy chủ gửi chuỗi chỉ có 1 chứng chỉ (thiếu chứng chỉ trung gian): một số thiết bị sẽ báo lỗi.", sev: "low" });
     if ((t.altNames?.length ?? 0) > 40) issues.push({ t: `Một chứng chỉ phủ ${t.altNames!.length} tên miền: nếu lộ khoá riêng, tất cả cùng bị ảnh hưởng.`, sev: "low" });

@@ -7,7 +7,7 @@ import type { Finding, FindingStatus } from "../types";
 /** Biến thể (khoá fingerprint) mà từng luật thật sự phát ra; "" = không có khoá riêng. */
 const VARIANTS: Record<string, string[]> = {
   "headers.broken": ["xfo", "xcto", "hsts-no-maxage", "hsts-zero", "csp-unquoted", "csp-meta-ignored", "referrer", "permissions", "xss-protection"], "headers.deprecated": ["pragma"],
-  "headers.csp": ["", "x"], "browser.cors": [""], "cookies.flags": ["sid"], "config.dns-email-security": ["platform", "dmarc", "dmarc-policy", "dmarc-pct", "spf", "spf-plus-all", "spf-neutral", "spf-lookups", "spf-multiple", "caa", "dnssec", "mta-sts", "ns-single"],
+  "headers.csp": ["", "x"], "browser.cors": [""], "cookies.flags": ["sid"], "config.dns-email-security": ["na-platform", "dmarc", "dmarc-policy", "dmarc-pct", "spf", "spf-plus-all", "spf-neutral", "spf-lookups", "spf-multiple", "caa", "dnssec", "mta-sts", "ns-single"],
   "tls.certificate-strength": ["weak-key", "long-validity", "wildcard"], "tls.hsts-preload": ["invalid", "missing"], "tls.cipher-suite": ["weak", "legacy"],
   "tls.insecure-login-form": ["action:x.com/login", "method-get", "page-http"], "config.suspicious-redirects": ["downgrade:a", "long:a", "ip:a", "blocked:a", "meta-refresh", "cross-domain"],
   "headers.cache-policy": ["missing", "cookie-cacheable"], "config.http-methods": ["trace", "write-methods"], "exposure.public-config": ["sensitive-names", "list"],

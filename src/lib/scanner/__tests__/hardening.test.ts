@@ -78,9 +78,9 @@ describe("config.http-methods", () => {
   const id = "config.http-methods";
   it("không có dữ liệu OPTIONS (quét nhanh) → im lặng", () => { const o = baseline(); o.methods = null; expect(run(o, id)).toHaveLength(0); });
   it("GET/HEAD/OPTIONS → đạt", () => expect(run(baseline(), id)[0]!.status).toBe("pass"));
-  it("TRACE → Medium; PUT/DELETE → Low tin cậy thấp", () => {
+  it("TRACE → Low (trình duyệt chặn XST); PUT/DELETE → Low tin cậy thấp", () => {
     const o = baseline(); o.methods = { status: 200, allow: "GET, HEAD, TRACE" };
-    expect(failing(o, id)[0]).toMatchObject({ severity: "medium", confidence: "high" });
+    expect(failing(o, id)[0]).toMatchObject({ severity: "low", confidence: "high" });
     o.methods = { status: 200, allow: "GET, PUT, DELETE" };
     expect(failing(o, id)[0]).toMatchObject({ severity: "low", confidence: "low" });
   });

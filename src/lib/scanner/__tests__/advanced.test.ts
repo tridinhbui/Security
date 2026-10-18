@@ -117,7 +117,7 @@ describe("luật nâng cao", () => {
   it("SPF +all / vượt 10 lần tra; DMARC p=none", () => {
     const o = baseline();
     o.dns!.spf = "v=spf1 +all";
-    expect(f(o, "adv.spf-deep")[0]!.severity).toBe("high");
+    expect(f(o, "adv.spf-deep")[0]!.severity).toBe("medium"); // cùng mức với config.dns-email-security (bộ phân tích chung)
     o.dns!.spf = "v=spf1 " + Array.from({ length: 11 }, (_, i) => `include:s${i}.example.net`).join(" ") + " -all";
     expect(f(o, "adv.spf-deep")[0]!.evidence.join("\n")).toMatch(/permerror/);
     o.dns!.dmarc = "v=DMARC1; p=none";

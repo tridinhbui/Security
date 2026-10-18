@@ -1,4 +1,5 @@
 import { CATEGORIES, type Category, type Confidence, type Finding, type Severity } from "./types";
+import { scanCoverage, type ScanCoverage } from "./scan-coverage";
 
 /**
  * Score = 100 − Σ penalty over failing findings, where penalty = severity weight × confidence factor.
@@ -10,7 +11,8 @@ import { CATEGORIES, type Category, type Confidence, type Finding, type Severity
  * nên điểm tối đa là PASSIVE_SCORE_CEILING. Khi phạm vi quét bị hạn chế (quét nhanh, chạm giới hạn request/thời gian) trần thấp hơn nữa.
  */
 export const PASSIVE_SCORE_CEILING = 96;
-export const LIMITED_COVERAGE_CEILING = 90;
+/** Trần khi phạm vi quét không đầy đủ (quét nhanh, chạm giới hạn, thiếu dữ liệu ở một nhóm kiểm tra): 89, tức là KHÔNG BAO GIỜ được hạng A. */
+export const LIMITED_COVERAGE_CEILING = 89;
 export const SEVERITY_WEIGHT: Record<Severity, number> = { critical: 30, high: 15, medium: 7, low: 3, info: 0 };
 export const CONFIDENCE_FACTOR: Record<Confidence, number> = { high: 1, medium: 0.7, low: 0.4 };
 
@@ -29,6 +31,8 @@ export interface ScoreResult {
   grade: Grade;
   /** Điểm tối đa có thể đạt được trong lượt quét này. */
   ceiling: number;
+  /** Phạm vi quét: tách khỏi điểm bảo mật. Hạng A chỉ khi phạm vi đầy đủ. */
+  coverage: ScanCoverage;
   /** null when no check in the category produced a result. */
   categoryScores: Record<Category, number | null>;
   severityCounts: Record<Severity, number>;
@@ -78,8 +82,10 @@ export function effectivePenalties(findings: Finding[]): { penalty: Map<string, 
   return { penalty: out, duplicateOf: dup };
 }
 
-export function calculateScore(findings: Finding[], opts: { limitedCoverage?: boolean } = {}): ScoreResult {
-  const ceiling = opts.limitedCoverage ? LIMITED_COVERAGE_CEILING : PASSIVE_SCORE_CEILING;
+export function calculateScore(findings: Finding[], opts: { limitedCoverage?: boolean; quick?: boolean } = {}): ScoreResult {
+  const coverage = scanCoverage(findings, { quick: opts.quick });
+  // Thiếu bất kỳ nhóm kiểm tra áp dụng được nào → trần 89: một lượt quét không đầy đủ không được trông như hạng A.
+  const ceiling = opts.limitedCoverage || !coverage.complete ? LIMITED_COVERAGE_CEILING : PASSIVE_SCORE_CEILING;
   const fails = findings.filter((f) => f.status === "fail");
   const eff = effectivePenalties(findings);
   const counted = fails.filter((f) => !eff.duplicateOf.has(f.fingerprint));
@@ -107,7 +113,7 @@ export function calculateScore(findings: Finding[], opts: { limitedCoverage?: bo
   // Informational notes are counted under "info" so the UI can show them.
   severityCounts.info += findings.filter((f) => f.status === "info").length;
 
-  return { score, grade: gradeFor(score), ceiling, categoryScores, severityCounts, passed: findings.filter((f) => f.status === "pass").length, failed: fails.length };
+  return { score, grade: gradeFor(score), ceiling, coverage, categoryScores, severityCounts, passed: findings.filter((f) => f.status === "pass").length, failed: fails.length };
 }
 
 const SEV_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];

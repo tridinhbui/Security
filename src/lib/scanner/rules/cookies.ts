@@ -80,7 +80,8 @@ const cookieFlags: Rule = {
     const url = obs.page.finalUrl;
     const refs = [MDN("Web/HTTP/Guides/Cookies", "MDN: Using HTTP cookies"), MDN("Web/HTTP/Reference/Headers/Set-Cookie", "MDN: Set-Cookie")];
     if (cookies.length === 0) {
-      return [pass({ ruleId: this.id, title: "Lần truy cập đầu không đặt cookie nào", category: CAT, affectedUrl: url, summary: "Website không đặt cookie nào khi có request ẩn danh.", explanation: "Không có gì để cấu hình sai — và không cần banner đồng ý cho cookie ngay lần tải đầu.", evidence: [] })];
+      // KHÔNG ÁP DỤNG (không phải “đạt”): không có cookie thì không có gì để đánh giá. Lưu dạng info với khoá “na-”.
+      return [makeFinding({ ruleId: this.id, key: "na-no-cookies", title: "Không áp dụng: lần truy cập đầu không đặt cookie nào", category: CAT, severity: "info", confidence: "high", status: "info", affectedUrl: url, summary: "Website không đặt cookie nào khi có request ẩn danh, nên chưa có cookie nào để đánh giá. Cookie đặt SAU khi đăng nhập không được kiểm tra trong lượt quét này.", explanation: "Không có gì để cấu hình sai ở lần truy cập đầu.", evidence: [], remediation: null })];
     }
     const out: Finding[] = [];
     const secureSite = obs.pageIsHttps;

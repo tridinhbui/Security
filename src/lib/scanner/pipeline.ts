@@ -30,7 +30,7 @@ export function buildReport(input: string, target: NormalizedTarget, obs: Observ
   const findings = attachFixCommands(raw, { host: target.host, platforms: obs.platforms });
   const gaps = coverageGaps(obs, { quick });
   // Thiếu dữ liệu ở nhóm kiểm tra nào thì điểm không được trông như điểm của một lượt quét đầy đủ.
-  const score = calculateScore(findings, { limitedCoverage: quick || obs.limits.hitLimit !== null || gaps.length > 0 });
+  const score = calculateScore(findings, { quick, limitedCoverage: quick || obs.limits.hitLimit !== null || gaps.length > 0 });
   return {
     version: 1,
     engineVersion: ENGINE_VERSION,
