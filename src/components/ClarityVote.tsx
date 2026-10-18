@@ -50,8 +50,8 @@ export function ClarityVote({ ruleId, variant, source }: { ruleId: string; varia
         <textarea id={`clr-${ruleId}`} rows={2} maxLength={300} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ví dụ: mình không hiểu “clickjacking” nghĩa là gì…" className="input mt-2 !h-auto resize-none py-2 text-sm" />
         {error && <p role="alert" className="mt-1.5 text-xs text-crit">{error}</p>}
         <div className="mt-2.5 flex gap-2">
-          <button type="button" disabled={busy} onClick={() => void send("unclear", comment)} className="btn-primary btn-sm">Gửi</button>
-          <button type="button" disabled={busy} onClick={() => setPhase("ask")} className="btn-ghost btn-sm">Quay lại</button>
+          <button type="button" disabled={busy} onClick={() => void send("unclear", comment)} className="btn-primary btn-sm !h-10 sm:!h-8">Gửi</button>
+          <button type="button" disabled={busy} onClick={() => setPhase("ask")} className="btn-ghost btn-sm !h-10 sm:!h-8">Quay lại</button>
         </div>
       </div>
     );
@@ -59,8 +59,8 @@ export function ClarityVote({ ruleId, variant, source }: { ruleId: string; varia
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2 text-[13px]" role="group" aria-label="Đánh giá độ rõ của giải thích">
       <span className="text-muted">Giải thích này có rõ không?</span>
-      <button type="button" disabled={busy} onClick={() => void send("clear")} className="btn-ghost btn-sm">👍 Có</button>
-      <button type="button" disabled={busy} onClick={() => setPhase("unclear-form")} className="btn-ghost btn-sm">🤔 Chưa</button>
+      <button type="button" disabled={busy} onClick={() => void send("clear")} className="btn-ghost btn-sm !h-10 sm:!h-8">👍 Có</button>
+      <button type="button" disabled={busy} onClick={() => setPhase("unclear-form")} className="btn-ghost btn-sm !h-10 sm:!h-8">🤔 Chưa</button>
       {error && <span role="alert" className="text-xs text-crit">{error}</span>}
     </div>
   );

@@ -58,5 +58,6 @@ export function summarize(rows: Row[]): Summary {
   const caveats = [`Mẫu ${people.size} người: chỉ dùng để tìm chỗ gây nhầm, không suy ra tỉ lệ của người dùng nói chung.`];
   if (people.size < 5) caveats.push(`Mới ${people.size}/5 người tham gia: kế hoạch chưa hoàn tất.`);
   if (!(groups["A"] ?? 0)) caveats.push("Chưa có người nhóm A (không kỹ thuật): không đánh giá được mục tiêu chính.");
+  if (!(groups["C"] ?? 0)) caveats.push("Chưa có người nhóm C (chuyên môn bảo mật): chưa ai kiểm tra độ chính xác kỹ thuật của lời giải thích; không coi là đã được rà soát.");
   return { participants: people.size, groups, tasks, rules, caveats, invalid };
 }

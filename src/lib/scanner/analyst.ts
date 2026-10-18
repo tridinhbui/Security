@@ -18,7 +18,7 @@ export const ORIGINS: Record<OriginKind, Omit<Origin, "kind">> = {
 interface Entry { statement: string; sub: string; origin: OriginKind }
 export const ANALYST: Record<string, Entry> = {
   "tls.https-available": { statement: "Khách hàng đang truy cập website không có mã hoá", sub: "Dữ liệu khách gửi và nhận có thể bị đọc hoặc sửa trên đường truyền", origin: "absent" },
-  "tls.hsts": { statement: "Trình duyệt chưa bị buộc phải dùng kết nối an toàn", sub: "Lần truy cập đầu tiên của khách vẫn có thể đi qua đường dẫn không bảo mật", origin: "absent" },
+  "tls.hsts": { statement: "Trình duyệt chưa bị buộc phải dùng kết nối an toàn", sub: "Khách vào bằng địa chỉ http:// vẫn có thể bị giữ lại ở kết nối không bảo mật", origin: "absent" },
   "tls.hsts-preload": { statement: "Lần truy cập đầu tiên của khách chưa được bảo vệ", sub: "Website chưa nằm trong danh sách HTTPS cài sẵn của trình duyệt", origin: "absent" },
   "tls.certificate-expiry": { statement: "Chứng chỉ bảo mật sắp hết hạn", sub: "Khi hết hạn, khách sẽ thấy cảnh báo đỏ và không vào được website", origin: "lapse" },
   "tls.cipher-suite": { statement: "Kết nối đang dùng kiểu mã hoá đã lỗi thời", sub: "Độ bền mã hoá thấp hơn chuẩn hiện tại", origin: "misconfigured" },
@@ -39,8 +39,8 @@ export const ANALYST: Record<string, Entry> = {
   "headers.cross-origin-isolation": { statement: "Website chưa được cô lập khỏi các trang khác trong trình duyệt", sub: "Giảm khả năng chống rò rỉ dữ liệu giữa các trang", origin: "absent" },
   "headers.cache-policy": { statement: "Không rõ ai được phép lưu bản sao của trang", sub: "Trang có thể bị proxy hoặc CDN lưu lại và phát cho người khác", origin: "absent" },
   "adv.header-consistency": { statement: "Các trang của website được bảo vệ không đồng đều", sub: "Có trang thiếu lớp bảo vệ mà trang chủ có", origin: "lapse" },
-  "adv.shared-cache-leak": { statement: "Phiên đăng nhập của khách có thể bị phát cho người khác", sub: "Trang chứa phiên được phép lưu trong bộ nhớ đệm dùng chung", origin: "misconfigured" },
-  "privacy.referrer-policy": { statement: "Địa chỉ trang của khách bị gửi cho website khác", sub: "Khi khách bấm liên kết ra ngoài, bên kia biết khách vừa ở trang nào", origin: "absent" },
+  "adv.shared-cache-leak": { statement: "Trang đặt cookie đang được bộ nhớ đệm dùng chung lưu", sub: "Cần xác nhận đó có phải cookie phiên đăng nhập hay không", origin: "misconfigured" },
+  "privacy.referrer-policy": { statement: "Chưa khai báo chính sách gửi địa chỉ trang cho website khác", sub: "Trình duyệt mới đã giới hạn mặc định; trình duyệt cũ có thể gửi cả đường dẫn", origin: "absent" },
   "privacy.permissions-policy": { statement: "Các tính năng nhạy cảm của trình duyệt chưa bị giới hạn", sub: "Mã bên thứ ba có thể xin quyền camera hoặc vị trí qua trang của bạn", origin: "absent" },
   "cookies.flags": { statement: "Phiên đăng nhập của khách chưa được bảo vệ đầy đủ", sub: "Cookie thiếu cờ bảo vệ nên dễ bị đánh cắp hoặc gửi qua kết nối không an toàn", origin: "misconfigured" },
   "cookies.prefix": { statement: "Cookie phiên có thể bị ghi đè", sub: "Chưa dùng tiền tố bảo vệ của trình duyệt (__Host-)", origin: "absent" },
@@ -65,19 +65,19 @@ export const ANALYST: Record<string, Entry> = {
   "exposure.robots-txt": { statement: "robots.txt tiết lộ đường dẫn nhạy cảm", sub: "Gợi ý cho kẻ tấn công nên đi đâu", origin: "exposure" },
   "tls.certificate-strength": { statement: "Khoá của chứng chỉ chưa đủ mạnh theo chuẩn hiện tại", sub: "Khoá ngắn hoặc thời hạn quá dài làm giảm độ tin cậy của kết nối", origin: "misconfigured" },
   "tls.protocol-version": { statement: "Máy chủ còn chấp nhận phiên bản TLS đã lỗi thời", sub: "Kết nối có thể bị hạ xuống phiên bản có điểm yếu đã biết", origin: "misconfigured" },
-  "tls.http2": { statement: "Máy chủ chưa dùng giao thức hiện đại HTTP/2", sub: "Tải trang chậm hơn và thiếu một số cải tiến bảo mật của giao thức mới", origin: "absent" },
+  "tls.http2": { statement: "Máy chủ chưa dùng giao thức hiện đại HTTP/2", sub: "Tải trang có thể chậm hơn một chút (không phải lỗi bảo mật)", origin: "absent" },
   "headers.charset": { statement: "Trang không khai báo bảng mã ký tự rõ ràng", sub: "Trình duyệt phải tự đoán bảng mã, mở đường cho một số kiểu chèn mã", origin: "absent" },
   "cookies.cache-control-sensitive": { statement: "Trang đăng nhập có thể bị lưu lại trong bộ nhớ đệm", sub: "Người dùng sau trên cùng máy hoặc proxy có thể xem lại trang của người trước", origin: "misconfigured" },
   "exposure.source-maps": { statement: "Mã nguồn gốc của website tải về được công khai", sub: "Source map giúp ai cũng đọc được mã nguồn, đường dẫn API và đôi khi cả bí mật", origin: "exposure" },
   "config.http-methods": { statement: "Máy chủ công bố những thao tác không cần thiết", sub: "Phương thức như TRACE hoặc PUT được công bố ở trang công khai", origin: "misconfigured" },
-  "adv.dom-xss-flow": { statement: "Mã JavaScript đưa dữ liệu không tin cậy vào trang", sub: "Dữ liệu từ URL hoặc nguồn ngoài chảy tới nơi chèn HTML, có nguy cơ DOM XSS", origin: "misconfigured" },
-  "adv.postmessage": { statement: "Trang nhận tin nhắn từ website khác mà không kiểm tra nguồn", sub: "Website lạ có thể gửi dữ liệu điều khiển hành vi của trang", origin: "misconfigured" },
+  "adv.dom-xss-flow": { statement: "Có dấu hiệu mã JavaScript đưa dữ liệu từ URL vào trang", sub: "Phân tích tĩnh, độ tin cậy thấp: cần lập trình viên kiểm tra có thật sự là DOM XSS không", origin: "misconfigured" },
+  "adv.postmessage": { statement: "Có dấu hiệu trang nhận tin nhắn từ website khác mà chưa thấy kiểm tra nguồn", sub: "Phân tích tĩnh, độ tin cậy thấp: cần lập trình viên kiểm tra mã xử lý", origin: "misconfigured" },
   "adv.web-storage-secrets": { statement: "Token đăng nhập được lưu ở nơi mã JavaScript đọc được", sub: "Một lỗi XSS nhỏ đủ để đánh cắp phiên của người dùng", origin: "misconfigured" },
   "adv.endpoint-map": { statement: "Danh sách API và đường dẫn quản trị lộ trong mã trang", sub: "Kẻ tấn công không cần dò tìm vẫn biết nên nhắm vào đâu", origin: "exposure" },
-  "adv.graphql-surface": { statement: "GraphQL cho phép xem toàn bộ cấu trúc dữ liệu", sub: "Introspection mở giúp kẻ tấn công liệt kê mọi truy vấn có thể gọi", origin: "misconfigured" },
+  "adv.graphql-surface": { statement: "Mã trang có tham chiếu endpoint GraphQL", sub: "Chưa kiểm tra introspection: cần xác nhận endpoint production có tắt introspection", origin: "misconfigured" },
   "privacy.trackers": { statement: "Trang nạp trình theo dõi của bên thứ ba", sub: "Hành vi của khách được chia sẻ với các dịch vụ bên ngoài", origin: "absent" },
   "privacy.third-party-origins": { statement: "Trang phụ thuộc nhiều dịch vụ bên thứ ba", sub: "Mỗi bên thứ ba thêm một điểm có thể bị xâm nhập hoặc làm lộ dữ liệu khách", origin: "absent" },
-  "exposure.sitemap-xml": { statement: "Sơ đồ website liệt kê đường dẫn không định công khai", sub: "Kẻ tấn công biết thêm các điểm vào", origin: "exposure" },
+  "exposure.sitemap-xml": { statement: "Website chưa có sitemap.xml", sub: "Thông tin hỗ trợ SEO, không phải lỗi bảo mật", origin: "absent" },
 };
 
 /** Một số luật có hai biến thể (chưa có / có nhưng yếu): nguồn gốc suy từ tiêu đề phát hiện. */
@@ -117,7 +117,7 @@ export function reproFor(ruleId: string, host: string): string | null {
     case "exposure.security-txt": return `curl -si https://${host}/.well-known/security.txt | head -5`;
     case "exposure.robots-txt": return `curl -s https://${host}/robots.txt | head -20`;
     case "tls.certificate-strength": return `echo | openssl s_client -servername ${host} -connect ${host}:443 2>/dev/null | openssl x509 -noout -text | grep -E "Public-Key|Signature Algorithm|Not (Before|After)"`;
-    case "tls.protocol-version": return `for v in tls1 tls1_1 tls1_2 tls1_3; do printf "%s: " $v; echo | openssl s_client -connect ${host}:443 -servername ${host} -$v 2>&1 | grep -qE "BEGIN CERT|Cipher is" && echo chấp nhận || echo từ chối; done`;
+    case "tls.protocol-version": return `for v in tls1 tls1_1 tls1_2 tls1_3; do printf "%s: " $v; r=$(echo | openssl s_client -connect ${host}:443 -servername ${host} -$v 2>&1); if echo "$r" | grep -q "no protocols available"; then echo "máy bạn không hỗ trợ giao thức này (chưa kết luận)"; elif echo "$r" | grep -qE "(Cipher *: *|Cipher is )[A-Z][A-Z0-9_-]{3,}"; then echo chấp nhận; else echo từ chối; fi; done`;
     case "tls.http2": return `curl -sI --http2 https://${host}/ | head -1`;
     case "headers.charset": return `curl -sI https://${host}/ | grep -i "^content-type:"`;
     case "cookies.cache-control-sensitive": return `curl -sI https://${host}/ | grep -iE "^(cache-control|pragma|set-cookie):"`;

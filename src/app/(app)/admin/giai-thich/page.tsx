@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAdmin } from "@/lib/auth/admin";
 import { getDb } from "@/lib/cf";
-import { clarityByRule, clarityLevel, MIN_VOTES, recentUnclearComments, unclearLowerBound } from "@/lib/db/explain-feedback";
+import { clarityByMode, clarityByRule, clarityLevel, MIN_VOTES, recentUnclearComments, unclearLowerBound } from "@/lib/db/explain-feedback";
 import { formatDate } from "@/lib/format";
 import { ALL_RULES } from "@/lib/scanner/rules";
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function ExplainClarityAdmin() {
   if (!(await getAdmin())) notFound();
   const db = await getDb();
-  const [rows, comments] = await Promise.all([clarityByRule(db), recentUnclearComments(db)]);
+  const [rows, comments, byMode] = await Promise.all([clarityByRule(db), recentUnclearComments(db), clarityByMode(db)]);
   const title = new Map(ALL_RULES.map((r) => [r.id, r.title]));
   const total = rows.reduce((s, r) => s + r.total, 0), unclear = rows.reduce((s, r) => s + r.unclear, 0);
   return (
@@ -44,6 +44,25 @@ export default async function ExplainClarityAdmin() {
               );
             })}
             {rows.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted">Chưa có phiếu nào.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="mt-10 text-lg font-semibold">Theo chế độ hiển thị</h2>
+      <p className="mt-1 text-sm text-muted">So sánh “Dễ hiểu” với “Kỹ thuật”. Mỗi ô tự áp quy tắc mẫu nhỏ: dưới {MIN_VOTES} phiếu thì chỉ hiện số đếm, không kết luận.</p>
+      <div className="panel mt-3 overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-left text-sm">
+          <thead className="eyebrow border-b border-line"><tr><th className="p-3">Luật</th><th className="p-3">Dễ hiểu (rõ / chưa)</th><th className="p-3">Kỹ thuật (rõ / chưa)</th></tr></thead>
+          <tbody>
+            {[{ rule_id: "__all", ...byMode.overall }, ...byMode.rules].map((r) => (
+              <tr key={r.rule_id} className="border-b border-line last:border-0">
+                <td className="p-3 font-medium">{r.rule_id === "__all" ? "Tất cả" : title.get(r.rule_id) ?? r.rule_id}</td>
+                {(["beginner", "technical"] as const).map((m) => (
+                  <td key={m} className="p-3"><span className="num">{r[m].clear} / {r[m].unclear}</span>{" "}
+                    <span className={r[m].level === "insufficient" ? "chip-info" : r[m].level === "priority" ? "chip-crit" : r[m].level === "watch" ? "chip-med" : "chip-ok"}>{r[m].level === "insufficient" ? `mẫu nhỏ (n=${r[m].total})` : r[m].level === "priority" ? "ưu tiên" : r[m].level === "watch" ? "theo dõi" : "ổn"}</span></td>
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

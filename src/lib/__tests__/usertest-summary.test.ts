@@ -25,6 +25,10 @@ describe("usertest-summary (kiểm thử công cụ, không phải kết quả t
     const t1 = s.tasks.find((t) => t.task === "T1")!; expect(t1).toMatchObject({ n: 3, completed: 2, medianSeconds: 70 });
     expect(s.caveats[0]).toMatch(/không suy ra tỉ lệ/); expect(s.caveats.join(" ")).toMatch(/3\/5/);
   });
+  it("cảnh báo khi chưa có người nhóm C (chưa ai rà soát độ chính xác kỹ thuật)", () => {
+    expect(summarize(parseCsv(csv("p1,A,T1,,1,50,,,,,none,"))).caveats.join(" ")).toMatch(/Chưa có người nhóm C/);
+    expect(summarize(parseCsv(csv("p1,C,T1,,1,50,,,,,none,"))).caveats.join(" ")).not.toMatch(/Chưa có người nhóm C/);
+  });
   it("dòng sai định dạng bị loại và liệt kê, không làm hỏng kết quả", () => {
     const s = summarize(parseCsv(csv("p1,Z,T2,x,1,1,1,1,1,1,none,", "p2,A,T9,x,1,1,1,1,1,1,none,", "p3,A,T2,x,1,1,5,1,1,1,none,", "p4,A,T2,x,1,1,2,2,2,1,clear,")));
     expect(s.invalid).toHaveLength(3); expect(s.participants).toBe(1);
