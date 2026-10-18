@@ -7,6 +7,7 @@ const CAT = "Transport Security" as const;
 
 const CERT_LABELS: Record<string, string> = {
   CERT_HAS_EXPIRED: "chứng chỉ đã hết hạn",
+  CF_526_INVALID_CERT: "chứng chỉ không hợp lệ (hết hạn, tự ký hoặc không khớp tên miền — Cloudflare báo mã 526)",
   DEPTH_ZERO_SELF_SIGNED_CERT: "chứng chỉ là loại tự ký (self-signed)",
   SELF_SIGNED_CERT_IN_CHAIN: "chuỗi chứng chỉ chứa một chứng chỉ tự ký",
   UNABLE_TO_VERIFY_LEAF_SIGNATURE: "chuỗi chứng chỉ không đầy đủ hoặc không được tin cậy",

@@ -1,6 +1,18 @@
 import { BudgetError, type ScanBudget } from "./budget";
 import { resolvePublicAddresses, type ResolvedAddress, type Resolver } from "./dns";
 import type { FetchOptions, FetchRecord, Headers, SafeFetch } from "./types";
+
+/** Mã lỗi Cloudflare tự sinh khi nói chuyện với máy chủ gốc (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/). */
+export const CF_ORIGIN_ERRORS: Record<number, { code: string; message: string }> = {
+  526: { code: "CF_526_INVALID_CERT", message: "Cloudflare báo 526: chứng chỉ HTTPS của máy chủ không hợp lệ (hết hạn, tự ký hoặc không khớp tên miền)." },
+  525: { code: "CF_525_TLS_HANDSHAKE", message: "Cloudflare báo 525: bắt tay TLS với máy chủ thất bại." },
+  520: { code: "CF_52X_ORIGIN_ERROR", message: "Cloudflare báo 520: máy chủ trả phản hồi không hợp lệ." },
+  521: { code: "CF_52X_ORIGIN_ERROR", message: "Cloudflare báo 521: máy chủ từ chối kết nối." },
+  522: { code: "CF_52X_ORIGIN_ERROR", message: "Cloudflare báo 522: kết nối tới máy chủ quá thời gian." },
+  523: { code: "CF_52X_ORIGIN_ERROR", message: "Cloudflare báo 523: không tới được máy chủ." },
+  524: { code: "CF_52X_ORIGIN_ERROR", message: "Cloudflare báo 524: máy chủ phản hồi quá chậm." },
+  530: { code: "CF_52X_ORIGIN_ERROR", message: "Cloudflare báo 530: không phân giải hoặc không tới được máy chủ." },
+};
 import { SsrfError, validateRequestUrl } from "./url";
 
 /**
@@ -115,6 +127,16 @@ export function createWorkerFetcher(budget: ScanBudget, deps: WorkerFetcherDeps)
       record.finalUrl = url.href;
       record.status = res.status;
       record.headers = headers;
+
+      // Cloudflare TỰ SINH mã 52x khi không kết nối/xác thực được máy chủ gốc (fetch của Worker không ném lỗi như Node).
+      // Trang đó là trang lỗi của Cloudflare, KHÔNG phải website: không được phân tích header/nội dung của nó.
+      // 526 = chứng chỉ máy chủ gốc không hợp lệ (hết hạn, tự ký, sai tên miền) · 525 = bắt tay TLS thất bại · còn lại = máy chủ gốc không trả lời.
+      const cf = CF_ORIGIN_ERRORS[res.status];
+      if (cf && /cloudflare/i.test(String(headers.server ?? ""))) {
+        await res.body?.cancel().catch(() => undefined);
+        if (res.status === 526) record.certError = { code: cf.code, message: cf.message };
+        return fail(cf.code, cf.message);
+      }
 
       const location = headers.location;
       const isRedirect = REDIRECT_STATUSES.has(res.status) && typeof location === "string";

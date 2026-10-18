@@ -85,3 +85,23 @@ describe("worker fetcher — chống SSRF", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("worker fetcher — trang lỗi 52x do Cloudflare tự sinh (lỗi thật tìm thấy khi quét expired.badssl.com trên production)", () => {
+  const cf = (status: number) => () => new Response("<html><title>526: Invalid SSL certificate</title></html>", { status, headers: { "content-type": "text/html", server: "cloudflare", "x-frame-options": "SAMEORIGIN" } });
+  it("526 → lỗi chứng chỉ (certError), KHÔNG phải trang của website để phân tích header", async () => {
+    const { fetch } = make({ "https://example.com/": cf(526) });
+    const r = await fetch("https://example.com/");
+    expect(r.error).toMatchObject({ code: "CF_526_INVALID_CERT" });
+    expect(r.certError).toMatchObject({ code: "CF_526_INVALID_CERT" });
+    expect(r.body).toBe("");
+  });
+  it.each([520, 521, 522, 523, 524, 525, 530])("%i do Cloudflare sinh → lỗi kết nối tới máy chủ gốc", async (status) => {
+    const { fetch } = make({ "https://example.com/": cf(status) });
+    expect((await fetch("https://example.com/")).error?.code).toMatch(/^CF_52/);
+  });
+  it("526 KHÔNG do Cloudflare sinh (máy chủ khác tự trả) → giữ nguyên là một phản hồi", async () => {
+    const { fetch } = make({ "https://example.com/": () => new Response("x", { status: 526, headers: { server: "nginx" } }) });
+    const r = await fetch("https://example.com/");
+    expect(r.error).toBeUndefined(); expect(r.status).toBe(526);
+  });
+});

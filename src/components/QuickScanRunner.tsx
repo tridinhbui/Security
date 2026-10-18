@@ -212,7 +212,7 @@ function toFinding(i: Item): Finding {
 const toFindings = (r: { items: Item[] }): Finding[] => r.items.filter((i) => isIssue(i.status)).map(toFinding);
 
 export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authed: boolean; ruleCount: number }) {
-  const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean }>({ kind: "loading" });
+  const [state, setState] = useState<{ kind: "loading"; done?: boolean } | { kind: "ok"; r: Result } | { kind: "error"; message: string; limited: boolean; code?: string }>({ kind: "loading" });
   const [selected, setSelected] = useState(0);
   const [tab, setTab] = useState<"findings" | "recon" | "score">("findings");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("issues");
@@ -245,7 +245,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
       try {
         const res = await fetch("/api/quick-scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }), signal: ctl.signal });
         const body = await res.json().catch(() => ({}));
-        if (!res.ok) return void setState({ kind: "error", message: body.message ?? "Không thể quét lúc này. Vui lòng thử lại sau.", limited: res.status === 429 }); // lỗi hiện ngay, không bắt chờ
+        if (!res.ok) return void setState({ kind: "error", message: body.message ?? "Không thể quét lúc này. Vui lòng thử lại sau.", limited: res.status === 429, code: body.error }); // lỗi hiện ngay, không bắt chờ
         await settle(() => setState({ kind: "ok", r: body as Result }));
       } catch (e) {
         if ((e as Error).name !== "AbortError") setState({ kind: "error", message: "Lỗi mạng. Vui lòng thử lại.", limited: false });
@@ -263,7 +263,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
 
       {state.kind === "error" && (
         <div className="panel p-6" role="alert">
-          <p className="font-medium text-crit">Chưa quét được</p>
+          <p className="font-medium text-crit">{state.code === "invalid_certificate" ? "Phát hiện nghiêm trọng: chứng chỉ HTTPS không hợp lệ" : "Chưa quét được"}</p>
           <p className="mt-1 text-sm text-muted">{state.message}</p>
           {state.limited && <Link href={cta} className="btn-primary mt-4">Đăng ký để quét tiếp</Link>}
         </div>
