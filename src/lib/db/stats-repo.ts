@@ -16,5 +16,7 @@ export async function publicStats(db: D1Like): Promise<PublicStats> {
   const counter = (await safe(() => db.prepare("SELECT value FROM site_counters WHERE name = 'scans'").first<{ value: number }>()))?.value;
   // Chưa có bảng bộ đếm (migration chưa chạy): dùng số lượt quét đầy đủ đã hoàn tất còn lưu — vẫn là số thật, chỉ thấp hơn.
   const scans = counter ?? (await safe(() => db.prepare("SELECT COUNT(*) c FROM scans WHERE status = 'completed' AND cached = 0").first<{ c: number }>()))?.c ?? 0;
-  return { scans, users };
+  // Mốc lịch sử (số thật của giai đoạn đã bị xoá khỏi CSDL, do chủ sản phẩm xác nhận) cộng vào số đếm hiện tại. Nằm trong CSDL nên sửa được mà không cần deploy.
+  const base = async (name: string) => Math.max(0, (await safe(() => db.prepare("SELECT value FROM site_counters WHERE name = ?").bind(name).first<{ value: number }>()))?.value ?? 0);
+  return { scans: scans + (await base("baseline_scans")), users: users + (await base("baseline_users")) };
 }

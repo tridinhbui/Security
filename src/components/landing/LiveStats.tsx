@@ -23,7 +23,8 @@ export function LiveStats({ initial }: { initial: { scans: number; users: number
   return (
     <>
       <li className="pill" aria-live="polite"><span className="live-dot !size-2" aria-hidden /><span><AnimatedNumber value={s.scans} /> lượt quét đã chạy</span></li>
-      <li className="pill"><span className="size-2 rounded-full bg-accent" aria-hidden /><span><AnimatedNumber value={s.users} /> người đã tạo tài khoản</span></li>
+      {/* Làm nổi bật số người dùng: viền và nền màu nhấn, chữ đậm, chấm nhịp để thu hút mắt (vẫn là số thật). */}
+      <li className="pill !border-accent/50 !bg-accent-soft font-semibold text-accent shadow-[0_0_0_4px_rgba(11,87,255,0.08)]"><span className="live-dot !size-2" aria-hidden /><span><AnimatedNumber value={s.users} className="font-bold" /> người đã tạo tài khoản</span></li>
     </>
   );
 }
