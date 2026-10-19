@@ -4,6 +4,7 @@ import * as repo from "../db/repo";
 import { log } from "../log";
 import { ScanRefusedError, type ScanReport } from "../scanner/report";
 import { recordSsrfStrike } from "./abuse";
+import { bumpCounter } from "../db/stats-repo";
 import { ScannerUnavailableError, type ScannerClient } from "./scanner-client";
 
 const BLOCKING_CODES = new Set(["non_public_ip", "dns_mixed_answers", "internal_hostname", "scheme_not_allowed", "port_not_allowed", "credentials_not_allowed"]);
@@ -19,6 +20,7 @@ async function persist(db: D1Like, scanId: string, userId: string, report: ScanR
       resolved: t.resolved, errorCode: t.errorCode ?? null, durationMs: t.durationMs,
     }))),
   });
+  await bumpCounter(db, "scans"); // bộ đếm công khai; không bao giờ làm hỏng lượt quét
 }
 
 export type JobOutcome = "done" | "skipped" | "retry";
