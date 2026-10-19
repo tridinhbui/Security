@@ -23,7 +23,7 @@ export function LiveStats({ initial }: { initial: Stats | null }) {
   }, []);
   if (!s) return null;
   return (
-    <section aria-label="Số liệu trực tiếp" aria-live="polite" className="reveal mt-8 max-w-xl overflow-hidden rounded-2xl border border-accent/25 bg-gradient-to-br from-accent-soft via-white to-white shadow-card" style={{ ["--i" as string]: 5 }}>
+    <section aria-label="Số liệu trực tiếp" aria-live="polite" className="reveal mt-8 w-full max-w-xl overflow-hidden rounded-2xl border border-accent/25 bg-gradient-to-br from-accent-soft via-white to-white shadow-card" style={{ ["--i" as string]: 5 }}>
       <div className="flex items-center gap-2 border-b border-accent/15 px-5 py-2.5">
         <span className="live-dot" aria-hidden />
         <span className="mono text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Trực tiếp</span>

@@ -58,24 +58,24 @@ export default async function Home() {
       {/* ---- hero */}
       <HeroStage className="hero-glow">
         <div aria-hidden className="hero-orbs"><span className="orb orb-a" /><span className="orb orb-b" /><span className="orb orb-c" /><span className="cursor-glow" /></div>
-        <div className="container-x relative grid items-center gap-8 pb-16 pt-14 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:pb-24">
-          <div className="depth-copy">
+        <div className="container-x relative flex flex-col items-center gap-12 pb-16 pt-14 text-center sm:pt-20 lg:pb-24">
+          <div className="depth-copy flex w-full max-w-3xl flex-col items-center">
             <p className="reveal eyebrow">kiểm tra bảo mật website · không cần biết kỹ thuật</p>
             <h1 className="mt-7 text-[2.8rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-[4.2rem]">
               <SplitText lines={[[{ text: "Website của bạn" }], [{ text: "đang hở chỗ nào?", className: "headline-live" }]]} />
             </h1>
-            <p className="reveal mt-7 max-w-xl text-[17px] leading-[1.8] text-muted" style={{ ["--i" as string]: 2 }}>
+            <p className="reveal mt-7 max-w-xl text-balance text-[17px] leading-[1.8] text-muted" style={{ ["--i" as string]: 2 }}>
               Dán địa chỉ website, VibeSec chỉ ra chỗ nào chưa an toàn và hướng dẫn sửa từng bước bằng tiếng Việt dễ hiểu.
             </p>
-            <div className="reveal mt-9 max-w-[640px]" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} label={user ? undefined : "Quét miễn phí"} /></div>
-            <ul className="reveal mt-6 flex flex-wrap gap-3" style={{ ["--i" as string]: 4 }}>
+            <div className="reveal mt-9 w-full max-w-[640px] text-left" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} label={user ? undefined : "Quét miễn phí"} /></div>
+            <ul className="reveal mt-6 flex flex-wrap justify-center gap-3" style={{ ["--i" as string]: 4 }}>
               <li className="pill"><span className="size-2 rounded-full bg-ok" /><span><AnimatedNumber value={ALL_RULES.length} delay={700} /> kiểm tra bảo mật</span></li>
             </ul>
-            <MatMatSays className="mt-6 max-w-xl" text="Mình là Mật Mật 🐾 Mình sẽ đi xem website của bạn giống như một người khách tò mò, rồi kể lại cho bạn nghe thật dễ hiểu: chỗ nào chưa khoá cửa và nên sửa thế nào. Không cần biết kỹ thuật đâu!" />
+            <MatMatSays className="mt-6 max-w-xl text-left" text="Mình là Mật Mật 🐾 Mình sẽ đi xem website của bạn giống như một người khách tò mò, rồi kể lại cho bạn nghe thật dễ hiểu: chỗ nào chưa khoá cửa và nên sửa thế nào. Không cần biết kỹ thuật đâu!" />
             {!user && <p className="mt-4 text-sm text-faint">Quét nhanh không cần tài khoản. Tạo tài khoản miễn phí để quét đầy đủ và lưu lịch sử.</p>}
             <LiveStats initial={stats} />
           </div>
-          <HeroVisual total={ALL_RULES.length} />
+          <div className="w-full max-w-xl text-left"><HeroVisual total={ALL_RULES.length} /></div>
         </div>
       </HeroStage>
 
