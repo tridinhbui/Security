@@ -58,26 +58,33 @@ export default async function Home() {
       {/* ---- hero */}
       <HeroStage className="hero-glow">
         <div aria-hidden className="hero-orbs"><span className="orb orb-a" /><span className="orb orb-b" /><span className="orb orb-c" /><span className="cursor-glow" /></div>
-        <div className="container-x relative flex flex-col items-center gap-12 pb-16 pt-14 text-center sm:pt-20 lg:pb-24">
-          <div className="depth-copy flex w-full max-w-3xl flex-col items-center">
+        {/* Hero vừa đúng một màn hình (trừ thanh điều hướng): tiêu đề → thanh quét dài → hai cột: Mật Mật (trái) | số liệu trực tiếp (phải). Hình minh hoạ chuyển xuống dưới. */}
+        <div className="container-x relative flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center gap-7 py-10 text-center sm:py-12">
+          <div className="depth-copy flex w-full flex-col items-center">
             <p className="reveal eyebrow">kiểm tra bảo mật website · không cần biết kỹ thuật</p>
-            <h1 className="mt-7 text-[2.8rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-[4.2rem]">
+            <h1 className="mt-5 text-[2.5rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-[3.8rem]">
               <SplitText lines={[[{ text: "Website của bạn" }], [{ text: "đang hở chỗ nào?", className: "headline-live" }]]} />
             </h1>
-            <p className="reveal mt-7 max-w-xl text-balance text-[17px] leading-[1.8] text-muted" style={{ ["--i" as string]: 2 }}>
+            <p className="reveal mt-5 max-w-xl text-balance text-[16px] leading-[1.7] text-muted" style={{ ["--i" as string]: 2 }}>
               Dán địa chỉ website, VibeSec chỉ ra chỗ nào chưa an toàn và hướng dẫn sửa từng bước bằng tiếng Việt dễ hiểu.
             </p>
-            <div className="reveal mt-9 w-full max-w-[640px] text-left" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} label={user ? undefined : "Quét miễn phí"} /></div>
-            <ul className="reveal mt-6 flex flex-wrap justify-center gap-3" style={{ ["--i" as string]: 4 }}>
-              <li className="pill"><span className="size-2 rounded-full bg-ok" /><span><AnimatedNumber value={ALL_RULES.length} delay={700} /> kiểm tra bảo mật</span></li>
-            </ul>
-            <MatMatSays className="mt-6 max-w-xl text-left" text="Mình là Mật Mật 🐾 Mình sẽ đi xem website của bạn giống như một người khách tò mò, rồi kể lại cho bạn nghe thật dễ hiểu: chỗ nào chưa khoá cửa và nên sửa thế nào. Không cần biết kỹ thuật đâu!" />
-            {!user && <p className="mt-4 text-sm text-faint">Quét nhanh không cần tài khoản. Tạo tài khoản miễn phí để quét đầy đủ và lưu lịch sử.</p>}
+            <div className="reveal mt-7 w-full max-w-[880px] text-left" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} label={user ? undefined : "Quét miễn phí"} /></div>
+            <p className="reveal mt-3 text-sm text-faint" style={{ ["--i" as string]: 4 }}><AnimatedNumber value={ALL_RULES.length} delay={700} /> kiểm tra bảo mật{!user ? " · Quét nhanh không cần tài khoản" : ""}</p>
+          </div>
+          <div className="grid w-full max-w-[880px] items-stretch gap-4 text-left md:grid-cols-2">
+            <div className="flex flex-col justify-center rounded-2xl border border-line bg-white/70 p-4 shadow-crisp backdrop-blur">
+              <MatMatSays text="Mình là Mật Mật 🐾 Mình sẽ đi xem website của bạn giống như một người khách tò mò, rồi kể lại cho bạn nghe thật dễ hiểu: chỗ nào chưa khoá cửa và nên sửa thế nào. Không cần biết kỹ thuật đâu!" />
+              {!user && <p className="mt-3 text-xs text-faint">Tạo tài khoản miễn phí để quét đầy đủ và lưu lịch sử.</p>}
+            </div>
             <LiveStats initial={stats} />
           </div>
-          <div className="w-full max-w-xl text-left"><HeroVisual total={ALL_RULES.length} /></div>
         </div>
       </HeroStage>
+
+      {/* ---- minh hoạ cách quét hoạt động (dưới màn hình đầu) */}
+      <section className="hairline" aria-label="Minh hoạ lượt quét">
+        <div className="container-x flex justify-center py-14"><div className="w-full max-w-xl"><HeroVisual total={ALL_RULES.length} /></div></div>
+      </section>
 
       <StandardsStrip />
 
