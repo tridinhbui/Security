@@ -20,101 +20,11 @@ function stats() {
 const Arrow = () => <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
 const Ico = ({ d }: { d: string }) => <svg viewBox="0 0 24 24" className="size-6 text-fg" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>;
 
-/** Dải chuẩn tham chiếu ngay dưới hero. Chữ thuần, không logo: chúng tôi tham chiếu chuẩn mở, không phải được các tổ chức này chứng nhận. */
-export function StandardsStrip() {
-  const items = ["OWASP Top 10:2025", "CWE · MITRE", "OWASP ASVS 4.0.3", "OWASP WSTG", "OSV.dev", "npm registry"];
-  return (
-    <section className="hairline bg-surface/60" aria-labelledby="std-h">
-      <div className="container-x py-7">
-        <p id="std-h" className="eyebrow text-center">đối chiếu theo chuẩn và nguồn dữ liệu mở</p>
-        <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
-          {items.map((t) => <li key={t} className="mono rounded-md border border-line-strong bg-white px-3 py-1.5 text-[12.5px] font-medium text-fg/80 shadow-crisp">{t}</li>)}
-        </ul>
-        <p className="mt-3 text-center text-[12.5px] text-faint">Đây là chuẩn và cơ sở dữ liệu công khai mà kết quả được đối chiếu tới; không phải chứng nhận hay bảo chứng từ các tổ chức này.</p>
-      </div>
-    </section>
-  );
-}
 
-export function NumbersBand() {
-  const s = stats();
-  const cells: [number, string, string][] = [
-    [s.rules, "kiểm tra bảo mật", "Mỗi kiểm tra là một luật cố định, có thể tái lập."],
-    [s.cwe, "mã lỗi CWE", "Ánh xạ tới danh mục điểm yếu phần mềm của MITRE."],
-    [s.asvs, "yêu cầu OWASP ASVS", "Đối chiếu tới tiêu chuẩn xác minh bảo mật ứng dụng."],
-    [0, "payload khai thác", "Chỉ đọc thông tin công khai. Không tấn công thử."],
-  ];
-  return (
-    <section className="hairline" aria-label="Con số">
-      <div className="container-x py-12">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
-          {cells.map(([n, label, hint], i) => (
-            <Reveal key={label} delay={i * 80}>
-              <dt className="text-sm font-medium text-muted">{label}</dt>
-              <dd className="num mt-1 text-5xl font-semibold tracking-tight"><AnimatedNumber value={n} delay={200 + i * 120} /></dd>
-              <dd className="mt-2 text-[13.5px] leading-relaxed text-muted">{hint}</dd>
-            </Reveal>
-          ))}
-        </dl>
-      </div>
-    </section>
-  );
-}
 
-/** Nguồn gốc: người dùng truy ngược được từng kết luận về bằng chứng, luật và nguồn dữ liệu. */
-export function Provenance() {
-  const cards = [
-    { d: "M4 6h16M4 12h16M4 18h10", t: "Mỗi kết luận có bằng chứng", p: "Mọi phát hiện kèm bằng chứng cụ thể (header, đoạn mã, vị trí file), mã luật và độ tin cậy. Bạn tự kiểm tra lại được, kể cả bằng lệnh chỉ đọc chúng tôi cung cấp." },
-    { d: "M12 3 4.5 6v5.5c0 4.4 3 7.9 7.5 9.5 4.5-1.6 7.5-5.1 7.5-9.5V6L12 3Zm-2.5 9 2 2 3.5-4", t: "Luật cố định, không đoán mò", p: "Không dùng AI để “đoán” lỗ hổng. Cùng một mục tiêu và cùng phiên bản bộ luật sẽ ra cùng kết quả, và bộ luật được công bố đầy đủ." },
-    { d: "M3 12a9 9 0 1 0 3-6.7M3 4v5h5", t: "Dữ liệu lỗ hổng từ nguồn mở", p: "Thư viện có lỗ hổng được đối chiếu với OSV.dev (CVE, GHSA) và bản mới nhất trên npm registry. Mỗi lỗ hổng ghi rõ mã tham chiếu và bản vá." },
-    { d: "M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Zm0 13a3 3 0 0 1 3-3h10", t: "Cách chấm điểm công khai", p: `Điểm = 100 trừ theo mức độ và độ tin cậy, có trần điểm. Không website nào đạt 100: tối đa ${PASSIVE_SCORE_CEILING}, vì quét từ bên ngoài không thể chứng minh an toàn tuyệt đối.` },
-  ];
-  return (
-    <section className="hairline" aria-labelledby="prov-h">
-      <div className="container-x py-14">
-        <Reveal><p className="eyebrow mb-3">nguồn gốc kết quả</p><h2 id="prov-h" className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Biết rõ kết quả đến từ đâu, và tin được đến đâu.</h2></Reveal>
-        <div className="mt-9 grid gap-4 sm:grid-cols-2">
-          {cards.map((c, i) => (
-            <Reveal key={c.t} delay={(i % 2) * 90}>
-              <div className="panel h-full p-6 transition-shadow hover:shadow-pop"><Ico d={c.d} /><h3 className="mt-4 text-[16px] font-semibold">{c.t}</h3><p className="mt-2 text-[14.5px] leading-relaxed text-muted">{c.p}</p></div>
-            </Reveal>
-          ))}
-        </div>
-        <Reveal className="mt-6"><Link href="/phuong-phap" className="text-sm font-medium text-accent hover:underline">Đọc phương pháp chấm điểm và danh sách {ALL_RULES.length} kiểm tra →</Link></Reveal>
-      </div>
-    </section>
-  );
-}
 
 const REACH = { good: ["chip-ok", "Phủ tốt"], partial: ["chip-med", "Phủ một phần"], none: ["chip-info", "Không kiểm tra được"] } as const;
 
-/** Minh bạch phạm vi: nói thẳng chỗ nào phủ tốt, chỗ nào không (OWASP Top 10) — chính là lý do để người dùng tin phần còn lại. */
-export function CoverageTable() {
-  const s = stats();
-  return (
-    <section className="hairline bg-surface/60" aria-labelledby="cov-h">
-      <div className="container-x grid gap-10 py-14 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-        <Reveal from="left">
-          <p className="eyebrow mb-3">minh bạch phạm vi</p>
-          <h2 id="cov-h" className="text-3xl font-semibold tracking-tight">Chúng tôi nói rõ cái gì quét được và không.</h2>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted">Quét từ bên ngoài chạm tới <strong className="font-medium text-fg">{s.owasp}/10</strong> nhóm trong OWASP Top 10. Nhóm còn lại (ghi nhật ký và cảnh báo) chỉ thấy được từ bên trong hệ thống, nên chúng tôi nói thẳng là không phủ thay vì làm ra vẻ bao phủ. Nhiều nhóm khác chỉ được phủ một phần, ghi rõ bên cạnh.</p>
-          <p className="mt-3 text-[15px] leading-relaxed text-muted">VibeSec là công cụ sàng lọc nhanh và chỉ đường sửa, <strong className="font-medium text-fg">không thay thế kiểm thử xâm nhập (pentest)</strong> hay chứng nhận tuân thủ.</p>
-        </Reveal>
-        <Reveal from="right" delay={100}>
-          <ul className="panel divide-y divide-line overflow-hidden">
-            {OWASP_TOP10.map((o) => (
-              <li key={o.code} className="flex items-start gap-3 px-4 py-3">
-                <span className="mono mt-0.5 w-9 shrink-0 text-xs font-semibold text-faint">{o.code}</span>
-                <span className="min-w-0 flex-1"><span className="block text-[14.5px] font-medium leading-snug">{o.name}</span><span className="mt-0.5 block text-[13px] leading-relaxed text-muted">{o.note}</span></span>
-                <span className={`${REACH[o.reach][0]} hidden shrink-0 sm:inline-flex`}>{REACH[o.reach][1]}</span>
-              </li>
-            ))}
-          </ul>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
 
 /** Ba trang quét dự án mới + nhờ chuyên gia. */
 export function ProjectScans() {
@@ -148,32 +58,6 @@ export function ProjectScans() {
   );
 }
 
-/** Cam kết an toàn & riêng tư: chỉ liệt kê điều hệ thống thật sự làm (đối chiếu với mã nguồn). */
-export function Commitments() {
-  const items: [string, string][] = [
-    ["Quét thụ động, chỉ đọc", "Không đoán mật khẩu, không gửi payload khai thác, không ghi/sửa/xoá dữ liệu của bạn."],
-    ["Bí mật luôn được che", "Khoá, token, mật khẩu tìm thấy chỉ hiện ký tự đầu và độ dài, không bao giờ hiện đầy đủ."],
-    ["Không lưu khoá bạn nhập", "Token GitHub hay khoá công khai chỉ dùng trong lượt quét; kết nối GitHub tự hết hạn sau 1 giờ."],
-    ["Chặn quét địa chỉ nội bộ", "Nhiều lớp bảo vệ SSRF: kiểm tra URL, DNS, ghim IP. Chỉ quét website công khai."],
-    ["Dữ liệu của bạn, bạn quyết", "Chọn thời gian lưu 7 đến 365 ngày, xoá báo cáo bất cứ lúc nào, chỉ chủ báo cáo mới xem được."],
-    ["Header gốc được mã hoá khi lưu", "Dữ liệu nhạy cảm của lượt quét được mã hoá AES-256-GCM; giá trị cookie bị loại bỏ."],
-  ];
-  return (
-    <section className="hairline bg-surface/60" aria-labelledby="com-h">
-      <div className="container-x py-14">
-        <Reveal><p className="eyebrow mb-3">cam kết an toàn & riêng tư</p><h2 id="com-h" className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Công cụ bảo mật thì phải đáng tin trước.</h2></Reveal>
-        <ul className="mt-9 grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map(([t, d], i) => (
-            <li key={t}><Reveal delay={(i % 3) * 80} className="flex gap-3">
-              <svg viewBox="0 0 24 24" className="mt-0.5 size-5 shrink-0 text-ok" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
-              <span><span className="block font-semibold">{t}</span><span className="mt-1 block text-[14.5px] leading-relaxed text-muted">{d}</span></span>
-            </Reveal></li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
 
 const FAQ: [string, string][] = [
   ["Quét có làm hại hay làm chậm website của tôi không?", "Không. Chúng tôi chỉ gửi một số ít yêu cầu đọc thông thường, giống một khách truy cập, có giới hạn tốc độ và số request. Không có payload khai thác nào được gửi."],
@@ -211,6 +95,58 @@ export function FinalCta() {
           <p className="mx-auto mt-4 max-w-xl text-[15.5px] leading-relaxed text-muted">Quét miễn phí trong vài chục giây. Không cần cài đặt, không cần thẻ.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3"><Link href="/signup" className="btn-primary btn-lg">Quét miễn phí<Arrow /></Link><Link href="/demo" className="btn-ghost btn-lg">Xem báo cáo demo</Link></div>
         </Reveal>
+      </div>
+    </section>
+  );
+}
+
+
+const REACH_LABEL = { good: ["chip-ok", "Phủ tốt"], partial: ["chip-med", "Một phần"], none: ["chip-info", "Không thấy được"] } as const;
+
+/**
+ * MỘT khối duy nhất cho mọi thứ liên quan tới “có đáng tin không”: cam kết an toàn & riêng tư (trái) và phạm vi đối chiếu OWASP Top 10:2025 (phải, gọn một dòng/mục).
+ * Số 9/10 được TÍNH từ bộ luật đang chạy, không gõ tay.
+ */
+export function Trust() {
+  const s = stats();
+  const items: [string, string][] = [
+    ["Chỉ đọc, không động vào website", "Không đoán mật khẩu, không gửi mã khai thác, không ghi/sửa/xoá gì."],
+    ["Mỗi kết luận có bằng chứng", "Kèm header/đoạn mã/vị trí thật, mã luật, độ tin cậy và lệnh để bạn tự kiểm tra lại."],
+    ["Luật cố định, không dùng AI đoán", "Cùng mục tiêu và cùng phiên bản bộ luật cho cùng kết quả; bộ luật công khai."],
+    ["Bí mật luôn được che", "Khoá, token tìm thấy chỉ hiện vài ký tự đầu; không lưu khoá bạn nhập."],
+    ["Chặn quét địa chỉ nội bộ", "Nhiều lớp chống SSRF: kiểm tra URL, DNS, ghim IP; chỉ quét website công khai."],
+    ["Dữ liệu của bạn, bạn quyết", "Chọn thời gian lưu 7–365 ngày, xoá bất cứ lúc nào, mã hoá khi lưu."],
+  ];
+  return (
+    <section className="hairline bg-surface/60" aria-labelledby="trust-h">
+      <div className="container-x py-14">
+        <Reveal>
+          <p className="eyebrow mb-3">tin được đến đâu</p>
+          <h2 id="trust-h" className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Công cụ bảo mật thì phải đáng tin trước.</h2>
+        </Reveal>
+        <div className="mt-9 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
+          <ul className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+            {items.map(([t, d], i) => (
+              <li key={t}><Reveal delay={(i % 2) * 80} className="flex gap-3">
+                <svg viewBox="0 0 24 24" className="mt-0.5 size-5 shrink-0 text-ok" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                <span><span className="block font-semibold">{t}</span><span className="mt-1 block text-[14px] leading-relaxed text-muted">{d}</span></span>
+              </Reveal></li>
+            ))}
+          </ul>
+          <Reveal delay={100}>
+            <p className="text-[15px] leading-relaxed text-muted">Chạm tới <strong className="font-medium text-fg">{s.owasp}/10</strong> nhóm OWASP Top 10:2025. VibeSec là công cụ sàng lọc nhanh, <strong className="font-medium text-fg">không thay thế kiểm thử xâm nhập</strong> hay chứng nhận tuân thủ; điểm cao không có nghĩa là an toàn tuyệt đối.</p>
+            <ul className="panel mt-4 divide-y divide-line overflow-hidden">
+              {OWASP_TOP10.map((o) => (
+                <li key={o.code} className="flex items-center gap-3 px-3.5 py-2" title={o.note}>
+                  <span className="mono w-8 shrink-0 text-xs font-semibold text-faint">{o.code}</span>
+                  <span className="min-w-0 flex-1 truncate text-[13.5px]">{o.name}</span>
+                  <span className={`${REACH_LABEL[o.reach][0]} shrink-0`}>{REACH_LABEL[o.reach][1]}</span>
+                </li>
+              ))}
+            </ul>
+            <Link href="/phuong-phap" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">Đọc phương pháp chấm điểm và {ALL_RULES.length} kiểm tra<Arrow /></Link>
+          </Reveal>
+        </div>
       </div>
     </section>
   );

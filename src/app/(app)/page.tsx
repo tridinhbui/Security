@@ -4,16 +4,12 @@ import { HeroVisual } from "@/components/HeroVisual";
 import { HeroStage } from "@/components/landing/HeroStage";
 import { Reveal } from "@/components/landing/Reveal";
 import { SplitText } from "@/components/landing/SplitText";
-import { TiltCard } from "@/components/landing/TiltCard";
-import { Commitments, CoverageTable, Faq, FinalCta, NumbersBand, ProjectScans, Provenance, StandardsStrip } from "@/components/landing/TrustSections";
+import { Faq, FinalCta, ProjectScans, Trust } from "@/components/landing/TrustSections";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { MatMatSays } from "@/components/matmat/MatMatSays";
 import { ScanForm } from "@/components/ScanForm";
-import { ScoreRing } from "@/components/motion/ScoreRing";
 import { getUser } from "@/lib/auth/next";
-import { demoBeforeReport } from "@/lib/demo";
-import { SEV_CHIP } from "@/lib/format";
-import { CATEGORY_LABEL, SEV_LABEL } from "@/lib/i18n";
+import { CATEGORY_LABEL } from "@/lib/i18n";
 import { ALL_RULES } from "@/lib/scanner/rules";
 import { LiveStats } from "@/components/landing/LiveStats";
 import { publicStats } from "@/lib/db/stats-repo";
@@ -49,9 +45,7 @@ const STEPS = [
 export default async function Home() {
   const user = await getUser();
   if (user) redirect("/dashboard"); // đã đăng nhập thì vào khu làm việc, không hiện trang giới thiệu lẫn trong sidebar
-  const demo = demoBeforeReport();
   const stats = await publicStats(await getDb()).catch(() => null); // số thật lúc tải trang; LiveStats tự làm mới sau đó
-  const risks = demo.findings.filter((f) => f.status === "fail" && f.severity !== "info").slice(0, 4);
 
   return (
     <>
@@ -81,27 +75,24 @@ export default async function Home() {
         </div>
       </HeroStage>
 
-      {/* ---- minh hoạ cách quét hoạt động (dưới màn hình đầu) */}
-      <section className="hairline" aria-label="Minh hoạ lượt quét">
-        <div className="container-x flex justify-center py-14"><div className="w-full max-w-xl"><HeroVisual total={ALL_RULES.length} /></div></div>
-      </section>
-
-      <StandardsStrip />
-
-      {/* ---- cách hoạt động (dải ngắn) */}
+      {/* ---- cách hoạt động: hình minh hoạ bên trái, ba bước bên phải (một khối duy nhất) */}
       <section className="hairline" aria-labelledby="how">
-        <div className="container-x py-10">
-          <h2 id="how" className="sr-only">Cách hoạt động</h2>
-          <ol className="grid gap-6 md:grid-cols-3 md:gap-10">
-            {STEPS.map((s, i) => (
-              <li key={s.n}>
-                <Reveal delay={i * 110} className="step-item flex items-start gap-4">
-                  <span className="step-n mono grid size-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">{s.n}</span>
-                  <span><span className="block font-semibold tracking-tight">{s.t}</span><span className="mt-1 block text-sm leading-relaxed text-muted">{s.d}</span></span>
-                </Reveal>
-              </li>
-            ))}
-          </ol>
+        <div className="container-x grid items-center gap-10 py-14 lg:grid-cols-[1fr_1fr] lg:gap-16">
+          <div className="mx-auto w-full max-w-xl" aria-label="Minh hoạ lượt quét"><HeroVisual total={ALL_RULES.length} /></div>
+          <div>
+            <p className="eyebrow mb-3">cách hoạt động</p>
+            <h2 id="how" className="text-3xl font-semibold tracking-tight sm:text-4xl">Ba bước, không cần biết kỹ thuật.</h2>
+            <ol className="mt-8 space-y-7">
+              {STEPS.map((s, i) => (
+                <li key={s.n}>
+                  <Reveal delay={i * 110} className="step-item flex items-start gap-4">
+                    <span className="step-n mono grid size-9 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">{s.n}</span>
+                    <span><span className="block text-lg font-semibold tracking-tight">{s.t}</span><span className="mt-1 block text-[15px] leading-relaxed text-muted">{s.d}</span></span>
+                  </Reveal>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </section>
 
@@ -110,7 +101,7 @@ export default async function Home() {
         <div className="container-x py-14">
           <Reveal className="flex flex-wrap items-end justify-between gap-4">
             <div><p className="eyebrow mb-3">{ALL_RULES.length} kiểm tra bảo mật</p><h2 id="checks-h" className="text-3xl font-semibold tracking-tight sm:text-4xl">Kiểm tra toàn diện từ hạ tầng đến mã nguồn.</h2></div>
-            <Link href="/phuong-phap" className="text-sm font-medium text-accent hover:underline">Xem chi tiết phương pháp →</Link>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2"><Link href="/demo" className="btn-dark btn-sm">Xem báo cáo demo →</Link><Link href="/phuong-phap" className="text-sm font-medium text-accent hover:underline">Chi tiết phương pháp →</Link></div>
           </Reveal>
           <div className="mt-9 grid gap-x-8 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
             {CATEGORIES.map((c, i) => (
@@ -125,37 +116,8 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ---- báo cáo mẫu + an toàn (gộp) */}
-      <section className="hairline bg-surface/60" aria-labelledby="example">
-        <div className="container-x grid items-center gap-10 py-14 lg:grid-cols-2 lg:gap-16">
-          <Reveal from="left"><TiltCard className="panel overflow-hidden" >
-            <div role="group" aria-label="Xem trước báo cáo mẫu">
-            <div className="term-bar"><span className="term-dot" /><span className="term-dot" /><span className="term-dot" /><span className="mono ml-1">{demo.host}</span></div>
-            <div className="grid items-center gap-5 p-5 sm:grid-cols-[auto_1fr]">
-              <ScoreRing score={demo.score} grade={demo.grade} size={112} />
-              <ul className="space-y-2 text-sm">
-                {risks.slice(0, 3).map((f) => (
-                  <li key={f.fingerprint} className="flex items-start gap-2.5"><span className={`${SEV_CHIP[f.severity]} mt-0.5 shrink-0`}>{SEV_LABEL[f.severity]}</span><span className="leading-snug">{f.title}</span></li>
-                ))}
-              </ul>
-            </div>
-            </div>
-          </TiltCard></Reveal>
-          <Reveal from="right" delay={120}>
-            <h2 id="example" className="text-2xl font-semibold tracking-tight sm:text-3xl">Báo cáo dễ hiểu, an toàn ngay từ thiết kế</h2>
-            <ul className="mt-5 space-y-2.5 text-[15px] text-muted">
-              {["Chỉ xem những gì ai cũng thấy được: không dò mật khẩu, không gửi mã khai thác.", "Chỉ quét website công khai; mạng nội bộ bị chặn nhiều lớp.", "Mỗi vấn đề có lời giải thích đơn giản và prompt dán thẳng vào AI để sửa."].map((t) => <li key={t} className="flex gap-3"><Tick />{t}</li>)}
-            </ul>
-            <Link href="/demo" className="btn-dark mt-7">Xem báo cáo demo<svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
-          </Reveal>
-        </div>
-      </section>
-
-      <NumbersBand />
       <ProjectScans />
-      <Provenance />
-      <CoverageTable />
-      <Commitments />
+      <Trust />
       <Faq />
       <FinalCta />
     </>
