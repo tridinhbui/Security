@@ -15,6 +15,9 @@ import { demoBeforeReport } from "@/lib/demo";
 import { SEV_CHIP } from "@/lib/format";
 import { CATEGORY_LABEL, SEV_LABEL } from "@/lib/i18n";
 import { ALL_RULES } from "@/lib/scanner/rules";
+import { LiveStats } from "@/components/landing/LiveStats";
+import { publicStats } from "@/lib/db/stats-repo";
+import { getDb } from "@/lib/cf";
 import { CATEGORIES } from "@/lib/scanner/types";
 
 const CHECKS: Record<(typeof CATEGORIES)[number], string> = {
@@ -47,6 +50,7 @@ export default async function Home() {
   const user = await getUser();
   if (user) redirect("/dashboard"); // đã đăng nhập thì vào khu làm việc, không hiện trang giới thiệu lẫn trong sidebar
   const demo = demoBeforeReport();
+  const stats = await publicStats(await getDb()).catch(() => null); // số thật lúc tải trang; LiveStats tự làm mới sau đó
   const risks = demo.findings.filter((f) => f.status === "fail" && f.severity !== "info").slice(0, 4);
 
   return (
@@ -66,6 +70,7 @@ export default async function Home() {
             <div className="reveal mt-9 max-w-[640px]" style={{ ["--i" as string]: 3 }}><ScanForm authed={!!user} label={user ? undefined : "Quét miễn phí"} /></div>
             <ul className="reveal mt-6 flex flex-wrap gap-3" style={{ ["--i" as string]: 4 }}>
               <li className="pill"><span className="size-2 rounded-full bg-ok" /><span><AnimatedNumber value={ALL_RULES.length} delay={700} /> kiểm tra bảo mật</span></li>
+              <LiveStats initial={stats} />
               <li className="pill"><span className="size-2 rounded-full bg-accent" />Chỉ thu thập thông tin công khai</li>
               <li className="pill"><span className="size-2 rounded-full bg-faint" />Không khai thác lỗ hổng</li>
             </ul>

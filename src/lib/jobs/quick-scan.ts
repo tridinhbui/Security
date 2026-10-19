@@ -6,6 +6,7 @@ import { normalizeTargetUrl, SsrfError } from "../ssrf/url";
 import { runQuickScan, type QuickResult } from "../scanner/quick";
 import { ScanRefusedError } from "../scanner/report";
 import type { TlsInspection } from "../scanner/tls-inspect";
+import { bumpCounter } from "../db/stats-repo";
 import { ENGINE_VERSION } from "../scanner/version";
 
 export type QuickOutcome =
@@ -56,6 +57,7 @@ export async function quickScan(db: D1Like, a: { url: string; ipHash: string; re
       tlsFor: async (h) => { const c = await repo.getTlsCache<TlsInspection>(db, h); return c && c.ok === true ? c.tls : null; },
     });
     await quick.putQuickCache(db, host, ENGINE_VERSION, result).catch(() => undefined);
+    await bumpCounter(db, "scans");
     if (crypto.getRandomValues(new Uint8Array(1))[0]! < 13) await quick.purgeQuick(db).catch(() => undefined); // ~5%: dọn dữ liệu cũ
     return { ok: true, result, cached: false };
   } catch (e) {
