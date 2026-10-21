@@ -16,9 +16,10 @@ export interface StageLog { text: string; tone?: "muted" | "accent" | "ok" | "wa
 export function ScanStage({ host, steps, logs, pct, say, footnote }: { host: string; steps: StageStep[]; logs: StageLog[]; pct: number; say?: string; footnote?: string }) {
   const done = steps.filter((s) => s.state === "done").length;
   const [secs, setSecs] = useState(0);
-  const endRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => { const t = setInterval(() => setSecs((v) => v + 1), 1000); return () => clearInterval(t); }, []);
-  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [logs.length]);
+  // Cuộn CHỈ khung log (scrollTop), không dùng scrollIntoView: lệnh đó cuộn cả trang theo mỗi dòng mới nên màn hình bị giật.
+  useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [logs.length]);
   const mm = String(Math.floor(secs / 60)).padStart(2, "0"), ss = String(secs % 60).padStart(2, "0");
   const tone = { muted: "text-white/55", accent: "text-sky-300", ok: "text-emerald-400", warn: "text-amber-300" } as const;
 
@@ -37,7 +38,8 @@ export function ScanStage({ host, steps, logs, pct, say, footnote }: { host: str
             ))}
           </div>
         </div>
-        {say && <div className="border-b border-line p-4"><MatMatSays text={say} cps={70} /></div>}
+        {/* chiều cao tối thiểu cố định: bong bóng chat không làm danh sách bước nhảy lên xuống khi chữ đang được gõ */}
+        {say && <div className="min-h-[7.5rem] shrink-0 border-b border-line p-4"><MatMatSays text={say} cps={70} /></div>}
         <ol className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3">
           {steps.map((s) => (
             <li key={s.label} className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-[14px] transition-colors ${s.state === "run" ? "bg-accent-soft/70 font-medium" : s.state === "wait" ? "text-faint" : "text-muted"}`}>
@@ -59,14 +61,13 @@ export function ScanStage({ host, steps, logs, pct, say, footnote }: { host: str
         <div className="relative min-h-0 flex-1 overflow-hidden bg-[#0b1220]">
           <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:32px_32px]" />
           <div className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-sky-500/10 blur-3xl" />
-          <div className="relative h-full space-y-1 overflow-y-auto p-4 font-mono text-[12.5px] leading-6">
+          <div ref={logRef} className="relative h-full max-h-[20rem] space-y-1 overflow-y-auto overscroll-contain p-4 font-mono text-[12.5px] leading-6 lg:max-h-none">
             {logs.map((l, i) => (
               <div key={i} className="flex gap-2.5">
                 <span className="select-none text-white/30">{String(i + 1).padStart(2, "0")}</span>
                 <span className={`min-w-0 break-words ${tone[l.tone ?? "muted"]}`}>{i === logs.length - 1 ? <Typed text={l.text} cps={70} /> : l.text}</span>
               </div>
             ))}
-            <div ref={endRef} />
           </div>
         </div>
         <div className="flex items-center gap-3 border-t border-line bg-white px-3.5 py-2.5 text-xs text-muted">
