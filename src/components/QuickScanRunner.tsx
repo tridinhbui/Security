@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { CopyButton } from "./CopyButton";
 import { ExportButtons, headline, ProblemPane, TriageStrip } from "./QuickAnalyst";
 import { StepsView, type ExplainData } from "./ExplainView";
@@ -184,17 +184,19 @@ function Solution({ item, cta }: { item: Item; cta: string }) {
 }
 
 /** Tab "Kỹ thuật": dấu vân tay, TLS, DNS, ma trận header, cookie (chỉ tên + cờ), chuỗi chuyển hướng. */
-function ReconView({ r }: { r: Recon }) {
+function ReconView({ r, locked, cta }: { r: Recon; locked: boolean; cta: string }) {
   const row = (k: string, v: string | number | boolean | null | undefined) => <div key={k} className="grid grid-cols-[8.5rem_1fr] gap-3 py-1.5 text-sm"><dt className="text-faint">{k}</dt><dd className="mono min-w-0 break-words text-[12.5px]">{v === null || v === undefined || v === "" ? <span className="text-faint">—</span> : String(v)}</dd></div>;
   const card = (title: string, body: React.ReactNode) => <section className="rounded-xl border border-line p-4"><h4 className="eyebrow mb-1">{title}</h4>{body}</section>;
+  const lock = (n: React.ReactNode) => locked ? <div aria-hidden className="pointer-events-none select-none blur-[5px]">{n}</div> : n;
   return (
     <div className="grid gap-4 p-4 lg:grid-cols-2">
       {card("dấu vân tay", <dl>{row("Server", r.server)}{row("X-Powered-By", r.poweredBy)}{row("Nền tảng", r.platforms.join(", "))}{row("Công nghệ", r.technologies.join(", "))}{row("IP", r.addresses.join(", "))}{row("HTTP", r.httpVersion)}</dl>)}
       {card("tls (từ bộ nhớ đệm)", r.tls ? <dl>{row("Giao thức", r.tls.protocol)}{row("Bộ mã hoá", r.tls.cipher)}{row("Nhà cấp", r.tls.issuer)}{row("Khoá", r.tls.keyType ? `${r.tls.keyType} ${r.tls.keyBits ?? ""}` : null)}{row("Còn hạn", r.tls.daysRemaining !== null ? `${r.tls.daysRemaining} ngày` : null)}{row("Thời hạn", r.tls.validityDays !== null ? `${r.tls.validityDays} ngày` : null)}</dl> : <p className="py-2 text-sm text-faint">Chưa có dữ liệu chứng chỉ trong bộ nhớ đệm. Quét đầy đủ để xem.</p>)}
-      {card("dns", r.dns ? <dl>{row("NS", r.dns.ns.join(", "))}{row("MX", r.dns.mx.join(", "))}{row("SPF", r.dns.spf)}{row("DMARC", r.dns.dmarc)}{row("CAA", r.dns.caa.join(" | "))}{row("DNSSEC", r.dns.dnssec === null ? null : r.dns.dnssec ? "bật" : "tắt")}{row("MTA-STS", r.dns.mtaSts === null ? null : r.dns.mtaSts ? "có" : "chưa")}</dl> : <p className="py-2 text-sm text-faint">Không tra được DNS.</p>)}
-      {card("chuyển hướng http", r.redirects.length ? <ol className="space-y-1 py-1 text-[12.5px]">{r.redirects.map((h, n) => <li key={n} className="mono break-all"><span className="text-faint">{h.status}</span> {h.url}</li>)}</ol> : <p className="py-2 text-sm text-faint">Không có.</p>)}
-      <div className="lg:col-span-2">{card("ma trận header", <dl className="divide-y divide-line">{r.headers.map((h) => <div key={h.name} className="grid grid-cols-[13rem_1fr] gap-3 py-1.5 text-sm"><dt className="mono text-[12px] text-muted">{h.name}</dt><dd className="mono min-w-0 break-words text-[12px]">{h.value ?? <span className="text-crit">thiếu</span>}</dd></div>)}</dl>)}</div>
-      <div className="lg:col-span-2">{card("cookie (chỉ tên và cờ, không có giá trị)", r.cookies.length ? <ul className="space-y-1 py-1 text-[12.5px]">{r.cookies.map((c) => <li key={c.name} className="mono"><b className="font-semibold">{c.name}</b> <span className="text-muted">{c.flags.join("; ") || "không có cờ"}</span></li>)}</ul> : <p className="py-2 text-sm text-faint">Không đặt cookie khi truy cập ẩn danh.</p>)}</div>
+      {lock(card("dns", r.dns ? <dl>{row("NS", r.dns.ns.join(", "))}{row("MX", r.dns.mx.join(", "))}{row("SPF", r.dns.spf)}{row("DMARC", r.dns.dmarc)}{row("CAA", r.dns.caa.join(" | "))}{row("DNSSEC", r.dns.dnssec === null ? null : r.dns.dnssec ? "bật" : "tắt")}{row("MTA-STS", r.dns.mtaSts === null ? null : r.dns.mtaSts ? "có" : "chưa")}</dl> : <p className="py-2 text-sm text-faint">Không tra được DNS.</p>))}
+      {lock(card("chuyển hướng http", r.redirects.length ? <ol className="space-y-1 py-1 text-[12.5px]">{r.redirects.map((h, n) => <li key={n} className="mono break-all"><span className="text-faint">{h.status}</span> {h.url}</li>)}</ol> : <p className="py-2 text-sm text-faint">Không có.</p>))}
+      <div className="lg:col-span-2">{lock(card("ma trận header", <dl className="divide-y divide-line">{r.headers.map((h) => <div key={h.name} className="grid grid-cols-[13rem_1fr] gap-3 py-1.5 text-sm"><dt className="mono text-[12px] text-muted">{h.name}</dt><dd className="mono min-w-0 break-words text-[12px]">{h.value ?? <span className="text-crit">thiếu</span>}</dd></div>)}</dl>))}</div>
+      <div className="lg:col-span-2">{lock(card("cookie (chỉ tên và cờ, không có giá trị)", r.cookies.length ? <ul className="space-y-1 py-1 text-[12.5px]">{r.cookies.map((c) => <li key={c.name} className="mono"><b className="font-semibold">{c.name}</b> <span className="text-muted">{c.flags.join("; ") || "không có cờ"}</span></li>)}</ul> : <p className="py-2 text-sm text-faint">Không đặt cookie khi truy cập ẩn danh.</p>))}</div>
+      {locked && <div className="lg:col-span-2 -mt-2 rounded-xl border border-line bg-accent-soft/60 p-4 text-sm"><p className="font-medium">🔒 Đăng nhập để xem đầy đủ DNS, header và cookie</p><Link href={cta} className="btn-primary mt-3 inline-flex">Đăng ký miễn phí</Link></div>}
     </div>
   );
 }
@@ -273,7 +275,9 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
         const r = state.r;
         const hasIssue = r.counts.warning + r.counts.fail > 0;
         const flt: StatusFilter = hasIssue ? statusFilter : "all";
-        const sel = r.items[Math.min(selected, r.items.length - 1)];
+        // Khách chưa đăng nhập chỉ xem được nửa đầu danh sách; nửa còn lại bị làm mờ cho đến khi đăng nhập.
+        const lockedFrom = authed ? r.items.length : Math.ceil(r.items.length / 2);
+        const sel = r.items[Math.min(selected, lockedFrom - 1, r.items.length - 1)];
         // Danh sách + chi tiết: trên điện thoại KHÔNG có khung cao cố định hay vùng cuộn lồng nhau (danh sách rồi chi tiết nối tiếp, trang cuộn tự nhiên); từ md trở lên mới chia cột có cuộn riêng.
         return (
           <div className="space-y-4">
@@ -318,7 +322,7 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                 <div className="ml-auto self-center pb-1"><ExportButtons result={r} /></div>
               </div>
               {tab === "findings" && <TriageStrip items={r.items} />}
-              {tab === "score" ? <div className="grid max-h-[40rem] gap-4 overflow-y-auto p-4 lg:grid-cols-2"><ScoreBreakdown items={r.items} score={r.score} ceiling={r.ceiling ?? 89} /><CoverageStrip cta={cta} /></div> : tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} /></div> : (
+              {tab === "score" ? <div className="grid max-h-[40rem] gap-4 overflow-y-auto p-4 lg:grid-cols-2"><ScoreBreakdown items={r.items} score={r.score} ceiling={r.ceiling ?? 89} /><CoverageStrip cta={cta} /></div> : tab === "recon" && r.recon ? <div className="h-[30rem] overflow-y-auto"><ReconView r={r.recon} locked={!authed} cta={cta} /></div> : (
               <div className="grid grid-cols-[minmax(0,1fr)] md:h-[44rem] md:grid-cols-[minmax(0,.9fr)_minmax(0,1.6fr)] lg:h-[36rem] lg:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
                 <div ref={listRef} className="flex scroll-mt-20 flex-col border-b border-line md:min-h-0 md:border-b-0 md:border-r">
                 <StatusFilterBar value={flt} onChange={(v) => { setStatusFilter(v); const first = r.items.findIndex((x) => filterMatch(v, x)); if (first >= 0) setSelected(first); }}
@@ -327,12 +331,31 @@ export function QuickScanRunner({ url, authed, ruleCount }: { url: string; authe
                   onKeyDown={(e) => {
                     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
                     e.preventDefault();
-                    const vis = r.items.map((x, n) => ({ x, n })).filter(({ x }) => filterMatch(flt, x)).map(({ n }) => n);
+                    const vis = r.items.map((x, n) => ({ x, n })).filter(({ x, n }) => n < lockedFrom && filterMatch(flt, x)).map(({ n }) => n);
                     const at = vis.indexOf(selected);
                     const next = vis[Math.min(vis.length - 1, Math.max(0, (at < 0 ? 0 : at) + (e.key === "ArrowDown" ? 1 : -1)))];
                     if (next !== undefined) setSelected(next);
                   }}>
-                  {r.items.map((i, n) => ({ i, n })).filter(({ i }) => filterMatch(flt, i)).map(({ i, n }) => (
+                  {r.items.map((i, n) => ({ i, n })).filter(({ i }) => filterMatch(flt, i)).map(({ i, n }, pos, all) => n >= lockedFrom ? (
+                    <Fragment key={`${n}:${i.id}`}>
+                      {(pos === 0 || all[pos - 1]!.n < lockedFrom) && (
+                        <li className="bg-accent-soft/60 px-4 py-4 text-sm">
+                          <p className="font-medium">🔒 Đăng nhập để xem {r.items.length - lockedFrom} mục còn lại</p>
+                          <p className="mt-1 text-muted">Miễn phí, mất chưa đến 1 phút.</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <Link href={cta} className="btn-primary">Đăng ký miễn phí</Link>
+                            <Link href={`/login?next=${encodeURIComponent(fullScanPath)}`} className="text-sm text-muted hover:text-fg">Đã có tài khoản? Đăng nhập</Link>
+                          </div>
+                        </li>
+                      )}
+                      <li aria-hidden className="pointer-events-none select-none blur-[5px]">
+                        <div className="flex w-full items-start gap-3 px-4 py-3">
+                          <span className={`${CHIP[i.status].cls} mt-0.5 w-[5.5rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
+                          <span className="min-w-0 text-sm"><span className="block font-medium leading-snug">{headline(i).title}</span><span className="line-clamp-2 text-muted">{i.status === "pass" ? i.text : headline(i).sub}</span></span>
+                        </div>
+                      </li>
+                    </Fragment>
+                  ) : (
                     <li key={`${n}:${i.id}`} role="option" aria-selected={n === selected}>
                       <button type="button" onClick={() => { setSelected(n); if (window.matchMedia("(max-width: 767px)").matches) requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${n === selected ? "bg-accent-soft/70" : "hover:bg-surface"}`}>
                         <span className={`${CHIP[i.status].cls} mt-0.5 w-[6.75rem] shrink-0 justify-center whitespace-nowrap`}>{CHIP[i.status].label}</span>
